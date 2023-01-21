@@ -81,7 +81,7 @@ public class MainApp extends Application {
             stage.getIcons().add(WindowTools.AppIcon);
             stage.setScene(scene);
             stage.show();
-            MyBoxLoadingController loadController = (MyBoxLoadingController) fxmlLoader.getController();
+            MyBoxLoadingController loadController = fxmlLoader.getController();
             loadController.run();
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
