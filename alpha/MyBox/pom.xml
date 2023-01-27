@@ -192,7 +192,7 @@
         <dependency>
             <groupId>net.sf.image4j</groupId>
             <artifactId>image4j</artifactId>
-            <version>0.7.2</version>
+            <version>0.7zensight1</version>
         </dependency>
         <dependency>
             <groupId>org.apache.poi</groupId>
@@ -324,7 +324,6 @@
             <id>win</id>
             <properties>
                 <platform>win</platform>
-                <javaVersion>18</javaVersion>
             </properties>
             <activation>
                 <activeByDefault>true</activeByDefault>
@@ -334,7 +333,6 @@
             <id>linux</id>
             <properties>
                 <platform>linux</platform>
-                <javaVersion>18</javaVersion>
             </properties>
             <activation>
                 <activeByDefault>false</activeByDefault>
@@ -344,7 +342,6 @@
             <id>mac</id>
             <properties>
                 <platform>mac</platform>
-                <javaVersion>18</javaVersion>
             </properties>
             <activation>
                 <activeByDefault>false</activeByDefault>
