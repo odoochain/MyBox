@@ -194,11 +194,12 @@
     <orderEntry type="library" name="Maven: org.apache.xmlgraphics:batik-ttf2svg:1.13" level="project" />
     <orderEntry type="library" name="Maven: org.apache.xmlgraphics:batik-xml:1.13" level="project" />
     <orderEntry type="library" name="Maven: de.rototor.pdfbox:graphics2d:0.30" level="project" />
-    <orderEntry type="library" name="Maven: org.apache.poi:poi-scratchpad:5.0.0" level="project" />
+    <orderEntry type="library" name="Maven: org.apache.poi:poi-scratchpad:5.2.0" level="project" />
+    <orderEntry type="library" name="Maven: org.apache.logging.log4j:log4j-api:2.17.1" level="project" />
     <orderEntry type="library" name="Maven: org.apache.commons:commons-csv:1.8" level="project" />
     <orderEntry type="library" name="Maven: com.sun.mail:javax.mail:1.6.2" level="project" />
     <orderEntry type="library" name="Maven: javax.activation:activation:1.1" level="project" />
     <orderEntry type="library" name="Maven: commons-io:commons-io:2.8.0" level="project" />
-    <orderEntry type="library" name="Maven: org.jsoup:jsoup:1.13.1" level="project" />
+    <orderEntry type="library" name="Maven: org.jsoup:jsoup:1.15.3" level="project" />
   </component>
 </module>
