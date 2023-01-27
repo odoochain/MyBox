@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 <?xml version="1.0" encoding="UTF-8"?>
 
 <!--
@@ -78,3 +79,75 @@ License:    Apache License Version 2.0
         </HBox>
     </children>
 </VBox>
+=======
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!--
+Author:     Mara
+License:    Apache License Version 2.0
+            http://www.apache.org/licenses/LICENSE-2.0
+-->
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.CheckBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ProgressBar?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.image.Image?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.VBox?>
+
+<VBox fx:id="thisPane" alignment="CENTER" maxWidth="1.7976931348623157E308" minHeight="-Infinity" minWidth="-Infinity" xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1" fx:controller="mara.mybox.controller.OperationController">
+    <children>
+        <HBox fx:id="barBox" alignment="CENTER_LEFT" maxWidth="1.7976931348623157E308" spacing="2.0" VBox.vgrow="NEVER">
+            <children>
+                <Button fx:id="startButton" disable="true" mnemonicParsing="false" onAction="#startAction" styleClass="big" stylesheets="@../styles/MyBox.css" HBox.hgrow="NEVER">
+                    <graphic>
+                        <ImageView fitHeight="20.0" fitWidth="20.0" pickOnBounds="true" preserveRatio="true">
+                            <image>
+                                <Image url="@../buttons/Red/iconStart.png" />
+                            </image>
+                        </ImageView>
+                    </graphic>
+                </Button>
+                <Button fx:id="pauseButton" disable="true" mnemonicParsing="false" onAction="#pauseProcess" text="%Pause" visible="false" HBox.hgrow="NEVER" />
+                <ProgressBar fx:id="progressBar" maxWidth="1.7976931348623157E308" progress="0.0" HBox.hgrow="ALWAYS" />
+                <Label fx:id="progressValue" prefWidth="110.0" HBox.hgrow="NEVER" />
+                <Button fx:id="openTargetButton" mnemonicParsing="false" onAction="#openTarget" HBox.hgrow="NEVER">
+                    <graphic>
+                        <ImageView fitHeight="20.0" fitWidth="20.0" pickOnBounds="true" preserveRatio="true">
+                            <image>
+                                <Image url="@../buttons/Red/iconOpen.png" />
+                            </image>
+                        </ImageView>
+                    </graphic>
+                </Button>
+                <CheckBox fx:id="openCheck" mnemonicParsing="false">
+                    <graphic>
+                        <ImageView fitHeight="20.0" fitWidth="20.0" pickOnBounds="true" preserveRatio="true">
+                            <image>
+                                <Image url="@../buttons/Red/iconOpen2.png" />
+                            </image>
+                        </ImageView>
+                    </graphic>
+                </CheckBox>
+                <CheckBox fx:id="miaoCheck" mnemonicParsing="false" HBox.hgrow="NEVER">
+                    <graphic>
+                        <ImageView fitHeight="20.0" fitWidth="20.0" pickOnBounds="true" preserveRatio="true">
+                            <image>
+                                <Image url="@../buttons/Red/iconCat.png" />
+                            </image>
+                        </ImageView>
+                    </graphic>
+                </CheckBox>
+            </children>
+            <VBox.margin>
+                <Insets />
+            </VBox.margin>
+        </HBox>
+          <TextField fx:id="statusLabel" editable="false" focusTraversable="false" maxWidth="1.7976931348623157E308" styleClass="copyable-label" stylesheets="@../styles/MyBox.css" />
+    </children>
+</VBox>
+>>>>>>> origin/master

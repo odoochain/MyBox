@@ -6,11 +6,8 @@ import java.util.Date;
 import java.util.List;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
-import javafx.collections.FXCollections;
-import javafx.collections.ListChangeListener;
 import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
-import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.geometry.HPos;
 import javafx.geometry.Insets;
@@ -19,38 +16,31 @@ import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.RadioButton;
 import javafx.scene.control.ScrollPane;
-import javafx.scene.control.SelectionMode;
 import javafx.scene.control.TableColumn;
-import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
 import javafx.scene.control.Toggle;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.image.Image;
-import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
-import javafx.stage.Modality;
 import mara.mybox.db.data.ConvolutionKernel;
 import mara.mybox.db.data.ConvolutionKernel.Convolution_Type;
 import mara.mybox.db.table.TableConvolutionKernel;
 import mara.mybox.db.table.TableFloatMatrix;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.NodeStyleTools;
 import mara.mybox.fxml.NodeTools;
-import static mara.mybox.fxml.NodeStyleTools.badStyle;
 import mara.mybox.fxml.PopTools;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.fxml.ValidationTools;
 import mara.mybox.tools.DateTools;
 import mara.mybox.tools.FloatTools;
-import mara.mybox.value.AppVariables;
-import static mara.mybox.value.Languages.message;
-
 import mara.mybox.value.Fxmls;
 import mara.mybox.value.Languages;
+import mara.mybox.value.UserConfig;
 
 /**
  * @Author Mara
@@ -58,9 +48,8 @@ import mara.mybox.value.Languages;
  * @Description
  * @License Apache License Version 2.0
  */
-public class ConvolutionKernelManagerController extends BaseController {
+public class ConvolutionKernelManagerController extends BaseTableViewController<ConvolutionKernel> {
 
-    protected ObservableList<ConvolutionKernel> tableData = FXCollections.observableArrayList();
     private int width, height, type, edge_Op;
     private boolean matrixValid;
     private GridPane matrixPane;
@@ -73,8 +62,6 @@ public class ConvolutionKernelManagerController extends BaseController {
     protected VBox mainPane;
     @FXML
     protected Button gaussButton;
-    @FXML
-    protected TableView<ConvolutionKernel> tableView;
     @FXML
     protected TableColumn<ConvolutionKernel, String> nameColumn, modifyColumn, createColumn, desColumn;
     @FXML
@@ -102,45 +89,24 @@ public class ConvolutionKernelManagerController extends BaseController {
     public void initControls() {
         try {
             super.initControls();
-            initList();
             initEditFields();
+            loadList();
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
         }
     }
 
-    protected void initList() {
+    @Override
+    public void initColumns() {
         try {
+            super.initColumns();
+
             nameColumn.setCellValueFactory(new PropertyValueFactory<>("name"));
             widthColumn.setCellValueFactory(new PropertyValueFactory<>("width"));
             heightColumn.setCellValueFactory(new PropertyValueFactory<>("height"));
             modifyColumn.setCellValueFactory(new PropertyValueFactory<>("modifyTime"));
             createColumn.setCellValueFactory(new PropertyValueFactory<>("createTime"));
             desColumn.setCellValueFactory(new PropertyValueFactory<>("description"));
-
-            tableData.addListener(new ListChangeListener() {
-                @Override
-                public void onChanged(ListChangeListener.Change change) {
-                    checkTableData();
-                }
-            });
-            loadList();
-
-            tableView.setItems(tableData);
-            tableView.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
-            tableView.getSelectionModel().selectedItemProperty().addListener(new ChangeListener() {
-                @Override
-                public void changed(ObservableValue ov, Object t, Object t1) {
-                    checkTableSelected();
-                }
-            });
-            checkTableSelected();
-            tableView.setOnMouseClicked(new EventHandler<MouseEvent>() {
-                @Override
-                public void handle(MouseEvent event) {
-                    editAction();
-                }
-            });
 
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
@@ -158,16 +124,8 @@ public class ConvolutionKernelManagerController extends BaseController {
         }
     }
 
-    private void checkTableData() {
-        if (tableData.size() > 0) {
-
-        } else {
-            editButton.setDisable(true);
-            deleteButton.setDisable(true);
-        }
-    }
-
-    private void checkTableSelected() {
+    @Override
+    protected void checkSelected() {
         ObservableList<ConvolutionKernel> selected = tableView.getSelectionModel().getSelectedItems();
         if (selected != null && selected.size() > 0) {
             editButton.setDisable(false);
@@ -178,6 +136,21 @@ public class ConvolutionKernelManagerController extends BaseController {
             deleteButton.setDisable(true);
             copyButton.setDisable(true);
         }
+    }
+
+    @Override
+    protected void checkButtons() {
+        if (isSettingValues) {
+            return;
+        }
+        super.checkButtons();
+        ObservableList<ConvolutionKernel> selected = tableView.getSelectionModel().getSelectedItems();
+        copyButton.setDisable(selected == null || selected.size() <= 0);
+    }
+
+    @Override
+    public void itemClicked() {
+        editAction();
     }
 
     protected void initEditFields() {
@@ -412,7 +385,7 @@ public class ConvolutionKernelManagerController extends BaseController {
                     valueInput.setStyle(null);
                 } catch (Exception e) {
                     matrixValid = false;
-                    valueInput.setStyle(NodeStyleTools.badStyle);
+                    valueInput.setStyle(UserConfig.badStyle());
                 }
             }
         }
@@ -441,7 +414,8 @@ public class ConvolutionKernelManagerController extends BaseController {
     }
 
     @FXML
-    protected void editAction() {
+    @Override
+    public void editAction() {
         final List<ConvolutionKernel> selected = tableView.getSelectionModel().getSelectedItems();
         if (selected == null || selected.isEmpty()) {
             return;
@@ -469,9 +443,9 @@ public class ConvolutionKernelManagerController extends BaseController {
             NodeTools.setRadioSelected(typeGroup, Languages.message("None"));
         }
         if (kernel.getEdge() == ConvolutionKernel.Edge_Op.COPY) {
-            keepRadio.fire();
+            keepRadio.setSelected(true);
         } else {
-            zeroRadio.fire();
+            zeroRadio.setSelected(true);
         }
         grayCheck.setSelected(kernel.isGray());
         invertCheck.setSelected(kernel.isInvert());
@@ -498,14 +472,14 @@ public class ConvolutionKernelManagerController extends BaseController {
         if (selected == null || selected.isEmpty()) {
             return;
         }
-        if (!PopTools.askSure(getMyStage().getTitle(), Languages.message("SureDelete"))) {
+        if (!PopTools.askSure(this, getMyStage().getTitle(), Languages.message("SureDelete"))) {
             return;
         }
         synchronized (this) {
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 @Override
                 protected boolean handle() {
@@ -523,11 +497,7 @@ public class ConvolutionKernelManagerController extends BaseController {
                     loadList();
                 }
             };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
     }
 
@@ -537,19 +507,19 @@ public class ConvolutionKernelManagerController extends BaseController {
         if (tableData.isEmpty()) {
             return;
         }
-        if (!PopTools.askSure(getMyStage().getTitle(), Languages.message("SureDelete"))) {
+        if (!PopTools.askSure(this, getMyStage().getTitle(), Languages.message("SureDelete"))) {
             return;
         }
         synchronized (this) {
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 @Override
                 protected boolean handle() {
-                    new TableConvolutionKernel().clear();
-                    new TableFloatMatrix().clear();
+                    new TableConvolutionKernel().clearData();
+                    new TableFloatMatrix().clearData();
                     return true;
                 }
 
@@ -558,11 +528,7 @@ public class ConvolutionKernelManagerController extends BaseController {
                     loadList();
                 }
             };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
     }
 
@@ -571,7 +537,7 @@ public class ConvolutionKernelManagerController extends BaseController {
         float sum = 0.0f;
         for (int j = 0; j < height; ++j) {
             for (int i = 0; i < width; ++i) {
-                sum += matrixValues[j][i];
+                sum += Math.abs(matrixValues[j][i]);
             }
         }
         if (sum == 0) {
@@ -641,7 +607,7 @@ public class ConvolutionKernelManagerController extends BaseController {
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 @Override
                 protected boolean handle() {
@@ -655,11 +621,7 @@ public class ConvolutionKernelManagerController extends BaseController {
                     loadList();
                 }
             };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
     }
 
@@ -690,7 +652,7 @@ public class ConvolutionKernelManagerController extends BaseController {
         }
         ImageManufactureController c
                 = (ImageManufactureController) openStage(Fxmls.ImageManufactureFxml);
-        c.loadImage(new Image("img/zz1.png"));
+        c.loadImage(new Image("img/exg2.png"));
         c.applyKernel(kernel);
     }
 
@@ -704,7 +666,7 @@ public class ConvolutionKernelManagerController extends BaseController {
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 @Override
                 protected boolean handle() {
@@ -718,11 +680,7 @@ public class ConvolutionKernelManagerController extends BaseController {
                     loadList();
                 }
             };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
     }
 

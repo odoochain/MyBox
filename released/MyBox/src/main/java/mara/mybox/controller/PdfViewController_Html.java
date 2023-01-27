@@ -7,16 +7,14 @@ import java.text.MessageFormat;
 import javafx.concurrent.Task;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
-import javafx.scene.control.Label;
 import javafx.scene.control.Tab;
 import javafx.scene.input.ScrollEvent;
 import javafx.scene.web.WebEngine;
 import javafx.scene.web.WebEvent;
 import javafx.scene.web.WebView;
-import javafx.stage.Modality;
 import mara.mybox.data.PdfInformation;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.WebViewTools;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.tools.TmpFileTools;
 import mara.mybox.value.AppVariables;
 import mara.mybox.value.Fxmls;
@@ -37,6 +35,7 @@ public abstract class PdfViewController_Html extends PdfViewController_Texts {
     protected PdfInformation pdfInformation;
     protected File htmlFile, subPath;
     protected PDFDomTreeConfig domConfig;
+    protected WebView webView;
     protected WebEngine webEngine;
     protected boolean atTop, atBottom, setScroll;
     protected Task htmlTask;
@@ -45,9 +44,7 @@ public abstract class PdfViewController_Html extends PdfViewController_Texts {
     @FXML
     protected Tab htmlTab;
     @FXML
-    protected WebView webView;
-    @FXML
-    protected Label webViewLabel;
+    protected ControlWebView webViewController;
 
     public PdfViewController_Html() {
         checkBottomScript
@@ -77,6 +74,10 @@ public abstract class PdfViewController_Html extends PdfViewController_Texts {
         try {
             super.initControls();
 
+            webViewController.setParent(this);
+            webView = webViewController.webView;
+            webEngine = webViewController.webEngine;
+
             domConfig = PDFDomTreeConfig.createDefaultConfig();
 
             // https://stackoverflow.com/questions/51048312/javafx-webview-scrollevent-listener-zooms-in-and-scrolls-only-want-it-to-zoom-i?r=SearchResults
@@ -101,7 +102,6 @@ public abstract class PdfViewController_Html extends PdfViewController_Texts {
                 }
             });
 
-            webEngine = webView.getEngine();
             webEngine.setJavaScriptEnabled(true);
             webEngine.setOnAlert(new EventHandler<WebEvent<String>>() {
                 @Override
@@ -156,7 +156,7 @@ public abstract class PdfViewController_Html extends PdfViewController_Texts {
             if (htmlTask != null) {
                 htmlTask.cancel();
             }
-            htmlTask = new SingletonTask<Void>() {
+            htmlTask = new SingletonTask<Void>(this) {
 
                 protected String title;
 
@@ -195,24 +195,20 @@ public abstract class PdfViewController_Html extends PdfViewController_Texts {
 
                 @Override
                 protected void whenSucceeded() {
-                    webEngine.load(htmlFile.toURI().toString());
+                    webViewController.loadFile(htmlFile);
                     webView.requestFocus();
                     atBottom = false;
                     htmlPage = frameIndex;
                 }
             };
-            handling(htmlTask, Modality.WINDOW_MODAL,
-                    MessageFormat.format(message("LoadingPageNumber"), (frameIndex + 1) + ""));
-            Thread thread = new Thread(htmlTask);
-            thread.setDaemon(false);
-            thread.start();
+            start(htmlTask, MessageFormat.format(message("LoadingPageNumber"), (frameIndex + 1) + ""));
         }
     }
 
     @FXML
     public void editHtml() {
         HtmlEditorController controller = (HtmlEditorController) openStage(Fxmls.HtmlEditorFxml);
-        controller.loadContents(WebViewTools.getHtml(webEngine));
+        controller.loadContents(webViewController.loadedHtml());
     }
 
 }

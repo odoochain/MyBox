@@ -10,8 +10,7 @@ import javafx.embed.swing.SwingFXUtils;
 import javafx.scene.image.Image;
 import mara.mybox.data.IntPoint;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.value.FileFilters;
-import mara.mybox.color.ColorBase;
+import mara.mybox.value.AppVariables;
 import mara.mybox.value.Colors;
 
 /**
@@ -39,8 +38,7 @@ public abstract class PixelsOperation {
     public enum OperationType {
         Smooth, Denoise, Blur, Sharpen, Clarity, Emboss, EdgeDetect,
         Thresholding, Quantization, Gray, BlackOrWhite, Sepia,
-        ReplaceColor, Invert, Red, Green, Blue, Yellow, Cyan, Magenta, Mosaic,
-        FrostedGlass,
+        ReplaceColor, Invert, Red, Green, Blue, Yellow, Cyan, Magenta, Mosaic, FrostedGlass,
         Brightness, Saturation, Hue, Opacity, PreOpacity, RGB, Color, ShowScope,
         Convolution, Contrast
     }
@@ -50,7 +48,7 @@ public abstract class PixelsOperation {
     }
 
     public PixelsOperation() {
-        this.bkColor = ColorConvertTools.getAlphaColor();
+        this.bkColor = ColorConvertTools.alphaColor();
         excludeScope = false;
     }
 
@@ -96,10 +94,7 @@ public abstract class PixelsOperation {
             return image;
         }
         try {
-            int imageType = image.getType();
-            if (imageType == BufferedImage.TYPE_CUSTOM) {
-                imageType = BufferedImage.TYPE_INT_ARGB;
-            }
+            int imageType = BufferedImage.TYPE_INT_ARGB;
             BufferedImage target = new BufferedImage(imageWidth, imageHeight, imageType);
             boolean isShowScope = (operationType == OperationType.ShowScope);
             boolean isWhole = (scope == null || scope.getScopeType() == ImageScope.ScopeType.All);
@@ -116,7 +111,8 @@ public abstract class PixelsOperation {
                 for (int x = 0; x < image.getWidth(); x++) {
                     pixel = image.getRGB(x, y);
                     Color color = new Color(pixel, true);
-                    if (pixel == 0 && skipTransparent) {  // pass transparency
+                    if (pixel == 0 && skipTransparent) {  // transparency  need write dithering lines while they affect nothing
+                        target.setRGB(x, y, pixel);
                         newColor = color;
 
                     } else {
@@ -169,10 +165,7 @@ public abstract class PixelsOperation {
                 return image;
             }
             boolean isShowScope = operationType == OperationType.ShowScope;
-            int imageType = image.getType();
-            if (imageType == BufferedImage.TYPE_CUSTOM) {
-                imageType = BufferedImage.TYPE_INT_ARGB;
-            }
+            int imageType = BufferedImage.TYPE_INT_ARGB;
             BufferedImage target = new BufferedImage(imageWidth, imageHeight, imageType);
             boolean excluded = scope.isColorExcluded();
             if (excludeScope) {
@@ -181,11 +174,17 @@ public abstract class PixelsOperation {
             if (isShowScope) {
                 if (excluded) {
                     Graphics2D g2d = target.createGraphics();
+                    if (AppVariables.imageRenderHints != null) {
+                        g2d.addRenderingHints(AppVariables.imageRenderHints);
+                    }
                     g2d.setColor(Colors.TRANSPARENT);
                     g2d.fillRect(0, 0, imageWidth, imageHeight);
                     g2d.dispose();
                 } else {
                     Graphics2D g2d = target.createGraphics();
+                    if (AppVariables.imageRenderHints != null) {
+                        g2d.addRenderingHints(AppVariables.imageRenderHints);
+                    }
                     g2d.setColor(Color.WHITE);
                     g2d.fillRect(0, 0, imageWidth, imageHeight);
                     g2d.dispose();
@@ -274,6 +273,9 @@ public abstract class PixelsOperation {
 
     protected Color operatePixel(BufferedImage target, Color color, int x, int y) {
         Color newColor = operateColor(color);
+        if (newColor == null) {
+            newColor = color;
+        }
         target.setRGB(x, y, newColor.getRGB());
         return newColor;
     }

@@ -25,16 +25,11 @@ import javafx.stage.Stage;
 import mara.mybox.MainApp;
 import mara.mybox.db.DerbyBase;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.NodeStyleTools;
-import static mara.mybox.fxml.NodeStyleTools.badStyle;
 import mara.mybox.fxml.PopTools;
 import mara.mybox.tools.ConfigTools;
 import mara.mybox.tools.FileDeleteTools;
-import mara.mybox.tools.FileTools;
 import mara.mybox.value.AppValues;
 import mara.mybox.value.AppVariables;
-import static mara.mybox.value.Languages.message;
-
 import mara.mybox.value.Languages;
 
 /**
@@ -50,6 +45,7 @@ public class MyBoxSetupController implements Initializable {
     protected int newJVM;
     protected File configPath;
     protected long totalM;
+    protected final String badStyle = "-fx-text-box-border: blue;   -fx-text-fill:blue; ";
 
     @FXML
     protected Pane thisPane;
@@ -78,7 +74,7 @@ public class MyBoxSetupController implements Initializable {
             }
 
             OperatingSystemMXBean osmxb = (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
-            totalM = osmxb.getTotalPhysicalMemorySize() / (1024 * 1024);
+            totalM = osmxb.getTotalMemorySize() / (1024 * 1024);
 
             makeListView();
 
@@ -115,7 +111,7 @@ public class MyBoxSetupController implements Initializable {
                         }
                         if (Languages.message(lang, "Default").equals(name)) {
                             dataDirInput.setText(configPath.getAbsolutePath() + File.separator + "data_v" + AppValues.AppVersion);
-                            embeddedRadio.fire();
+                            embeddedRadio.setSelected(true);
                             final long jvmM = Runtime.getRuntime().maxMemory() / (1024 * 1024);
                             String m = Languages.message(lang, "PhysicalMemory") + ": " + totalM + "MB"
                                     + "    " + Languages.message(lang, "JvmXmx") + ": " + jvmM + "MB";
@@ -129,9 +125,9 @@ public class MyBoxSetupController implements Initializable {
                             }
                             String DerbyMode = ConfigTools.readValue(file, "DerbyMode");
                             if ("client".equals(DerbyMode)) {
-                                networkRadio.fire();
+                                networkRadio.setSelected(true);
                             } else {
-                                embeddedRadio.fire();
+                                embeddedRadio.setSelected(true);
                             }
                             String JVMmemory = ConfigTools.readValue(file, "JVMmemory");
                             if (JVMmemory != null && JVMmemory.startsWith("-Xms") && JVMmemory.endsWith("m")) {
@@ -164,10 +160,10 @@ public class MyBoxSetupController implements Initializable {
                             jvmInput.setStyle(null);
                             newJVM = v;
                         } else {
-                            jvmInput.setStyle(NodeStyleTools.badStyle);
+                            jvmInput.setStyle(badStyle);
                         }
                     } catch (Exception e) {
-                        jvmInput.setStyle(NodeStyleTools.badStyle);
+                        jvmInput.setStyle(badStyle);
                     }
                 }
             });
@@ -175,7 +171,7 @@ public class MyBoxSetupController implements Initializable {
             okButton.disableProperty().bind(
                     dataDirInput.textProperty().isEmpty()
                             .or(jvmInput.textProperty().isEmpty())
-                            .or(jvmInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                            .or(jvmInput.styleProperty().isEqualTo(badStyle))
             );
 
         } catch (Exception e) {
@@ -215,7 +211,7 @@ public class MyBoxSetupController implements Initializable {
 
     @FXML
     protected void openDataPath(ActionEvent event) {
-        PopTools.browseURI(configPath.toURI());
+        PopTools.browseURI(null, configPath.toURI());
     }
 
     @FXML
@@ -232,7 +228,7 @@ public class MyBoxSetupController implements Initializable {
                 AppVariables.MyboxDataPath = dataPath.getAbsolutePath();
                 ConfigTools.writeConfigValue("MyBoxDataPath", AppVariables.MyboxDataPath);
             } else {
-                PopTools.alertError(MessageFormat.format(Languages.message(lang, "UserPathFail"), dataPath));
+                PopTools.alertError(null, MessageFormat.format(Languages.message(lang, "UserPathFail"), dataPath));
                 return;
             }
             DerbyBase.mode = networkRadio.isSelected() ? "client" : "embedded";

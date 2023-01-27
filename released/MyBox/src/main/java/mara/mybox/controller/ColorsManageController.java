@@ -8,8 +8,6 @@ import javafx.scene.paint.Color;
 import javafx.stage.Window;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fxml.WindowTools;
-import mara.mybox.value.AppVariables;
-
 import mara.mybox.value.Fxmls;
 import mara.mybox.value.Languages;
 
@@ -59,7 +57,6 @@ public class ColorsManageController extends BaseController {
             if (object != null && object instanceof ColorsManageController) {
                 try {
                     controller = (ColorsManageController) object;
-                    controller.toFront();
                     break;
                 } catch (Exception e) {
                 }
@@ -68,6 +65,7 @@ public class ColorsManageController extends BaseController {
         if (controller == null) {
             controller = (ColorsManageController) WindowTools.openStage(Fxmls.ColorsManageFxml);
         }
+        controller.requestMouse();
         return controller;
     }
 
@@ -81,8 +79,17 @@ public class ColorsManageController extends BaseController {
         }
         ColorCopyController addController = (ColorCopyController) WindowTools.openStage(Fxmls.ColorCopyFxml);
         addController.setValues(manageController, colors);
-        addController.toFront();
+        addController.requestMouse();
         return manageController;
+    }
+
+    public static ColorsManageController addColor(Color color) {
+        if (color == null) {
+            return null;
+        }
+        List<Color> colors = new ArrayList<>();
+        colors.add(color);
+        return addColors(colors);
     }
 
 }

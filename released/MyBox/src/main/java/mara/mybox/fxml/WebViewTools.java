@@ -22,6 +22,10 @@ import org.w3c.dom.Element;
  */
 public class WebViewTools {
 
+    public static String userAgent() {
+        return new WebView().getEngine().getUserAgent();
+    }
+
     public static String getHtml(WebView webView) {
         if (webView == null) {
             return "";
@@ -128,6 +132,37 @@ public class WebViewTools {
         } catch (Exception e) {
 //            MyBoxLog.debug(e.toString());
             return null;
+        }
+    }
+
+    // https://blog.csdn.net/weixin_29251337/article/details/117888001
+    public static void addStyle(WebEngine webEngine, String style, String styleid) {
+        try {
+            if (webEngine == null || style == null || style.isBlank()) {
+                return;
+            }
+            removeNode(webEngine, styleid);
+            String js = "var node = document.createElement(\"style\");\n"
+                    + "node.id = \"" + styleid + "\";\n"
+                    + "node.type = \"text/css\";\n"
+                    + "node.innerHTML = \"" + style.replaceAll("\n", "  ") + "\";\n"
+                    + "document.getElementsByTagName(\"HEAD\").item(0).appendChild(node);";
+            webEngine.executeScript(js);
+        } catch (Exception e) {
+            MyBoxLog.debug(e);
+        }
+    }
+
+    public static void removeNode(WebEngine webEngine, String id) {
+        try {
+            if (webEngine == null || id == null || id.isBlank()) {
+                return;
+            }
+            String js = "var node = document.getElementById(\"" + id + "\");\n"
+                    + "if ( node != null ) node.parentNode.removeChild(node);";
+            webEngine.executeScript(js);
+        } catch (Exception e) {
+            MyBoxLog.debug(e);
         }
     }
 
@@ -267,6 +302,29 @@ public class WebViewTools {
         } catch (Exception e) {
         }
         return null;
+    }
+
+    // https://bbs.csdn.net/topics/310020841
+    public static int px(WebEngine webEngine, String s) {
+        try {
+            String js = "function stringPX(s){"
+                    + "    var span = document.createElement(\"span\");\n"
+                    + "    span.innerHTML = s;\n"
+                    + "    document.body.appendChild(span);\n"
+                    + "    var width = span.offsetWidth;\n"
+                    + "    document.body.removeChild(span); "
+                    + "    return width; "
+                    + "}"
+                    + "stringPX(\"" + s + "\");";
+            Object c = webEngine.executeScript(js);
+            if (c == null) {
+                return -1;
+            }
+            return ((int) c);
+        } catch (Exception e) {
+            MyBoxLog.debug(e.toString());
+            return -1;
+        }
     }
 
 }

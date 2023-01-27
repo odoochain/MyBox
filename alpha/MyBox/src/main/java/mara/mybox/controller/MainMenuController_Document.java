@@ -17,6 +17,11 @@ public abstract class MainMenuController_Document extends MainMenuController_Win
     }
 
     @FXML
+    protected void InformationInTree(ActionEvent event) {
+        loadScene(Fxmls.TreeManageFxml);
+    }
+
+    @FXML
     protected void openPdfView(ActionEvent event) {
         loadScene(Fxmls.PdfViewFxml);
     }
@@ -74,7 +79,7 @@ public abstract class MainMenuController_Document extends MainMenuController_Win
     @FXML
     protected void pdfPlay(ActionEvent event) {
         ImagesPlayController c = (ImagesPlayController) loadScene(Fxmls.ImagesPlayFxml);
-        c.pdfRadio.fire();
+        c.pdfRadio.setSelected(true);
     }
 
     @FXML
@@ -100,6 +105,21 @@ public abstract class MainMenuController_Document extends MainMenuController_Win
     @FXML
     protected void openMarkdownToPdf(ActionEvent event) {
         loadScene(Fxmls.MarkdownToPdfFxml);
+    }
+
+    @FXML
+    protected void openHtmlEditor(ActionEvent event) {
+        loadScene(Fxmls.HtmlEditorFxml);
+    }
+
+    @FXML
+    protected void htmlFind(ActionEvent event) {
+        loadScene(Fxmls.HtmlFindFxml);
+    }
+
+    @FXML
+    protected void htmlElements(ActionEvent event) {
+        loadScene(Fxmls.HtmlElementsFxml);
     }
 
     @FXML
@@ -133,6 +153,11 @@ public abstract class MainMenuController_Document extends MainMenuController_Win
     }
 
     @FXML
+    protected void htmlExtractTables(ActionEvent event) {
+        loadScene(Fxmls.HtmlExtractTablesFxml);
+    }
+
+    @FXML
     protected void openHtmlMergeAsHtml(ActionEvent event) {
         loadScene(Fxmls.HtmlMergeAsHtmlFxml);
     }
@@ -155,11 +180,6 @@ public abstract class MainMenuController_Document extends MainMenuController_Win
     @FXML
     protected void openHtmlFrameset(ActionEvent event) {
         loadScene(Fxmls.HtmlFramesetFxml);
-    }
-
-    @FXML
-    protected void openHtmlEditor(ActionEvent event) {
-        loadScene(Fxmls.HtmlEditorFxml);
     }
 
     @FXML
@@ -188,8 +208,13 @@ public abstract class MainMenuController_Document extends MainMenuController_Win
     }
 
     @FXML
-    protected void openTextToHtml(ActionEvent event) {
+    protected void textToHtml(ActionEvent event) {
         loadScene(Fxmls.TextToHtmlFxml);
+    }
+
+    @FXML
+    protected void textToPdf(ActionEvent event) {
+        loadScene(Fxmls.TextToPdfFxml);
     }
 
     @FXML
@@ -213,6 +238,11 @@ public abstract class MainMenuController_Document extends MainMenuController_Win
     }
 
     @FXML
+    protected void WordToPdf(ActionEvent event) {
+        loadScene(Fxmls.WordToPdfFxml);
+    }
+
+    @FXML
     protected void PptView(ActionEvent event) {
         loadScene(Fxmls.PptViewFxml);
     }
@@ -220,6 +250,11 @@ public abstract class MainMenuController_Document extends MainMenuController_Win
     @FXML
     protected void PptToImages(ActionEvent event) {
         loadScene(Fxmls.PptToImagesFxml);
+    }
+
+    @FXML
+    protected void PptToPdf(ActionEvent event) {
+        loadScene(Fxmls.PptToPdfFxml);
     }
 
     @FXML
@@ -240,7 +275,7 @@ public abstract class MainMenuController_Document extends MainMenuController_Win
     @FXML
     protected void pptPlay(ActionEvent event) {
         ImagesPlayController c = (ImagesPlayController) loadScene(Fxmls.ImagesPlayFxml);
-        c.pptRadio.fire();
+        c.pptRadio.setSelected(true);
     }
 
     @FXML

@@ -6,7 +6,6 @@ import java.util.List;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
-import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
@@ -22,7 +21,7 @@ import mara.mybox.fxml.TextClipboardTools;
 import mara.mybox.fxml.WindowTools;
 import mara.mybox.fxml.cell.TableDateCell;
 import mara.mybox.fxml.cell.TableNumberCell;
-import mara.mybox.fxml.cell.TableTextCell;
+import mara.mybox.fxml.cell.TableTextTruncCell;
 import mara.mybox.value.Fxmls;
 import mara.mybox.value.Languages;
 import mara.mybox.value.UserConfig;
@@ -32,7 +31,7 @@ import mara.mybox.value.UserConfig;
  * @CreateDate 2021-7-3
  * @License Apache License Version 2.0
  */
-public class TextInMyBoxClipboardController extends BaseDataTableController<TextClipboard> {
+public class TextInMyBoxClipboardController extends BaseSysTableController<TextClipboard> {
 
     protected Clipboard clipboard;
 
@@ -42,13 +41,12 @@ public class TextInMyBoxClipboardController extends BaseDataTableController<Text
     protected TableColumn<TextClipboard, Date> timeColumn;
     @FXML
     protected TableColumn<TextClipboard, Long> lengthColumn;
-
     @FXML
     protected TextArea textArea;
     @FXML
     protected Label textLabel;
     @FXML
-    protected CheckBox noDupCheck;
+    protected CheckBox noDupCheck, wrapCheck;
 
     public TextInMyBoxClipboardController() {
         baseTitle = Languages.message("TextInMyBoxClipboard");
@@ -63,8 +61,9 @@ public class TextInMyBoxClipboardController extends BaseDataTableController<Text
     @Override
     protected void initColumns() {
         try {
+            super.initColumns();
             textColumn.setCellValueFactory(new PropertyValueFactory<>("text"));
-            textColumn.setCellFactory(new TableTextCell());
+            textColumn.setCellFactory(new TableTextTruncCell());
 
             lengthColumn.setCellValueFactory(new PropertyValueFactory<>("length"));
             lengthColumn.setCellFactory(new TableNumberCell());
@@ -78,16 +77,15 @@ public class TextInMyBoxClipboardController extends BaseDataTableController<Text
     }
 
     @Override
-    protected int checkSelected() {
+    protected void checkSelected() {
         if (isSettingValues) {
-            return -1;
+            return;
         }
-        int selection = super.checkSelected();
         TextClipboard selected = tableView.getSelectionModel().getSelectedItem();
         if (selected != null) {
             textArea.setText(selected.getText());
         }
-        return selection;
+        super.checkSelected();
     }
 
     @Override
@@ -107,6 +105,17 @@ public class TextInMyBoxClipboardController extends BaseDataTableController<Text
                     UserConfig.setBoolean("TextClipboardNoDuplication", noDupCheck.isSelected());
                 }
             });
+
+            wrapCheck.setSelected(UserConfig.getBoolean(baseName + "Wrap", true));
+            wrapCheck.selectedProperty().addListener(new ChangeListener<Boolean>() {
+                @Override
+                public void changed(ObservableValue<? extends Boolean> ov, Boolean oldValue, Boolean newValue) {
+                    UserConfig.setBoolean(baseName + "Wrap", newValue);
+                    textArea.setWrapText(newValue);
+                }
+            });
+            textArea.setWrapText(wrapCheck.isSelected());
+
             textArea.textProperty().addListener(new ChangeListener<String>() {
                 @Override
                 public void changed(ObservableValue<? extends String> observable, String ov, String nv) {
@@ -123,7 +132,7 @@ public class TextInMyBoxClipboardController extends BaseDataTableController<Text
 
     public void textChanged(String nv) {
         int len = nv == null ? 0 : nv.length();
-        textLabel.setText(Languages.message("Length") + ": " + len);
+        textLabel.setText(Languages.message("CharactersNumber") + ": " + len);
         copyToSystemClipboardButton.setDisable(len == 0);
         copyToMyBoxClipboardButton.setDisable(len == 0);
         editButton.setDisable(len == 0);
@@ -145,18 +154,34 @@ public class TextInMyBoxClipboardController extends BaseDataTableController<Text
     @FXML
     @Override
     public void copyToMyBoxClipboard() {
-        TextClipboardTools.copyToMyBoxClipboard(myController, textArea);
+        String s = textArea.getSelectedText();
+        if (s == null || s.isEmpty()) {
+            s = textArea.getText();
+        }
+        if (s == null || s.isEmpty()) {
+            popError(Languages.message("SelectToHandle"));
+            return;
+        }
+        TextClipboardTools.copyToMyBoxClipboard(myController, s);
     }
 
     @FXML
     @Override
     public void copyToSystemClipboard() {
-        TextClipboardTools.copyToSystemClipboard(myController, textArea);
+        String s = textArea.getSelectedText();
+        if (s == null || s.isEmpty()) {
+            s = textArea.getText();
+        }
+        if (s == null || s.isEmpty()) {
+            popError(Languages.message("SelectToHandle"));
+            return;
+        }
+        TextClipboardTools.copyToSystemClipboard(myController, s);
     }
 
     @FXML
     @Override
-    public void editAction(ActionEvent event) {
+    public void editAction() {
         String s = textArea.getSelectedText();
         if (s == null || s.isEmpty()) {
             s = textArea.getText();
@@ -167,7 +192,7 @@ public class TextInMyBoxClipboardController extends BaseDataTableController<Text
         }
         TextEditorController controller = (TextEditorController) WindowTools.openStage(Fxmls.TextEditorFxml);
         controller.loadContents(s);
-        controller.toFront();
+        controller.requestMouse();
     }
 
     @FXML
@@ -177,6 +202,7 @@ public class TextInMyBoxClipboardController extends BaseDataTableController<Text
         updateStatus();
     }
 
+    @Override
     public void updateStatus() {
         if (TextClipboardTools.isMonitoring()) {
             bottomLabel.setText(Languages.message("MonitoringTextInSystemClipboard"));
@@ -199,13 +225,14 @@ public class TextInMyBoxClipboardController extends BaseDataTableController<Text
             }
             if (object instanceof TextInMyBoxClipboardController) {
                 controller = (TextInMyBoxClipboardController) object;
-                controller.toFront();
+                controller.refreshAction();
                 break;
             }
         }
         if (controller == null) {
             controller = (TextInMyBoxClipboardController) WindowTools.openStage(Fxmls.TextInMyBoxClipboardFxml);
         }
+        controller.requestMouse();
         return controller;
     }
 

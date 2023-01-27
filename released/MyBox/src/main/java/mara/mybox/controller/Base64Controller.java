@@ -18,14 +18,13 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import mara.mybox.db.data.VisitHistory;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.NodeStyleTools;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.fxml.TextClipboardTools;
 import mara.mybox.tools.ByteFileTools;
 import mara.mybox.tools.DateTools;
 import mara.mybox.tools.StringTools;
 import mara.mybox.tools.TextFileTools;
 import mara.mybox.tools.TextTools;
-
 import mara.mybox.value.Fxmls;
 import mara.mybox.value.Languages;
 import mara.mybox.value.UserConfig;
@@ -140,11 +139,11 @@ public class Base64Controller extends BaseController {
                     popError(Languages.message("NoData"));
                     return;
                 }
-            } else if (sourceFile == null || NodeStyleTools.badStyle.equals(sourceFileInput.getStyle())) {
+            } else if (sourceFile == null || UserConfig.badStyle().equals(sourceFileInput.getStyle())) {
                 popError(Languages.message("NoData"));
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 private long bytesLen;
                 private String results;
@@ -194,11 +193,7 @@ public class Base64Controller extends BaseController {
                 }
 
             };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
     }
 
@@ -220,7 +215,7 @@ public class Base64Controller extends BaseController {
                     popError(Languages.message("NoData"));
                     return;
                 }
-            } else if (sourceFile == null || NodeStyleTools.badStyle.equals(sourceFileInput.getStyle())) {
+            } else if (sourceFile == null || UserConfig.badStyle().equals(sourceFileInput.getStyle())) {
                 popError(Languages.message("NoData"));
                 return;
             }
@@ -237,7 +232,7 @@ public class Base64Controller extends BaseController {
             if (file == null) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
                 private long bytesLen;
 
                 @Override
@@ -314,11 +309,7 @@ public class Base64Controller extends BaseController {
                 }
 
             };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
     }
 

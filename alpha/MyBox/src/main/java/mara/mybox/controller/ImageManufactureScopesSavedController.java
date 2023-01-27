@@ -1,37 +1,146 @@
 package mara.mybox.controller;
 
-import java.util.List;
-import javafx.event.EventHandler;
+import java.util.Date;
+import javafx.beans.value.ChangeListener;
+import javafx.beans.value.ObservableValue;
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.ContentDisplay;
-import javafx.scene.control.ListCell;
-import javafx.scene.control.ListView;
-import javafx.scene.control.SelectionMode;
-import javafx.scene.image.Image;
+import javafx.scene.control.TableCell;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.image.ImageView;
-import javafx.scene.input.MouseEvent;
 import javafx.util.Callback;
 import mara.mybox.bufferedimage.ImageScope;
+import mara.mybox.bufferedimage.ImageScope.ScopeType;
 import mara.mybox.db.table.TableImageScope;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.StyleTools;
-import mara.mybox.value.Languages;
+import mara.mybox.fxml.cell.TableBooleanCell;
+import mara.mybox.fxml.cell.TableDateCell;
+import mara.mybox.fxml.style.StyleTools;
+import mara.mybox.value.UserConfig;
 
 /**
  * @Author Mara
  * @CreateDate 2021-8-11
  * @License Apache License Version 2.0
  */
-public class ImageManufactureScopesSavedController extends ImageViewerController {
+public class ImageManufactureScopesSavedController extends BaseSysTableController<ImageScope> {
 
+    protected TableImageScope tableImageScope;
     protected ImageManufactureController imageController;
     protected ImageManufactureScopeController scopeController;
 
     @FXML
-    protected Button deleteScopesButton, useScopeButton;
+    protected TableColumn<ImageScope, String> nameColumn, colorTypeColumn, fileColumn;
     @FXML
-    protected ListView<ImageScope> scopesList;
+    protected TableColumn<ImageScope, ScopeType> scopeTypeColumn;
+    @FXML
+    protected TableColumn<ImageScope, Boolean> areaExcludeColumn, colorExcludeColumn;
+    @FXML
+    protected TableColumn<ImageScope, Date> modifyColumn, createColumn;
+    @FXML
+    protected Button useScopeButton;
+    @FXML
+    protected CheckBox shareCheck;
+
+    @Override
+    protected void initColumns() {
+        try {
+            super.initColumns();
+
+            nameColumn.setCellValueFactory(new PropertyValueFactory<>("name"));
+            fileColumn.setCellValueFactory(new PropertyValueFactory<>("file"));
+            scopeTypeColumn.setCellValueFactory(new PropertyValueFactory<>("scopeType"));
+            scopeTypeColumn.setCellFactory(new Callback<TableColumn<ImageScope, ScopeType>, TableCell<ImageScope, ScopeType>>() {
+                @Override
+                public TableCell<ImageScope, ScopeType> call(TableColumn<ImageScope, ScopeType> param) {
+                    TableCell<ImageScope, ScopeType> cell = new TableCell<ImageScope, ScopeType>() {
+                        private final ImageView view;
+
+                        {
+                            setContentDisplay(ContentDisplay.LEFT);
+                            view = new ImageView();
+                            view.setPreserveRatio(true);
+                        }
+
+                        @Override
+                        public void updateItem(ScopeType item, boolean empty) {
+                            super.updateItem(item, empty);
+                            setText(null);
+                            setGraphic(null);
+                            if (empty || item == null) {
+                                return;
+                            }
+                            String icon;
+                            try {
+                                switch (item) {
+                                    case Rectangle:
+                                        icon = "iconRectangle.png";
+                                        break;
+                                    case Circle:
+                                        icon = "iconCircle.png";
+                                        break;
+                                    case Ellipse:
+                                        icon = "iconEllipse.png";
+                                        break;
+                                    case Polygon:
+                                        icon = "iconStar.png";
+                                        break;
+                                    case RectangleColor:
+                                        icon = "iconRectangleFilled.png";
+                                        break;
+                                    case CircleColor:
+                                        icon = "iconCircleFilled.png";
+                                        break;
+                                    case EllipseColor:
+                                        icon = "iconEllipseFilled.png";
+                                        break;
+                                    case PolygonColor:
+                                        icon = "iconStarFilled.png";
+                                        break;
+                                    case Color:
+                                        icon = "iconColorWheel.png";
+                                        break;
+                                    case Matting:
+                                        icon = "iconColorFill.png";
+                                        break;
+                                    case Outline:
+                                        icon = "IconButterfly.png";
+                                        break;
+                                    default:
+                                        return;
+                                }
+                                setGraphic(StyleTools.getIconImage(icon));
+                            } catch (Exception e) {
+                            }
+                        }
+                    };
+                    return cell;
+                }
+            });
+            colorTypeColumn.setCellValueFactory(new PropertyValueFactory<>("colorTypeName"));
+            areaExcludeColumn.setCellValueFactory(new PropertyValueFactory<>("areaExcluded"));
+            areaExcludeColumn.setCellFactory(new TableBooleanCell());
+            colorExcludeColumn.setCellValueFactory(new PropertyValueFactory<>("colorExcluded"));
+            colorExcludeColumn.setCellFactory(new TableBooleanCell());
+
+            modifyColumn.setCellValueFactory(new PropertyValueFactory<>("modifyTime"));
+            modifyColumn.setCellFactory(new TableDateCell());
+            createColumn.setCellValueFactory(new PropertyValueFactory<>("createTime"));
+            createColumn.setCellFactory(new TableDateCell());
+
+        } catch (Exception e) {
+            MyBoxLog.error(e.toString());
+        }
+    }
+
+    @Override
+    public void setTableDefinition() {
+        tableImageScope = new TableImageScope();
+        tableDefinition = tableImageScope;
+    }
 
     public void setParameters(ImageManufactureController parent) {
         this.parentController = parent;
@@ -40,237 +149,69 @@ public class ImageManufactureScopesSavedController extends ImageViewerController
         baseName = imageController.baseName;
         baseTitle = imageController.baseTitle;
         sourceFile = imageController.sourceFile;
-        imageInformation = imageController.imageInformation;
-        image = imageController.image;
         initScopesBox();
         refreshStyle();
-
-        loadScopes();
     }
 
     public void initScopesBox() {
         try {
-            scopesList.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
-            scopesList.setCellFactory(new Callback<ListView<ImageScope>, ListCell<ImageScope>>() {
+            loadInBackground = true;
+            orderColumns = " modify_time DESC ";
+            queryConditions = null;
+
+            shareCheck.setSelected(UserConfig.getBoolean(baseName + "ShareInAllImages", true));
+            shareCheck.selectedProperty().addListener(new ChangeListener<Boolean>() {
                 @Override
-                public ListCell<ImageScope> call(ListView<ImageScope> param) {
-                    return new ImageScopeCell();
+                public void changed(ObservableValue<? extends Boolean> v, Boolean ov, Boolean nv) {
+                    UserConfig.setBoolean(baseName + "ShareInAllImages", shareCheck.isSelected());
+                    checkQueryConditions();
+                    loadTableData();
                 }
             });
 
-            scopesList.setOnMouseClicked(new EventHandler<MouseEvent>() {
-                @Override
-                public void handle(MouseEvent event) {
-                    if (event.getClickCount() > 1) {
-                        useScope();
-                    }
-                }
-            });
-
-            deleteScopesButton.disableProperty().bind(
-                    scopesList.getSelectionModel().selectedItemProperty().isNull()
-            );
-            useScopeButton.disableProperty().bind(deleteScopesButton.disableProperty());
-
+            checkQueryConditions();
+            loadTableData();
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
         }
     }
 
-    public class ImageScopeCell extends ListCell<ImageScope> {
-
-        private final ImageView view;
-
-        public ImageScopeCell() {
-            setContentDisplay(ContentDisplay.LEFT);
-            view = new ImageView();
-            view.setPreserveRatio(true);
-            view.setFitWidth(20);
-        }
-
-        @Override
-        protected void updateItem(ImageScope item, boolean empty) {
-            super.updateItem(item, empty);
-            if (empty || item == null || item.getScopeType() == null) {
-                setText(null);
-                setGraphic(null);
-                return;
+    public void checkQueryConditions() {
+        if (shareCheck.isSelected()) {
+            queryConditions = null;
+        } else {
+            if (sourceFile == null) {
+                queryConditions = " image_location='Unknown' ";
+            } else {
+                queryConditions = " image_location='" + sourceFile.getAbsolutePath() + "' ";
             }
-
-            Image icon;
-            try {
-                switch (item.getScopeType()) {
-                    case Rectangle:
-                        icon = new Image(StyleTools.getIcon("iconRectangle.png"));
-                        break;
-                    case Circle:
-                        icon = new Image(StyleTools.getIcon("iconCircle.png"));
-                        break;
-                    case Ellipse:
-                        icon = new Image(StyleTools.getIcon("iconEllipse.png"));
-                        break;
-                    case Polygon:
-                        icon = new Image(StyleTools.getIcon("iconStar.png"));
-                        break;
-                    case RectangleColor:
-                        icon = new Image(StyleTools.getIcon("iconRectangleFilled.png"));
-                        break;
-                    case CircleColor:
-                        icon = new Image(StyleTools.getIcon("iconCircleFilled.png"));
-                        break;
-                    case EllipseColor:
-                        icon = new Image(StyleTools.getIcon("iconEllipseFilled.png"));
-                        break;
-                    case PolygonColor:
-                        icon = new Image(StyleTools.getIcon("iconStarFilled.png"));
-                        break;
-                    case Color:
-                        icon = new Image(StyleTools.getIcon("iconColorWheel.png"));
-                        break;
-                    case Matting:
-                        icon = new Image(StyleTools.getIcon("iconColorFill.png"));
-                        break;
-                    case Outline:
-                        icon = new Image(StyleTools.getIcon("IconButterfly.png"));
-                        break;
-                    default:
-                        return;
-                }
-                String s = item.getName();
-                if (scope != null && s.equals(scope.getName())) {
-                    setStyle("-fx-text-fill: #961c1c; -fx-font-weight: bolder;");
-                    s = "** " + Languages.message("CurrentScope") + " " + s;
-                } else {
-                    setStyle("");
-                }
-                view.setImage(icon);
-                setGraphic(view);
-                setText(s);
-            } catch (Exception e) {
-                MyBoxLog.error(e.toString());
-                setText(null);
-                setGraphic(null);
-            }
-
         }
     }
 
-    public void loadScopes() {
-        if (sourceFile == null) {
+    @Override
+    protected void checkButtons() {
+        if (isSettingValues) {
             return;
         }
-        synchronized (this) {
-            if (task != null && !task.isQuit()) {
-                return;
-            }
-            scopesList.getItems().clear();
-            task = new SingletonTask<Void>() {
-                List<ImageScope> list;
-
-                @Override
-                protected boolean handle() {
-                    list = TableImageScope.read(sourceFile.getAbsolutePath());
-                    return true;
-                }
-
-                @Override
-                protected void whenSucceeded() {
-                    if (list != null && !list.isEmpty()) {
-                        scopesList.getItems().setAll(list);
-//                        scopesList.getSelectionModel().selectFirst();
-                    }
-                }
-            };
-            parentController.handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
-        }
+        super.checkButtons();
+        boolean isEmpty = tableData == null || tableData.isEmpty();
+        boolean none = isEmpty || tableView.getSelectionModel().getSelectedItem() == null;
+        useScopeButton.setDisable(none);
     }
 
-    @FXML
-    public void deleteScopes() {
-        List<ImageScope> selected = scopesList.getSelectionModel().getSelectedItems();
-        if (selected == null || selected.isEmpty()) {
-            return;
-        }
-        synchronized (this) {
-            if (task != null && !task.isQuit()) {
-                return;
-            }
-            task = new SingletonTask<Void>() {
-
-                @Override
-                protected boolean handle() {
-                    return TableImageScope.delete(selected);
-                }
-
-                @Override
-                protected void whenSucceeded() {
-                    for (ImageScope scope : selected) {
-                        scopesList.getItems().remove(scope);
-                    }
-                    scopesList.refresh();
-//                    loadScopes();
-                }
-            };
-            parentController.handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
-        }
-    }
-
-    @FXML
-    public void clearScopes() {
-        if (sourceFile == null) {
-            return;
-        }
-        synchronized (this) {
-            if (task != null && !task.isQuit()) {
-                return;
-            }
-            task = new SingletonTask<Void>() {
-                @Override
-                protected boolean handle() {
-                    TableImageScope.clearScopes(sourceFile.getAbsolutePath());
-                    return true;
-                }
-
-                @Override
-                protected void whenSucceeded() {
-                    scopesList.getItems().clear();
-                    scopesList.refresh();
-                }
-            };
-            parentController.handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
-        }
+    @Override
+    public void itemDoubleClicked() {
+        useScope();
     }
 
     @FXML
     public void useScope() {
-        ImageScope selected = scopesList.getSelectionModel().getSelectedItem();
+        ImageScope selected = tableView.getSelectionModel().getSelectedItem();
         if (selected == null) {
             return;
         }
-        scope = selected;
-        // Force listView to refresh
-        // https://stackoverflow.com/questions/13906139/javafx-update-of-listview-if-an-element-of-observablelist-changes?r=SearchResults
-        for (int i = 0; i < scopesList.getItems().size(); ++i) {
-            scopesList.getItems().set(i, scopesList.getItems().get(i));
-        }
-        scopeController.showScope(scope);
-    }
-
-    @FXML
-    public void refreshScopes() {
-        loadScopes();
+        scopeController.showScope(selected);
+        imageController.tabPane.getSelectionModel().select(imageController.scopeTab);
     }
 
 }

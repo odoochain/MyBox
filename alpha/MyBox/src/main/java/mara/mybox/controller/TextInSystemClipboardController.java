@@ -17,10 +17,10 @@ import javafx.scene.control.Tooltip;
 import javafx.scene.input.Clipboard;
 import javafx.stage.Window;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.NodeStyleTools;
-import mara.mybox.fxml.StyleTools;
 import mara.mybox.fxml.TextClipboardTools;
 import mara.mybox.fxml.WindowTools;
+import mara.mybox.fxml.style.NodeStyleTools;
+import mara.mybox.fxml.style.StyleTools;
 import mara.mybox.value.Fxmls;
 import static mara.mybox.value.Languages.message;
 import mara.mybox.value.UserConfig;
@@ -67,10 +67,10 @@ public class TextInSystemClipboardController extends BaseController {
                             intervalSelector.getEditor().setStyle(null);
                             TextClipboardTools.startTextClipboardMonitor(v);
                         } else {
-                            intervalSelector.getEditor().setStyle(NodeStyleTools.badStyle);
+                            intervalSelector.getEditor().setStyle(UserConfig.badStyle());
                         }
                     } catch (Exception e) {
-                        intervalSelector.getEditor().setStyle(NodeStyleTools.badStyle);
+                        intervalSelector.getEditor().setStyle(UserConfig.badStyle());
                     }
                 }
             });
@@ -140,7 +140,7 @@ public class TextInSystemClipboardController extends BaseController {
                 separateLine = select + "\n";
             }
         } catch (Exception e) {
-            intervalSelector.getEditor().setStyle(NodeStyleTools.badStyle);
+            intervalSelector.getEditor().setStyle(UserConfig.badStyle());
         }
     }
 
@@ -194,7 +194,7 @@ public class TextInSystemClipboardController extends BaseController {
         } else {
             textArea.appendText((textArea.getLength() > 0 ? "\n" + separateLine : "") + clip);
         }
-        bottomLabel.setText(message("Length") + ": " + textArea.getLength());
+        bottomLabel.setText(message("CharactersNumber") + ": " + textArea.getLength());
     }
 
     @FXML
@@ -207,7 +207,7 @@ public class TextInSystemClipboardController extends BaseController {
     public void editAction() {
         TextEditorController controller = (TextEditorController) WindowTools.openStage(Fxmls.TextEditorFxml);
         controller.loadContents(textArea.getText());
-        controller.toFront();
+        controller.requestMouse();
     }
 
     @FXML
@@ -241,9 +241,8 @@ public class TextInSystemClipboardController extends BaseController {
         TextInSystemClipboardController controller = running();
         if (controller == null) {
             controller = (TextInSystemClipboardController) WindowTools.openStage(Fxmls.TextInSystemClipboardFxml);
-        } else {
-            controller.toFront();
         }
+        controller.requestMouse();
         return controller;
     }
 

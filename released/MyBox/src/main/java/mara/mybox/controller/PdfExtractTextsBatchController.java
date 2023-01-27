@@ -6,12 +6,11 @@ import java.nio.charset.Charset;
 import javafx.fxml.FXML;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.TextField;
+import mara.mybox.db.data.VisitHistory;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.tools.FileNameTools;
 import mara.mybox.tools.FileTools;
 import mara.mybox.tools.TmpFileTools;
-import mara.mybox.value.AppVariables;
-
 import mara.mybox.value.Fxmls;
 import mara.mybox.value.Languages;
 import org.apache.pdfbox.text.PDFTextStripper;
@@ -40,6 +39,11 @@ public class PdfExtractTextsBatchController extends BaseBatchPdfController {
     }
 
     @Override
+    public void setFileType() {
+        setFileType(VisitHistory.FileType.PDF, VisitHistory.FileType.Text);
+    }
+
+    @Override
     public boolean makeMoreParameters() {
         try {
             if (!super.makeMoreParameters()) {
@@ -61,7 +65,7 @@ public class PdfExtractTextsBatchController extends BaseBatchPdfController {
     @Override
     public boolean preHandlePages() {
         try {
-            File tFile = makeTargetFile(FileNameTools.getFilePrefix(currentParameters.currentSourceFile.getName()),
+            File tFile = makeTargetFile(FileNameTools.prefix(currentParameters.currentSourceFile.getName()),
                     ".txt", currentParameters.currentTargetPath);
             currentTargetFile = tFile.getAbsolutePath();
             tmpFile = TmpFileTools.getTempFile();

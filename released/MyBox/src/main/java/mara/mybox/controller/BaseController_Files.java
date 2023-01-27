@@ -8,7 +8,6 @@ import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonType;
-import javafx.scene.control.RadioButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.Region;
 import javafx.stage.DirectoryChooser;
@@ -18,12 +17,11 @@ import mara.mybox.db.DerbyBase;
 import mara.mybox.db.data.VisitHistory;
 import mara.mybox.db.data.VisitHistoryTools;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.NodeStyleTools;
 import mara.mybox.fxml.RecentVisitMenu;
 import mara.mybox.tools.DateTools;
 import mara.mybox.tools.FileNameTools;
+import mara.mybox.value.AppPaths;
 import mara.mybox.value.AppVariables;
-import static mara.mybox.value.AppVariables.MyBoxTempPath;
 import mara.mybox.value.Languages;
 import mara.mybox.value.UserConfig;
 
@@ -41,45 +39,32 @@ public abstract class BaseController_Files extends BaseController_Attributes {
     public void checkSourceFileInput() {
         String v = sourceFileInput.getText();
         if (v == null || v.isEmpty()) {
-            sourceFileInput.setStyle(NodeStyleTools.badStyle);
+            sourceFileInput.setStyle(UserConfig.badStyle());
             return;
         }
         final File file = new File(v);
         if (!file.exists()) {
-            sourceFileInput.setStyle(NodeStyleTools.badStyle);
+            sourceFileInput.setStyle(UserConfig.badStyle());
             return;
         }
         UserConfig.setString(baseName + "SourceFile", file.getAbsolutePath());
         sourceFileInput.setStyle(null);
+        recordFileOpened(file);
         sourceFileChanged(file);
         if (parentController != null && parentController != this) {
             parentController.sourceFileChanged(file);
         }
         if (!file.isDirectory() && targetPrefixInput != null) {
-            targetPrefixInput.setText(FileNameTools.getFilePrefix(file.getName()));
+            targetPrefixInput.setText(FileNameTools.prefix(file.getName()));
         }
 
-    }
-
-    public void checkTargetPathInput() {
-        try {
-            final File file = new File(targetPathInput.getText());
-            if (!file.exists() || !file.isDirectory()) {
-                targetPathInput.setStyle(NodeStyleTools.badStyle);
-                return;
-            }
-            targetPath = file;
-            targetPathInput.setStyle(null);
-            UserConfig.setString(baseName + "TargetPath", file.getAbsolutePath());
-        } catch (Exception e) {
-        }
     }
 
     public void checkSourcetPathInput() {
         try {
             final File file = new File(sourcePathInput.getText());
             if (!file.exists() || !file.isDirectory()) {
-                sourcePathInput.setStyle(NodeStyleTools.badStyle);
+                sourcePathInput.setStyle(UserConfig.badStyle());
                 return;
             }
             sourcePath = file;
@@ -87,46 +72,6 @@ public abstract class BaseController_Files extends BaseController_Attributes {
             UserConfig.setString(baseName + "SourcePath", file.getAbsolutePath());
         } catch (Exception e) {
         }
-    }
-
-    public void checkTargetFileInput() {
-        try {
-            String input = targetFileInput.getText();
-            targetFile = new File(input);
-            targetFileInput.setStyle(null);
-            UserConfig.setString(baseName + "TargetFile", targetFile.getAbsolutePath());
-        } catch (Exception e) {
-            targetFile = null;
-            targetFileInput.setStyle(NodeStyleTools.badStyle);
-        }
-    }
-
-    public void checkTargetExistType() {
-        if (isSettingValues) {
-            return;
-        }
-        if (targetAppendInput != null) {
-            targetAppendInput.setStyle(null);
-        }
-
-        RadioButton selected = (RadioButton) targetExistGroup.getSelectedToggle();
-        if (selected.equals(targetReplaceRadio)) {
-            targetExistType = BaseController.TargetExistType.Replace;
-
-        } else if (selected.equals(targetRenameRadio)) {
-            targetExistType = BaseController.TargetExistType.Rename;
-            if (targetAppendInput != null) {
-                if (targetAppendInput.getText() == null || targetAppendInput.getText().trim().isEmpty()) {
-                    targetAppendInput.setStyle(NodeStyleTools.badStyle);
-                } else {
-                    UserConfig.setString(baseName + "TargetExistAppend", targetAppendInput.getText().trim());
-                }
-            }
-
-        } else if (selected.equals(targetSkipRadio)) {
-            targetExistType = BaseController.TargetExistType.Skip;
-        }
-        UserConfig.setString(baseName + "TargetExistType", selected.getText());
     }
 
     @FXML
@@ -191,21 +136,24 @@ public abstract class BaseController_Files extends BaseController_Attributes {
         if (file == null) {
             return;
         }
+        String fname = file.getAbsolutePath();
+        if (AppPaths.reservedPath(fname)) {
+            return;
+        }
         try ( Connection conn = DerbyBase.getConnection()) {
+            String path;
             if (file.isDirectory()) {
-                String path = file.getPath();
-                UserConfig.setString(conn, baseName + "LastPath", path);
+                path = file.getPath();
+            } else {
+                path = file.getParent();
+                UserConfig.setString(conn, baseName + "SourceFile", fname);
+                VisitHistoryTools.readFile(conn, fileType, fname);
+            }
+            if (path != null) {
+                UserConfig.setString(conn, "LastPath", path);
                 UserConfig.setString(conn, baseName + "SourcePath", path);
                 UserConfig.setString(conn, VisitHistoryTools.getPathKey(fileType), path);
                 VisitHistoryTools.readPath(conn, pathType, path);
-            } else {
-                String path = file.getParent();
-                String fname = file.getAbsolutePath();
-                UserConfig.setString(conn, baseName + "LastPath", path);
-                UserConfig.setString(conn, baseName + "SourceFile", fname);
-                UserConfig.setString(conn, VisitHistoryTools.getPathKey(fileType), path);
-                VisitHistoryTools.readPath(conn, pathType, path);
-                VisitHistoryTools.readFile(conn, fileType, fname);
             }
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
@@ -220,29 +168,32 @@ public abstract class BaseController_Files extends BaseController_Attributes {
         recordFileWritten(file, TargetPathType, TargetFileType);
     }
 
-    public void recordFileWritten(final File file, int fileType) {
+    public void recordFileWritten(File file, int fileType) {
         recordFileWritten(file, fileType, fileType);
     }
 
-    private void recordFileWritten(final File file, int TargetPathType, int TargetFileType) {
+    public void recordFileWritten(File file, int TargetPathType, int TargetFileType) {
         if (file == null) {
             return;
         }
+        String fname = file.getAbsolutePath();
+        if (AppPaths.reservedPath(fname)) {
+            return;
+        }
         try ( Connection conn = DerbyBase.getConnection()) {
+            String path;
             if (file.isDirectory()) {
-                String path = file.getPath();
-                UserConfig.setString(conn, baseName + "LastPath", path);
+                path = file.getPath();
+            } else {
+                path = file.getParent();
+                UserConfig.setString(conn, baseName + "TargetFile", fname);
+                VisitHistoryTools.writeFile(conn, TargetFileType, fname);
+            }
+            if (path != null) {
+                UserConfig.setString(conn, "LastPath", path);
                 UserConfig.setString(conn, baseName + "TargetPath", path);
                 UserConfig.setString(conn, VisitHistoryTools.getPathKey(TargetPathType), path);
                 VisitHistoryTools.writePath(conn, TargetPathType, path);
-            } else {
-                String path = file.getParent();
-                String fname = file.getAbsolutePath();
-                UserConfig.setString(conn, baseName + "LastPath", path);
-                UserConfig.setString(conn, baseName + "TargetFile", fname);
-                UserConfig.setString(conn, VisitHistoryTools.getPathKey(TargetPathType), path);
-                VisitHistoryTools.writePath(conn, TargetPathType, path);
-                VisitHistoryTools.writeFile(conn, TargetFileType, fname);
             }
         } catch (Exception e) {
             MyBoxLog.error(e);
@@ -257,21 +208,24 @@ public abstract class BaseController_Files extends BaseController_Attributes {
         if (file == null) {
             return;
         }
+        String fname = file.getAbsolutePath();
+        if (AppPaths.reservedPath(fname)) {
+            return;
+        }
         try ( Connection conn = DerbyBase.getConnection()) {
+            String path;
             if (file.isDirectory()) {
-                String path = file.getPath();
-                UserConfig.setString(conn, baseName + "SourcePath", path);
-                UserConfig.setString(conn, baseName + "LastPath", path);
-                UserConfig.setString(conn, VisitHistoryTools.getPathKey(SourcePathType), path);
-                VisitHistoryTools.readPath(conn, SourcePathType, path);
+                path = file.getPath();
             } else {
-                String path = file.getParent();
-                String fname = file.getAbsolutePath();
+                path = file.getParent();
                 UserConfig.setString(conn, baseName + "SourceFile", fname);
-                UserConfig.setString(conn, baseName + "LastPath", path);
+                VisitHistoryTools.readFile(conn, AddFileType, fname);
+            }
+            if (path != null) {
+                UserConfig.setString(conn, "LastPath", path);
+                UserConfig.setString(conn, baseName + "SourcePath", path);
                 UserConfig.setString(conn, VisitHistoryTools.getPathKey(SourcePathType), path);
                 VisitHistoryTools.readPath(conn, SourcePathType, path);
-                VisitHistoryTools.readFile(conn, AddFileType, fname);
             }
         } catch (Exception e) {
             MyBoxLog.error(e);
@@ -284,93 +238,27 @@ public abstract class BaseController_Files extends BaseController_Attributes {
         }
         try ( Connection conn = DerbyBase.getConnection()) {
             for (File file : files) {
+                String fname = file.getAbsolutePath();
+                if (AppPaths.reservedPath(fname)) {
+                    continue;
+                }
+                String path;
                 if (file.isDirectory()) {
-                    String path = file.getPath();
-                    UserConfig.setString(conn, baseName + "SourcePath", path);
-                    UserConfig.setString(conn, baseName + "LastPath", path);
-                    UserConfig.setString(conn, VisitHistoryTools.getPathKey(SourcePathType), path);
-                    VisitHistoryTools.readPath(conn, SourcePathType, path);
+                    path = file.getPath();
                 } else {
-                    String path = file.getParent();
-                    String fname = file.getAbsolutePath();
+                    path = file.getParent();
                     UserConfig.setString(conn, baseName + "SourceFile", fname);
-                    UserConfig.setString(conn, baseName + "LastPath", path);
+                    VisitHistoryTools.readFile(conn, AddFileType, fname);
+                }
+                if (path != null) {
+                    UserConfig.setString(conn, "LastPath", path);
+                    UserConfig.setString(conn, baseName + "SourcePath", path);
                     UserConfig.setString(conn, VisitHistoryTools.getPathKey(SourcePathType), path);
                     VisitHistoryTools.readPath(conn, SourcePathType, path);
-                    VisitHistoryTools.readFile(conn, AddFileType, fname);
                 }
             }
         } catch (Exception e) {
             MyBoxLog.error(e);
-        }
-    }
-
-    @FXML
-    public void selectTargetPath() {
-        try {
-            DirectoryChooser chooser = new DirectoryChooser();
-            File path = UserConfig.getPath(baseName + "TargetPath");
-            if (path != null) {
-                chooser.setInitialDirectory(path);
-            }
-            File directory = chooser.showDialog(getMyStage());
-            if (directory == null) {
-                return;
-            }
-            selectTargetPath(directory);
-        } catch (Exception e) {
-            MyBoxLog.error(e.toString());
-        }
-    }
-
-    public void selectTargetPath(File directory) {
-        if (targetPathInput != null) {
-            targetPathInput.setText(directory.getPath());
-        }
-        targetPathChanged();
-        recordFileWritten(directory);
-    }
-
-    public void targetPathChanged() {
-
-    }
-
-    @FXML
-    public void selectTargetFile() {
-        File path = UserConfig.getPath(baseName + "TargetPath");
-        selectTargetFileFromPath(path);
-    }
-
-    public void selectTargetFileFromPath(File path) {
-        try {
-            String name;
-            if (sourceFile != null) {
-                name = FileNameTools.getFilePrefix(sourceFile.getName());
-            } else {
-                name = DateTools.nowFileString();
-            }
-            final File file = chooseSaveFile(path, name, targetExtensionFilter);
-            if (file == null) {
-                return;
-            }
-            selectTargetFile(file);
-        } catch (Exception e) {
-//            MyBoxLog.error(e.toString());
-        }
-    }
-
-    public void selectTargetFile(File file) {
-        try {
-            if (file == null) {
-                return;
-            }
-            targetFile = file;
-            if (targetFileInput != null) {
-                targetFileInput.setText(targetFile.getAbsolutePath());
-            }
-            recordFileWritten(file);
-        } catch (Exception e) {
-//            MyBoxLog.error(e.toString());
         }
     }
 
@@ -679,83 +567,6 @@ public abstract class BaseController_Files extends BaseController_Attributes {
     }
 
     @FXML
-    public void popTargetPath(MouseEvent event) {
-        if (AppVariables.fileRecentNumber <= 0) {
-            return;
-        }
-        new RecentVisitMenu(this, event) {
-            @Override
-            public List<VisitHistory> recentFiles() {
-                return null;
-            }
-
-            @Override
-            public List<VisitHistory> recentPaths() {
-                return recentTargetPaths();
-            }
-
-            @Override
-            public void handleSelect() {
-                selectTargetPath();
-            }
-
-            @Override
-            public void handleFile(String fname) {
-
-            }
-
-            @Override
-            public void handlePath(String fname) {
-                File file = new File(fname);
-                if (!file.exists()) {
-                    handleSelect();
-                    return;
-                }
-                selectTargetPath(file);
-            }
-
-        }.pop();
-    }
-
-    @FXML
-    public void popTargetFile(MouseEvent event) {
-        if (AppVariables.fileRecentNumber <= 0) {
-            return;
-        }
-        new RecentVisitMenu(this, event) {
-            @Override
-            public List<VisitHistory> recentFiles() {
-                return null;
-            }
-
-            @Override
-            public List<VisitHistory> recentPaths() {
-                return recentTargetPaths();
-            }
-
-            @Override
-            public void handleSelect() {
-                selectTargetFile();
-            }
-
-            @Override
-            public void handleFile(String fname) {
-            }
-
-            @Override
-            public void handlePath(String fname) {
-                File file = new File(fname);
-                if (!file.exists()) {
-                    handleSelect();
-                    return;
-                }
-                selectTargetFileFromPath(file);
-            }
-
-        }.pop();
-    }
-
-    @FXML
     public void popSaveAs(MouseEvent event) { //
         if (AppVariables.fileRecentNumber <= 0) {
             return;
@@ -792,7 +603,7 @@ public abstract class BaseController_Files extends BaseController_Attributes {
     public String defaultTargetName(String prefix) {
         String defaultName = prefix != null ? prefix : "";
         if (sourceFile != null) {
-            defaultName += FileNameTools.prefixFilter(sourceFile) + "_";
+            defaultName += FileNameTools.filter(FileNameTools.prefix(sourceFile.getName())) + "_";
         }
         defaultName += DateTools.nowFileString();
         return defaultName;
@@ -804,7 +615,7 @@ public abstract class BaseController_Files extends BaseController_Attributes {
         if (defaultPathName != null) {
             return new File(defaultPathName);
         } else {
-            return MyBoxTempPath;
+            return AppPaths.defaultPath();
         }
     }
 
@@ -839,20 +650,20 @@ public abstract class BaseController_Files extends BaseController_Attributes {
                 fileChooser.setTitle(title);
             }
             if (defaultPath == null || !defaultPath.exists()) {
-                defaultPath = MyBoxTempPath;
+                defaultPath = AppPaths.defaultPath();
             }
             fileChooser.setInitialDirectory(defaultPath);
             String suffix = null, prefix = null;
             if (defaultName != null && !defaultName.isBlank()) {
-                suffix = FileNameTools.getFileSuffix(defaultName);
-                prefix = FileNameTools.getFilePrefix(defaultName);
+                suffix = FileNameTools.suffix(defaultName);
+                prefix = FileNameTools.prefix(defaultName);
             }
             if (prefix == null || prefix.isBlank()) {
                 prefix = DateTools.nowFileString();
             }
             if (filters != null) {
-                if (suffix == null || suffix.isBlank()) {
-                    suffix = FileNameTools.getFileSuffix(filters.get(0).getExtensions().get(0));
+                if (suffix == null || suffix.isBlank() || "*".equals(suffix)) {
+                    suffix = FileNameTools.suffix(filters.get(0).getExtensions().get(0));
                 }
                 fileChooser.getExtensionFilters().addAll(filters);
             }
@@ -863,7 +674,7 @@ public abstract class BaseController_Files extends BaseController_Attributes {
             if (suffix != null && !suffix.isBlank()) {
                 name += "." + suffix;
             }
-            fileChooser.setInitialFileName(FileNameTools.filenameFilter(name));
+            fileChooser.setInitialFileName(FileNameTools.filter(name));
 
             File file = fileChooser.showSaveDialog(getMyStage());
             if (file == null) {
@@ -872,7 +683,7 @@ public abstract class BaseController_Files extends BaseController_Attributes {
 
             // https://stackoverflow.com/questions/20637865/javafx-2-2-get-selected-file-extension
             // This is a pretty annoying thing in JavaFX - they will automatically append the extension on Windows, but not on Linux or Mac.
-            if (FileNameTools.getFileSuffix(file.getName()).isEmpty()) {
+            if (FileNameTools.suffix(file.getName()).isEmpty()) {
                 Alert alert = new Alert(Alert.AlertType.WARNING);
                 alert.getDialogPane().setMinWidth(Region.USE_PREF_SIZE);
                 alert.getDialogPane().setMinHeight(Region.USE_PREF_SIZE);
@@ -890,6 +701,9 @@ public abstract class BaseController_Files extends BaseController_Attributes {
                 stage.toFront();
                 stage.sizeToScene();
                 Optional<ButtonType> result = alert.showAndWait();
+                if (result == null || !result.isPresent()) {
+                    return null;
+                }
                 if (result.get() != buttonSure) {
                     if (result.get() == buttonNo) {
                         return chooseSaveFile(title, defaultPath, defaultName, filters);
@@ -907,31 +721,28 @@ public abstract class BaseController_Files extends BaseController_Attributes {
     }
 
     public File makeTargetFile(File sourceFile, File targetPath) {
-        if (sourceFile.isDirectory()) {
-            return makeTargetFile(sourceFile.getName(), "", targetPath);
-        } else {
-            return makeTargetFile(sourceFile.getName(), targetPath);
+        if (sourceFile == null || targetPath == null) {
+            return null;
         }
-    }
-
-    public File makeTargetFile(String fileName, File targetPath) {
         try {
-            if (fileName == null || targetPath == null) {
-                return null;
-            }
-            String namePrefix = FileNameTools.namePrefix(fileName);
-            String nameSuffix;
-            if (targetFileSuffix != null) {
-                nameSuffix = "." + targetFileSuffix;
+            if (sourceFile.isDirectory()) {
+                return makeTargetFile(sourceFile.getName(), "", targetPath);
             } else {
-                nameSuffix = FileNameTools.getFileSuffix(fileName);
-                if (nameSuffix != null && !nameSuffix.isEmpty()) {
-                    nameSuffix = "." + nameSuffix;
+                String filename = sourceFile.getName();
+                String namePrefix = FileNameTools.prefix(filename);
+                String nameSuffix;
+                if (targetFileSuffix != null) {
+                    nameSuffix = "." + targetFileSuffix;
                 } else {
-                    nameSuffix = "";
+                    nameSuffix = FileNameTools.suffix(filename);
+                    if (nameSuffix != null && !nameSuffix.isEmpty()) {
+                        nameSuffix = "." + nameSuffix;
+                    } else {
+                        nameSuffix = "";
+                    }
                 }
+                return makeTargetFile(namePrefix, nameSuffix, targetPath);
             }
-            return makeTargetFile(namePrefix, nameSuffix, targetPath);
         } catch (Exception e) {
             return null;
         }
@@ -939,31 +750,18 @@ public abstract class BaseController_Files extends BaseController_Attributes {
 
     public File makeTargetFile(String namePrefix, String nameSuffix, File targetPath) {
         try {
-            String targetPrefix = targetPath.getAbsolutePath() + File.separator + FileNameTools.filenameFilter(namePrefix);
-            String targetSuffix = FileNameTools.filenameFilter(nameSuffix);
+            if (targetFileController != null) {
+                return targetFileController.makeTargetFile(namePrefix, nameSuffix, targetPath);
+
+            } else if (targetPathController != null) {
+                return targetPathController.makeTargetFile(namePrefix, nameSuffix, targetPath);
+
+            }
+            String targetPrefix = targetPath.getAbsolutePath() + File.separator
+                    + FileNameTools.filter(namePrefix);
+            String targetSuffix = FileNameTools.filter(nameSuffix);
             File target = new File(targetPrefix + targetSuffix);
-            if (target.exists()) {
-                if (targetExistType == TargetExistType.Skip) {
-                    target = null;
-                } else if (targetExistType == TargetExistType.Rename) {
-                    if (targetAppendInput != null) {
-                        targetNameAppend = targetAppendInput.getText().trim();
-                    }
-                    if (targetNameAppend == null || targetNameAppend.isEmpty()) {
-                        targetNameAppend = "_m";
-                    }
-                    while (true) {
-                        targetPrefix = targetPrefix + targetNameAppend;
-                        target = new File(targetPrefix + targetSuffix);
-                        if (!target.exists()) {
-                            break;
-                        }
-                    }
-                }
-            }
-            if (target != null) {
-                target.getParentFile().mkdirs();
-            }
+            target.getParentFile().mkdirs();
             return target;
         } catch (Exception e) {
             MyBoxLog.debug(e.toString());

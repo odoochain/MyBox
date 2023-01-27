@@ -10,19 +10,25 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.zip.GZIPInputStream;
+import javafx.concurrent.Task;
 import javafx.scene.control.IndexRange;
-import javafx.scene.web.WebView;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
+import mara.mybox.controller.BaseController;
 import mara.mybox.controller.HtmlTableController;
+import mara.mybox.data.DownloadTask;
 import mara.mybox.data.FindReplaceString;
 import mara.mybox.data.Link;
+import mara.mybox.data.StringTable;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fxml.ControllerTools;
 import mara.mybox.value.AppValues;
-import static mara.mybox.value.AppVariables.HttpUserAgent;
+import mara.mybox.value.Languages;
 import mara.mybox.value.UserConfig;
 import org.jsoup.Jsoup;
 import org.jsoup.select.Elements;
@@ -38,16 +44,8 @@ import org.w3c.dom.NodeList;
  */
 public class HtmlReadTools {
 
-    public static String httpUserAgent() {
-        if (HttpUserAgent == null) {
-            try {
-                HttpUserAgent = new WebView().getEngine().getUserAgent();
-            } catch (Exception e) {
-                HttpUserAgent = "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:6.0) Gecko/20100101 Firefox/6.0";
-            }
-        }
-        return HttpUserAgent;
-    }
+    public final static String httpUserAgent = "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:6.0) Gecko/20100101 Firefox/6.0";
+
 
     /*
      read html
@@ -57,7 +55,12 @@ public class HtmlReadTools {
             if (urlAddress == null) {
                 return null;
             }
-            URL url = new URL(urlAddress);
+            URL url;
+            try {
+                url = new URL(urlAddress);
+            } catch (Exception e) {
+                return null;
+            }
             File tmpFile = TmpFileTools.getTempFile();
 
             if ("file".equalsIgnoreCase(url.getProtocol())) {
@@ -69,7 +72,7 @@ public class HtmlReadTools {
                 connection.setSSLSocketFactory(sc.getSocketFactory());
                 connection.setConnectTimeout(UserConfig.getInt("WebConnectTimeout", 10000));
                 connection.setReadTimeout(UserConfig.getInt("WebReadTimeout", 10000));
-                connection.setRequestProperty("User-Agent", httpUserAgent());
+                connection.setRequestProperty("User-Agent", httpUserAgent);
                 connection.connect();
                 if ("gzip".equalsIgnoreCase(connection.getContentEncoding())) {
                     try (final BufferedInputStream inStream = new BufferedInputStream(new GZIPInputStream(connection.getInputStream()));
@@ -93,7 +96,7 @@ public class HtmlReadTools {
             } else if ("http".equalsIgnoreCase(url.getProtocol())) {
                 HttpURLConnection connection = (HttpURLConnection) url.openConnection();
                 //                connection.setRequestMethod("GET");
-                connection.setRequestProperty("User-Agent", httpUserAgent());
+                connection.setRequestProperty("User-Agent", httpUserAgent);
                 connection.setConnectTimeout(UserConfig.getInt("WebConnectTimeout", 10000));
                 connection.setReadTimeout(UserConfig.getInt("WebReadTimeout", 10000));
                 connection.setUseCaches(false);
@@ -140,12 +143,53 @@ public class HtmlReadTools {
         return TextFileTools.readTexts(tmpFile);
     }
 
+    public static File url2Image(String address, String name) {
+        try {
+            if (address == null) {
+                return null;
+            }
+            String suffix = null;
+            if (name != null && !name.isBlank()) {
+                suffix = FileNameTools.suffix(name);
+            }
+            String addrSuffix = FileNameTools.suffix(address);
+            if (addrSuffix != null && !addrSuffix.isBlank()) {
+                if (suffix == null || suffix.isBlank()
+                        || !addrSuffix.equalsIgnoreCase(suffix)) {
+                    suffix = addrSuffix;
+                }
+            }
+            if (suffix == null || (suffix.length() != 3
+                    && !"jpeg".equalsIgnoreCase(suffix) && !"tiff".equalsIgnoreCase(suffix))) {
+                suffix = "jpg";
+            }
+            File tmpFile = url2File(address);
+            if (tmpFile == null) {
+                return null;
+            }
+            File imageFile = new File(tmpFile.getAbsoluteFile() + "." + suffix);
+            if (FileTools.rename(tmpFile, imageFile)) {
+                return imageFile;
+            } else {
+                return null;
+            }
+        } catch (Exception e) {
+            MyBoxLog.debug(e, address);
+            return null;
+        }
+    }
+
     public static String readURL(String address) {
         try {
             if (address == null) {
                 return null;
             }
-            URL url = new URL(address);
+            URL url;
+            try {
+                url = new URL(address);
+            } catch (Exception e) {
+                return null;
+            }
             try (final BufferedReader in = new BufferedReader(new InputStreamReader(url.openStream()))) {
                 String inputLine;
                 StringBuilder sb = new StringBuilder();
@@ -191,6 +235,154 @@ public class HtmlReadTools {
         return ControllerTools.openHtmlTable(null, body);
     }
 
+    public static void requestHead(BaseController controller, String link) {
+        if (controller == null || link == null) {
+            return;
+        }
+        Task infoTask = new DownloadTask() {
+
+            @Override
+            protected boolean initValues() {
+                readHead = true;
+                address = link;
+                return super.initValues();
+            }
+
+            @Override
+            protected void whenSucceeded() {
+                if (head == null) {
+                    controller.popError(Languages.message("InvalidData"));
+                    return;
+                }
+                String table = requestHeadTable(url, head);
+                ControllerTools.openHtmlTable(null, table);
+            }
+
+            @Override
+            protected void whenFailed() {
+                if (error != null) {
+                    controller.popError(error);
+                } else {
+                    controller.popFailed();
+                }
+            }
+
+        };
+        controller.start(infoTask);
+    }
+
+    public static HttpURLConnection getConnection(URL url) {
+        try {
+            if ("https".equals(url.getProtocol())) {
+                HttpsURLConnection conn = (HttpsURLConnection) url.openConnection();
+                SSLContext sc = SSLContext.getInstance(AppValues.HttpsProtocal);
+                sc.init(null, null, null);
+                conn.setSSLSocketFactory(sc.getSocketFactory());
+                return conn;
+            } else {
+                return (HttpURLConnection) url.openConnection();
+            }
+        } catch (Exception e) {
+            MyBoxLog.debug(e);
+            return null;
+        }
+    }
+
+    public static Map<String, String> requestHead(URL url) {
+        try {
+            if (!url.getProtocol().startsWith("http")) {
+                return null;
+            }
+            HttpURLConnection connection = getConnection(url);
+            Map<String, String> head = HtmlReadTools.requestHead(connection);
+            connection.disconnect();
+            return head;
+        } catch (Exception e) {
+            MyBoxLog.debug(e);
+            return null;
+        }
+    }
+
+    public static Map<String, String> requestHead(HttpURLConnection connection) {
+        try {
+            Map<String, String> head = new HashMap();
+            connection.setRequestMethod("HEAD");
+            head.put("ResponseCode", connection.getResponseCode() + "");
+            head.put("ResponseMessage", connection.getResponseMessage());
+            head.put("RequestMethod", connection.getRequestMethod());
+            head.put("ContentEncoding", connection.getContentEncoding());
+            head.put("ContentType", connection.getContentType());
+            head.put("ContentLength", connection.getContentLength() + "");
+            head.put("Expiration", DateTools.datetimeToString(connection.getExpiration()));
+            head.put("LastModified", DateTools.datetimeToString(connection.getLastModified()));
+            for (String key : connection.getHeaderFields().keySet()) {
+                head.put("HeaderField_" + key, connection.getHeaderFields().get(key).toString());
+            }
+            for (String key : connection.getRequestProperties().keySet()) {
+                head.put("RequestProperty_" + key, connection.getRequestProperties().get(key).toString());
+            }
+            return head;
+        } catch (Exception e) {
+            MyBoxLog.debug(e);
+            return null;
+        }
+    }
+
+    public static String requestHeadTable(URL url) {
+        return requestHeadTable(url, HtmlReadTools.requestHead(url));
+    }
+
+    public static String requestHeadTable(URL url, Map<String, String> head) {
+        try {
+            if (head == null) {
+                return null;
+            }
+            StringBuilder s = new StringBuilder();
+            s.append("<h1  class=\"center\">").append(url.toString()).append("</h1>\n");
+            s.append("<hr>\n");
+            List<String> names = new ArrayList<>();
+            names.addAll(Arrays.asList(Languages.message("Name"), Languages.message("Value")));
+            StringTable table = new StringTable(names);
+            for (String name : head.keySet()) {
+                if (name.startsWith("HeaderField_") || name.startsWith("RequestProperty_")) {
+                    continue;
+                }
+                List<String> row = new ArrayList<>();
+                row.addAll(Arrays.asList(name, head.get(name)));
+                table.add(row);
+            }
+            s.append(StringTable.tableDiv(table));
+            s.append("<h2  class=\"center\">").append("Header Fields").append("</h2>\n");
+            int hlen = "HeaderField_".length();
+            for (Object key : head.keySet()) {
+                String name = (String) key;
+                if (!name.startsWith("HeaderField_")) {
+                    continue;
+                }
+                List<String> row = new ArrayList<>();
+                row.addAll(Arrays.asList(name.substring(hlen), (String) head.get(key)));
+                table.add(row);
+            }
+            s.append(StringTable.tableDiv(table));
+            s.append("<h2  class=\"center\">").append("Request Property").append("</h2>\n");
+            int rlen = "RequestProperty_".length();
+            for (String name : head.keySet()) {
+                if (!name.startsWith("RequestProperty_")) {
+                    continue;
+                }
+                List<String> row = new ArrayList<>();
+                row.addAll(Arrays.asList(name.substring(rlen), head.get(name)));
+                table.add(row);
+            }
+            s.append(StringTable.tableDiv(table));
+            return s.toString();
+        } catch (Exception e) {
+            MyBoxLog.debug(e);
+            return null;
+        }
+
+    }
+
     /*
         parse html
      */
@@ -206,8 +398,11 @@ public class HtmlReadTools {
     }
 
     public static String htmlTitle(String html) {
-        FindReplaceString finder = FindReplaceString.finder(true, true);
-        return tag(finder, tag(finder, html, "head", true), "title", false);
+        return tag(tag(html, "head", true), "title", false);
+    }
+
+    public static String head(String html) {
+        return tag(html, "head", true);
     }
 
     public static String charsetNameInHead(String head) {
@@ -259,6 +454,10 @@ public class HtmlReadTools {
                 }
             }
         }
+    }
+
+    public static String charsetName(String html) {
+        return charsetNameInHead(head(html));
     }
 
     public static Charset charsetInHead(String head) {
@@ -391,7 +590,7 @@ public class HtmlReadTools {
             }
         }
         IndexRange end = null;
-        if (finder.setFindString("</body>").run()) {
+        if (finder.setFindString("</body>").setAnchor(from).run()) {
             end = finder.getStringRange();
         }
         if (end != null) {
@@ -408,13 +607,21 @@ public class HtmlReadTools {
     }
 
     public static String tag(String string, String tag, boolean withTag) {
-        if (string == null || tag == null) {
+        try {
+            if (string == null || tag == null) {
+                return null;
+            }
+            IndexRange range = tagRange(FindReplaceString.finder(false, true), string, tag, withTag);
+            if (range == null) {
+                return null;
+            }
+            return string.substring(range.getStart(), range.getEnd());
+        } catch (Exception e) {
             return null;
         }
-        return tag(FindReplaceString.finder(true, true), string, tag, withTag);
     }
 
-    public static String tag(FindReplaceString finder, String string, String tag, boolean withTag) {
+    public static IndexRange tagRange(FindReplaceString finder, String string, String tag, boolean withTag) {
         if (finder == null || string == null || tag == null) {
             return null;
         }
@@ -445,7 +652,7 @@ public class HtmlReadTools {
             return null;
         }
         int to = withTag ? end.getEnd() : end.getStart();
-        return string.substring(from, to);
+        return new IndexRange(from, to);
     }
 
     public static String toc(Document doc, int indentSize) {
@@ -566,7 +773,8 @@ public class HtmlReadTools {
             String linkAddress = element.attr("href");
             try {
                 URL url = new URL(baseURL, linkAddress);
-                Link link = Link.create().setUrl(url).setAddress(url.toString()).setAddressOriginal(linkAddress).setName(element.text()).setTitle(element.attr("title")).setIndex(links.size());
+                Link link = Link.create().setUrl(url).setAddress(url.toString()).setAddressOriginal(linkAddress)
+                        .setName(element.text()).setTitle(element.attr("title")).setIndex(links.size());
                 links.add(link);
             } catch (Exception e) {
                 //                MyBoxLog.console(linkAddress);
@@ -606,6 +814,79 @@ public class HtmlReadTools {
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
             return null;
+        }
+    }
+
+    public static List<StringTable> Tables(String html, String name) {
+        try {
+            if (html == null || html.isBlank()) {
+                return null;
+            }
+            List<StringTable> tables = new ArrayList<>();
+            org.jsoup.nodes.Document doc = Jsoup.parse(html);
+            Elements tablesList = doc.getElementsByTag("table");
+            String titlePrefix = name != null ? name + "_t_" : "t_";
+            int count = 0;
+            if (tablesList != null) {
+                for (org.jsoup.nodes.Element table : tablesList) {
+                    StringTable stringTable = new StringTable();
+                    stringTable.setTitle(titlePrefix + (++count));
+                    List<List<String>> data = new ArrayList<>();
+                    List<String> names = null;
+                    Elements trList = table.getElementsByTag("tr");
+                    if (trList != null) {
+                        for (org.jsoup.nodes.Element tr : trList) {
+                            if (names == null) {
+                                Elements thList = tr.getElementsByTag("th");
+                                if (thList != null) {
+                                    names = new ArrayList<>();
+                                    for (org.jsoup.nodes.Element th : thList) {
+                                        names.add(th.text());
+                                    }
+                                    if (!names.isEmpty()) {
+                                        stringTable.setNames(names);
+                                    }
+                                }
+                            }
+                            Elements tdList = tr.getElementsByTag("td");
+                            if (tdList != null) {
+                                List<String> row = new ArrayList<>();
+                                for (org.jsoup.nodes.Element td : tdList) {
+                                    row.add(td.text());
+                                }
+                                if (!row.isEmpty()) {
+                                    data.add(row);
+                                }
+                            }
+                        }
+                    }
+                    stringTable.setData(data);
+                    tables.add(stringTable);
+                }
+            }
+            return tables;
+        } catch (Exception e) {
+            MyBoxLog.error(e.toString());
+            return null;
+        }
+    }
+
+    public static String removeNode(String html, String id) {
+        try {
+            if (html == null || id == null || id.isBlank()) {
+                return html;
+            }
+            org.jsoup.nodes.Document doc = Jsoup.parse(html);
+            org.jsoup.nodes.Element element = doc.getElementById(id);
+            if (element != null) {
+                element.remove();
+                return doc.html();
+            } else {
+                return html;
+            }
+        } catch (Exception e) {
+            MyBoxLog.debug(e);
+            return html;
         }
     }
 

@@ -17,13 +17,13 @@ import javafx.scene.control.Separator;
 import javafx.scene.control.Tooltip;
 import javafx.scene.input.ContextMenuEvent;
 import javafx.scene.input.MouseEvent;
-import javafx.stage.Popup;
+import javafx.stage.Window;
 import mara.mybox.db.data.VisitHistory;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fxml.FxFileTools;
-import mara.mybox.fxml.NodeStyleTools;
-import mara.mybox.fxml.PopTools;
 import mara.mybox.fxml.TextClipboardTools;
+import mara.mybox.fxml.WindowTools;
+import mara.mybox.fxml.style.NodeStyleTools;
 import mara.mybox.tools.HtmlWriteTools;
 import mara.mybox.tools.UrlTools;
 import mara.mybox.value.Fxmls;
@@ -90,12 +90,12 @@ public class MenuHtmlCodesController extends MenuTextEditController {
                 @Override
                 public void handle(ActionEvent event) {
                     TableSizeController controller = (TableSizeController) openChildStage(Fxmls.TableSizeFxml, true);
-                    controller.setParameters(parentController);
+                    controller.setParameters(parentController, message("Table"));
                     controller.notify.addListener(new ChangeListener<Boolean>() {
                         @Override
                         public void changed(ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) {
-                            addTable(controller.rowsNumber, controller.colsNumber);
-                            closeStage();
+                            addTable(controller.rowsNumber, controller.colsNumber, true);
+                            controller.closeStage();
                         }
                     });
                 }
@@ -106,25 +106,15 @@ public class MenuHtmlCodesController extends MenuTextEditController {
             tableRow.setOnAction(new EventHandler<ActionEvent>() {
                 @Override
                 public void handle(ActionEvent event) {
-                    String value = PopTools.askValue(baseTitle, "", message("ColumnsNumber"), "3");
-                    if (value == null) {
-                        return;
-                    }
-                    try {
-                        int colsNumber = Integer.valueOf(value);
-                        if (colsNumber > 0) {
-                            String s = "    <tr>";
-                            for (int j = 1; j <= colsNumber; j++) {
-                                s += "<td> v" + j + " </td>";
-                            }
-                            s += "</tr>\n";
-                            insertText(s);
-                        } else {
-                            popError(message("InvalidData"));
+                    TableSizeController controller = (TableSizeController) openChildStage(Fxmls.TableSizeFxml, true);
+                    controller.setParameters(parentController, message("TableRow"));
+                    controller.notify.addListener(new ChangeListener<Boolean>() {
+                        @Override
+                        public void changed(ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) {
+                            addTable(controller.rowsNumber, controller.colsNumber, false);
+                            controller.closeStage();
                         }
-                    } catch (Exception e) {
-                        popError(message("InvalidData"));
-                    }
+                    });
                 }
             });
             aNodes.add(tableRow);
@@ -133,16 +123,41 @@ public class MenuHtmlCodesController extends MenuTextEditController {
             image.setOnAction(new EventHandler<ActionEvent>() {
                 @Override
                 public void handle(ActionEvent event) {
-                    insertText("<img src=\"https://mararsh.github.io/MyBox/iconGo.png\" alt=\"ReadMe\" />");
+                    AddressInputController controller = (AddressInputController) openChildStage(Fxmls.AddressInputFxml, true);
+                    controller.setParameters(parentController);
+                    controller.notify.addListener(new ChangeListener<Boolean>() {
+                        @Override
+                        public void changed(ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) {
+                            insertText("<img src=\"" + controller.address + "\" alt=\"" + controller.name + "\" />");
+                            controller.closeStage();
+                        }
+                    });
                 }
             });
             aNodes.add(image);
+
+            Button imageBase64 = new Button(message("ImageBase64"));
+            imageBase64.setOnAction(new EventHandler<ActionEvent>() {
+                @Override
+                public void handle(ActionEvent event) {
+                    imageBase64();
+                }
+            });
+            aNodes.add(imageBase64);
 
             Button link = new Button(message("Link"));
             link.setOnAction(new EventHandler<ActionEvent>() {
                 @Override
                 public void handle(ActionEvent event) {
-                    insertText("<a href=\"https://github.com/Mararsh/MyBox\">MyBox</a>");
+                    AddressInputController controller = (AddressInputController) openChildStage(Fxmls.AddressInputFxml, true);
+                    controller.setParameters(parentController);
+                    controller.notify.addListener(new ChangeListener<Boolean>() {
+                        @Override
+                        public void changed(ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) {
+                            insertText("<a href=\"" + controller.address + "\">" + controller.name + "</a>");
+                            controller.closeStage();
+                        }
+                    });
                 }
             });
             aNodes.add(link);
@@ -389,17 +404,24 @@ public class MenuHtmlCodesController extends MenuTextEditController {
     }
 
     protected void insertText(String string) {
+        if (string == null) {
+            return;
+        }
         IndexRange range = textInput.getSelection();
         textInput.insertText(range.getStart(), string);
+        parentController.getMyWindow().requestFocus();
         textInput.requestFocus();
     }
 
-    public void addTable(int rowsNumber, int colsNumber) {
-        String s = "<table>\n    <tr>";
-        for (int j = 1; j <= colsNumber; j++) {
-            s += "<th> col" + j + " </th>";
+    public void addTable(int rowsNumber, int colsNumber, boolean withHeader) {
+        String s = "\n";
+        if (withHeader) {
+            s += "<table>\n    <tr>";
+            for (int j = 1; j <= colsNumber; j++) {
+                s += "<th> col" + j + " </th>";
+            }
+            s += "</tr>\n";
         }
-        s += "</tr>\n";
         for (int i = 1; i <= rowsNumber; i++) {
             s += "    <tr>";
             for (int j = 1; j <= colsNumber; j++) {
@@ -407,8 +429,18 @@ public class MenuHtmlCodesController extends MenuTextEditController {
             }
             s += "</tr>\n";
         }
-        s += "</table>\n";
+        if (withHeader) {
+            s += "</table>\n";
+        }
         insertText(s);
+    }
+
+    protected void imageBase64() {
+        File file = FxFileTools.selectFile(this, VisitHistory.FileType.Image);
+        if (file == null) {
+            return;
+        }
+        ImageBase64Controller.convert(this, file, textInput, null, "jpg", true);
     }
 
     @FXML
@@ -424,7 +456,7 @@ public class MenuHtmlCodesController extends MenuTextEditController {
         if (textInput == null) {
             return false;
         }
-        HtmlCodesPopController.open(parentController, textInput.getText());
+        HtmlCodesPopController.openInput(parentController, textInput);
         return true;
     }
 
@@ -436,15 +468,22 @@ public class MenuHtmlCodesController extends MenuTextEditController {
             if (parent == null || node == null) {
                 return null;
             }
-            Popup popup = PopTools.popWindow(parent, Fxmls.MenuHtmlCodesFxml, node, x, y);
-            if (popup == null) {
-                return null;
+            List<Window> windows = new ArrayList<>();
+            windows.addAll(Window.getWindows());
+            for (Window window : windows) {
+                Object object = window.getUserData();
+                if (object != null && object instanceof MenuHtmlCodesController) {
+                    try {
+                        MenuHtmlCodesController controller = (MenuHtmlCodesController) object;
+                        if (controller.textInput != null && controller.textInput.equals(node)) {
+                            controller.close();
+                        }
+                    } catch (Exception e) {
+                    }
+                }
             }
-            Object object = popup.getUserData();
-            if (object == null && !(object instanceof MenuHtmlCodesController)) {
-                return null;
-            }
-            MenuHtmlCodesController controller = (MenuHtmlCodesController) object;
+            MenuHtmlCodesController controller = (MenuHtmlCodesController) WindowTools.openChildStage(
+                    parent.getMyWindow(), Fxmls.MenuHtmlCodesFxml, false);
             controller.setParameters(parent, node, x, y);
             return controller;
         } catch (Exception e) {

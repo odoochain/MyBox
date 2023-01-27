@@ -17,21 +17,18 @@ import javafx.scene.control.ToggleGroup;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
-import javafx.stage.Modality;
 import mara.mybox.db.data.VisitHistory;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.NodeTools;
-import static mara.mybox.fxml.NodeStyleTools.badStyle;
 import mara.mybox.fxml.FxFileTools;
-import mara.mybox.fxml.NodeStyleTools;
 import mara.mybox.fxml.RecentVisitMenu;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.tools.ByteTools;
 import mara.mybox.tools.DateTools;
 import mara.mybox.tools.MessageDigestTools;
-import mara.mybox.tools.SystemTools;
 import mara.mybox.value.AppVariables;
-import static mara.mybox.value.Languages.message;
 import mara.mybox.value.Languages;
+import static mara.mybox.value.Languages.message;
+import mara.mybox.value.UserConfig;
 
 /**
  * @Author Mara
@@ -62,7 +59,7 @@ public class FilesCompareController extends BaseController {
     protected Button selectFile1Button, selectFile2Button;
 
     public FilesCompareController() {
-        baseTitle = Languages.message("FilesCompare");
+        baseTitle = message("FilesCompare");
 
     }
 
@@ -76,12 +73,12 @@ public class FilesCompareController extends BaseController {
                 public void changed(ObservableValue<? extends String> observable, String oldValue, String newValue) {
                     String v = file1Input.getText();
                     if (v == null || v.isEmpty()) {
-                        file1Input.setStyle(NodeStyleTools.badStyle);
+                        file1Input.setStyle(UserConfig.badStyle());
                         return;
                     }
                     final File file = new File(v);
                     if (!file.exists()) {
-                        file1Input.setStyle(NodeStyleTools.badStyle);
+                        file1Input.setStyle(UserConfig.badStyle());
                         return;
                     }
                     file1 = file;
@@ -95,12 +92,12 @@ public class FilesCompareController extends BaseController {
                 public void changed(ObservableValue<? extends String> observable, String oldValue, String newValue) {
                     String v = file2Input.getText();
                     if (v == null || v.isEmpty()) {
-                        file2Input.setStyle(NodeStyleTools.badStyle);
+                        file2Input.setStyle(UserConfig.badStyle());
                         return;
                     }
                     final File file = new File(v);
                     if (!file.exists()) {
-                        file2Input.setStyle(NodeStyleTools.badStyle);
+                        file2Input.setStyle(UserConfig.badStyle());
                         return;
                     }
                     file2 = file;
@@ -119,9 +116,9 @@ public class FilesCompareController extends BaseController {
 
             startButton.disableProperty().bind(
                     Bindings.isEmpty(file1Input.textProperty())
-                            .or(file1Input.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                            .or(file1Input.styleProperty().isEqualTo(UserConfig.badStyle()))
                             .or(Bindings.isEmpty(file2Input.textProperty()))
-                            .or(file2Input.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                            .or(file2Input.styleProperty().isEqualTo(UserConfig.badStyle()))
             );
 
         } catch (Exception e) {
@@ -283,13 +280,13 @@ public class FilesCompareController extends BaseController {
     public void startAction() {
         if (file1 == null || file2 == null) {
             clear();
-            popError(Languages.message("InvalidData"));
+            popError(message("InvalidData"));
             return;
         }
         if (file1.length() != file2.length()) {
-            String s = Languages.message("Different") + "\n\n"
-                    + Languages.message("File") + " 1: " + Languages.message("Length") + " " + file1.length() + "\n"
-                    + Languages.message("File") + " 2: " + Languages.message("Length") + " " + file2.length();
+            String s = message("Different") + "\n\n"
+                    + message("File") + " 1: " + message("Length") + " " + file1.length() + "\n"
+                    + message("File") + " 2: " + message("Length") + " " + file2.length();
             resultArea.setText(s);
             return;
         }
@@ -298,7 +295,7 @@ public class FilesCompareController extends BaseController {
                 if (task != null && !task.isQuit()) {
                     return;
                 }
-                task = new SingletonTask<Void>() {
+                task = new SingletonTask<Void>(this) {
 
                     private byte[] digest1, digest2;
                     private boolean same;
@@ -318,25 +315,21 @@ public class FilesCompareController extends BaseController {
 
                     @Override
                     protected void whenSucceeded() {
-                        String s = (same ? Languages.message("Same") : Languages.message("Different")) + "\n"
-                                + Languages.message("Cost") + ":" + DateTools.datetimeMsDuration(cost) + "\n\n"
-                                + Languages.message("File") + " 1: \n"
-                                + MessageFormat.format(Languages.message("DigestResult"),
+                        String s = (same ? message("Same") : message("Different")) + "\n"
+                                + message("Cost") + ":" + DateTools.datetimeMsDuration(cost) + "\n\n"
+                                + message("File") + " 1: \n"
+                                + MessageFormat.format(message("DigestResult"),
                                         file1.length(), digest1.length) + "\n"
                                 + ByteTools.bytesToHexFormat(digest1) + "\n\n"
-                                + Languages.message("File") + " 2: \n"
-                                + MessageFormat.format(Languages.message("DigestResult"),
+                                + message("File") + " 2: \n"
+                                + MessageFormat.format(message("DigestResult"),
                                         file2.length(), digest2.length) + "\n"
                                 + ByteTools.bytesToHexFormat(digest2);
                         resultArea.setText(s);
                     }
 
                 };
-                handling(task);
-                task.setSelf(task);
-                Thread thread = new Thread(task);
-                thread.setDaemon(false);
-                thread.start();
+                start(task);
             }
 
         } catch (Exception e) {

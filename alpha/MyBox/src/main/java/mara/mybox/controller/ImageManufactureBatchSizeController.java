@@ -13,14 +13,10 @@ import javafx.scene.control.Toggle;
 import javafx.scene.control.ToggleGroup;
 import mara.mybox.bufferedimage.ScaleTools;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.NodeStyleTools;
-import mara.mybox.fxml.NodeTools;
-import static mara.mybox.fxml.NodeStyleTools.badStyle;
 import mara.mybox.fxml.ValidationTools;
-import mara.mybox.value.AppVariables;
-
 import mara.mybox.value.Fxmls;
 import mara.mybox.value.Languages;
+import mara.mybox.value.UserConfig;
 
 /**
  * @Author Mara
@@ -32,7 +28,6 @@ public class ImageManufactureBatchSizeController extends BaseImageManufactureBat
 
     protected float scale;
     protected int sizeType, customWidth, customHeight, keepWidth, keepHeight;
-    protected int interpolation = -1, dither = -1, anti = -1, quality = -1;
 
     @FXML
     protected ToggleGroup pixelsGroup;
@@ -41,10 +36,7 @@ public class ImageManufactureBatchSizeController extends BaseImageManufactureBat
     @FXML
     protected TextField customWidthInput, customHeightInput, keepWidthInput, keepHeightInput;
     @FXML
-    protected RadioButton scaleRadio, widthRadio, heightRadio, customRadio,
-            interpolationNullRadio, interpolation9Radio, interpolation4Radio, interpolation1Radio,
-            ditherNullRadio, ditherOnRadio, ditherOffRadio, antiNullRadio, antiOnRadio, antiOffRadio,
-            qualityNullRadio, qualityOnRadio, qualityOffRadio;
+    protected RadioButton scaleRadio, widthRadio, heightRadio, customRadio;
 
     protected static class SizeType {
 
@@ -65,14 +57,13 @@ public class ImageManufactureBatchSizeController extends BaseImageManufactureBat
             super.initControls();
 
             startButton.disableProperty().unbind();
-            startButton.disableProperty().bind(Bindings.isEmpty(targetPathInput.textProperty())
-                    .or(targetPathInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+            startButton.disableProperty().bind(targetPathController.valid.not()
                     .or(Bindings.isEmpty(tableView.getItems()))
-                    .or(customWidthInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
-                    .or(customHeightInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
-                    .or(keepWidthInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
-                    .or(keepHeightInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
-                    .or(scaleBox.getEditor().styleProperty().isEqualTo(NodeStyleTools.badStyle)));
+                    .or(customWidthInput.styleProperty().isEqualTo(UserConfig.badStyle()))
+                    .or(customHeightInput.styleProperty().isEqualTo(UserConfig.badStyle()))
+                    .or(keepWidthInput.styleProperty().isEqualTo(UserConfig.badStyle()))
+                    .or(keepHeightInput.styleProperty().isEqualTo(UserConfig.badStyle()))
+                    .or(scaleBox.getEditor().styleProperty().isEqualTo(UserConfig.badStyle())));
 
         } catch (Exception e) {
             MyBoxLog.debug(e.toString());
@@ -195,10 +186,10 @@ public class ImageManufactureBatchSizeController extends BaseImageManufactureBat
             if (customWidth > 0) {
                 customWidthInput.setStyle(null);
             } else {
-                customWidthInput.setStyle(NodeStyleTools.badStyle);
+                customWidthInput.setStyle(UserConfig.badStyle());
             }
         } catch (Exception e) {
-            customWidthInput.setStyle(NodeStyleTools.badStyle);
+            customWidthInput.setStyle(UserConfig.badStyle());
         }
     }
 
@@ -208,10 +199,10 @@ public class ImageManufactureBatchSizeController extends BaseImageManufactureBat
             if (customHeight > 0) {
                 customHeightInput.setStyle(null);
             } else {
-                customHeightInput.setStyle(NodeStyleTools.badStyle);
+                customHeightInput.setStyle(UserConfig.badStyle());
             }
         } catch (Exception e) {
-            customHeightInput.setStyle(NodeStyleTools.badStyle);
+            customHeightInput.setStyle(UserConfig.badStyle());
         }
     }
 
@@ -221,10 +212,10 @@ public class ImageManufactureBatchSizeController extends BaseImageManufactureBat
             if (keepWidth > 0) {
                 keepWidthInput.setStyle(null);
             } else {
-                keepWidthInput.setStyle(NodeStyleTools.badStyle);
+                keepWidthInput.setStyle(UserConfig.badStyle());
             }
         } catch (Exception e) {
-            keepWidthInput.setStyle(NodeStyleTools.badStyle);
+            keepWidthInput.setStyle(UserConfig.badStyle());
         }
 
     }
@@ -235,10 +226,10 @@ public class ImageManufactureBatchSizeController extends BaseImageManufactureBat
             if (keepHeight > 0) {
                 keepHeightInput.setStyle(null);
             } else {
-                keepHeightInput.setStyle(NodeStyleTools.badStyle);
+                keepHeightInput.setStyle(UserConfig.badStyle());
             }
         } catch (Exception e) {
-            keepHeightInput.setStyle(NodeStyleTools.badStyle);
+            keepHeightInput.setStyle(UserConfig.badStyle());
         }
     }
 
@@ -263,48 +254,20 @@ public class ImageManufactureBatchSizeController extends BaseImageManufactureBat
     }
 
     @Override
-    public boolean makeMoreParameters() {
-        interpolation = dither = anti = quality = -1;
-        if (interpolation9Radio.isSelected()) {
-            interpolation = 9;
-        } else if (interpolation4Radio.isSelected()) {
-            interpolation = 4;
-        } else if (interpolation1Radio.isSelected()) {
-            interpolation = 1;
-        }
-        if (ditherOnRadio.isSelected()) {
-            dither = 1;
-        } else if (ditherOffRadio.isSelected()) {
-            dither = 0;
-        }
-        if (antiOnRadio.isSelected()) {
-            anti = 1;
-        } else if (antiOffRadio.isSelected()) {
-            anti = 0;
-        }
-        if (qualityOnRadio.isSelected()) {
-            quality = 1;
-        } else if (qualityOffRadio.isSelected()) {
-            quality = 0;
-        }
-        return super.makeMoreParameters();
-    }
-
-    @Override
     protected BufferedImage handleImage(BufferedImage source) {
         try {
             BufferedImage target = null;
             if (sizeType == SizeType.Scale) {
-                target = ScaleTools.scaleImageByScale(source, scale, dither, anti, quality, interpolation);
+                target = ScaleTools.scaleImageByScale(source, scale);
 
             } else if (sizeType == SizeType.Width) {
-                target = ScaleTools.scaleImageWidthKeep(source, keepWidth, dither, anti, quality, interpolation);
+                target = ScaleTools.scaleImageWidthKeep(source, keepWidth);
 
             } else if (sizeType == SizeType.Height) {
-                target = ScaleTools.scaleImageHeightKeep(source, keepHeight, dither, anti, quality, interpolation);
+                target = ScaleTools.scaleImageHeightKeep(source, keepHeight);
 
             } else if (sizeType == SizeType.Custom) {
-                target = ScaleTools.scaleImage(source, customWidth, customHeight, dither, anti, quality, interpolation);
+                target = ScaleTools.scaleImage(source, customWidth, customHeight);
             }
 
             return target;

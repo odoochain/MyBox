@@ -6,7 +6,6 @@ import javafx.beans.value.ObservableValue;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
-import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
@@ -25,10 +24,11 @@ import mara.mybox.controller.ImageManufactureController_Image.ImageOperation;
 import mara.mybox.data.DoublePoint;
 import mara.mybox.data.DoubleRectangle;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.NodeStyleTools;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.fxml.ValidationTools;
 import mara.mybox.value.Fxmls;
 import mara.mybox.value.Languages;
+import mara.mybox.value.UserConfig;
 
 /**
  * @Author Mara
@@ -45,19 +45,14 @@ public class ImageManufactureScaleController extends ImageManufactureOperationCo
     @FXML
     protected ToggleGroup scaleGroup, keepGroup, interpolationGroup, ditherGroup, antiAliasGroup, qualityGroup;
     @FXML
-    protected VBox setBox, pixelBox, keepBox, ratioBox, hintsBox;
+    protected VBox setBox, pixelBox, keepBox, ratioBox;
     @FXML
     protected ComboBox<String> scaleSelector;
     @FXML
     protected RadioButton dragRadio, scaleRadio, pixelsRadio,
-            widthRadio, heightRadio, largerRadio, smallerRadio,
-            interpolationNullRadio, interpolation9Radio, interpolation4Radio, interpolation1Radio,
-            ditherNullRadio, ditherOnRadio, ditherOffRadio, antiNullRadio, antiOnRadio, antiOffRadio,
-            qualityNullRadio, qualityOnRadio, qualityOffRadio;
+            widthRadio, heightRadio, largerRadio, smallerRadio;
     @FXML
     protected CheckBox keepRatioCheck;
-    @FXML
-    protected Button originalButton, calculatorButton;
     @FXML
     protected TextField widthInput, heightInput;
     @FXML
@@ -70,6 +65,8 @@ public class ImageManufactureScaleController extends ImageManufactureOperationCo
     @Override
     public void initPane() {
         try {
+            super.initPane();
+
             scaleGroup.selectedToggleProperty().addListener(new ChangeListener<Toggle>() {
                 @Override
                 public void changed(ObservableValue<? extends Toggle> ov, Toggle old_toggle, Toggle new_toggle) {
@@ -105,47 +102,6 @@ public class ImageManufactureScaleController extends ImageManufactureOperationCo
                 }
             });
 
-            originalButton.setOnAction(new EventHandler<ActionEvent>() {
-                @Override
-                public void handle(ActionEvent event) {
-                    isSettingValues = true;
-                    widthInput.setText((int) imageController.image.getWidth() + "");
-                    heightInput.setText((int) imageController.image.getHeight() + "");
-                    isSettingValues = false;
-                }
-            });
-
-            calculatorButton.setOnAction(new EventHandler<ActionEvent>() {
-                @Override
-                public void handle(ActionEvent event) {
-                    try {
-                        PixelsCalculationController controller
-                                = (PixelsCalculationController) openChildStage(Fxmls.PixelsCalculatorFxml, true);
-                        attributes = new ImageAttributes();
-                        attributes.setRatioAdjustion(keepRatioType);
-                        attributes.setKeepRatio(keepRatioType != KeepRatioType.None);
-                        attributes.setSourceWidth((int) imageController.image.getWidth());
-                        attributes.setSourceHeight((int) imageController.image.getHeight());
-                        attributes.setTargetWidth((int) width);
-                        attributes.setTargetHeight((int) height);
-                        controller.setSource(attributes, widthInput, heightInput);
-                        isSettingValues = true;
-                        controller.getMyStage().setOnCloseRequest(new EventHandler<WindowEvent>() {
-                            @Override
-                            public void handle(WindowEvent event) {
-                                isSettingValues = false;
-                                if (!controller.leavingScene()) {
-                                    event.consume();
-                                }
-                            }
-                        });
-
-                    } catch (Exception e) {
-                        MyBoxLog.error(e.toString());
-                    }
-                }
-            });
-
             scaleSelector.getItems().addAll(Arrays.asList("0.5", "2.0", "0.8", "0.1", "1.5", "3.0", "10.0", "0.01", "5.0", "0.3"));
             scaleSelector.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<String>() {
                 @Override
@@ -155,9 +111,9 @@ public class ImageManufactureScaleController extends ImageManufactureOperationCo
             });
             scaleSelector.getSelectionModel().select(0);
 
-            okButton.disableProperty().bind(widthInput.styleProperty().isEqualTo(NodeStyleTools.badStyle)
-                    .or(heightInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
-                    .or(scaleSelector.getEditor().styleProperty().isEqualTo(NodeStyleTools.badStyle))
+            okButton.disableProperty().bind(widthInput.styleProperty().isEqualTo(UserConfig.badStyle())
+                    .or(heightInput.styleProperty().isEqualTo(UserConfig.badStyle()))
+                    .or(scaleSelector.getEditor().styleProperty().isEqualTo(UserConfig.badStyle()))
             );
 
             checkScaleType();
@@ -187,7 +143,7 @@ public class ImageManufactureScaleController extends ImageManufactureOperationCo
 
             if (dragRadio.isSelected()) {
                 scaleType = ScaleType.Dragging;
-                setBox.getChildren().addAll(keepBox, hintsBox, okButton);
+                setBox.getChildren().addAll(keepBox, okButton);
                 commentsLabel.setText(Languages.message("DragSizeComments"));
                 initDrag();
                 checkKeepType();
@@ -195,14 +151,14 @@ public class ImageManufactureScaleController extends ImageManufactureOperationCo
 
             } else if (pixelsRadio.isSelected()) {
                 scaleType = ScaleType.Pixels;
-                setBox.getChildren().addAll(keepBox, pixelBox, hintsBox, okButton);
+                setBox.getChildren().addAll(keepBox, pixelBox, okButton);
                 checkKeepType();
                 checkPixelsWidth();
                 checkPixelsHeight();
 
             } else if (scaleRadio.isSelected()) {
                 scaleType = ScaleType.Scale;
-                setBox.getChildren().addAll(scaleSelector, hintsBox, okButton);
+                setBox.getChildren().addAll(scaleSelector, okButton);
                 checkScale();
             }
 
@@ -217,7 +173,7 @@ public class ImageManufactureScaleController extends ImageManufactureOperationCo
             width = imageView.getImage().getWidth();
             height = imageView.getImage().getHeight();
             imageController.setMaskRectangleLineVisible(true);
-            imageController.maskRectangleData = new DoubleRectangle(0, 0, width, height);
+            imageController.maskRectangleData = new DoubleRectangle(0, 0, width - 1, height - 1);
             imageController.drawMaskRectangleLineAsData();
         } catch (Exception e) {
             MyBoxLog.debug(e.toString());
@@ -230,6 +186,7 @@ public class ImageManufactureScaleController extends ImageManufactureOperationCo
             heightInput.setDisable(false);
             widthInput.setStyle(null);
             heightInput.setStyle(null);
+            scale = 1;
 
             if (!keepRatioCheck.isSelected()) {
                 ratioBox.setDisable(true);
@@ -273,10 +230,10 @@ public class ImageManufactureScaleController extends ImageManufactureOperationCo
                 widthInput.setStyle(null);
                 checkRatio();
             } else {
-                widthInput.setStyle(NodeStyleTools.badStyle);
+                widthInput.setStyle(UserConfig.badStyle());
             }
         } catch (Exception e) {
-            widthInput.setStyle(NodeStyleTools.badStyle);
+            widthInput.setStyle(UserConfig.badStyle());
         }
     }
 
@@ -291,10 +248,10 @@ public class ImageManufactureScaleController extends ImageManufactureOperationCo
                 heightInput.setStyle(null);
                 checkRatio();
             } else {
-                heightInput.setStyle(NodeStyleTools.badStyle);
+                heightInput.setStyle(UserConfig.badStyle());
             }
         } catch (Exception e) {
-            heightInput.setStyle(NodeStyleTools.badStyle);
+            heightInput.setStyle(UserConfig.badStyle());
         }
     }
 
@@ -382,10 +339,40 @@ public class ImageManufactureScaleController extends ImageManufactureOperationCo
     @FXML
     public void originalSize() {
         isSettingValues = true;
-        widthInput.setText((int) Math.round(imageController.image.getWidth()) + "");
-        heightInput.setText((int) Math.round(imageController.image.getHeight()) + "");
+        width = imageController.image.getWidth();
+        height = imageController.image.getHeight();
+        widthInput.setText((int) Math.round(width) + "");
+        heightInput.setText((int) Math.round(height) + "");
         isSettingValues = false;
-        checkRatio();
+        labelSize();
+    }
+
+    @FXML
+    public void calculator(ActionEvent event) {
+        try {
+            PixelsCalculationController controller
+                    = (PixelsCalculationController) openChildStage(Fxmls.PixelsCalculatorFxml, true);
+            attributes = new ImageAttributes();
+            attributes.setRatioAdjustion(keepRatioType);
+            attributes.setKeepRatio(keepRatioType != KeepRatioType.None);
+            attributes.setSourceWidth((int) imageController.image.getWidth());
+            attributes.setSourceHeight((int) imageController.image.getHeight());
+            attributes.setTargetWidth((int) width);
+            attributes.setTargetHeight((int) height);
+            controller.setSource(attributes, widthInput, heightInput);
+            isSettingValues = true;
+            controller.getMyStage().setOnCloseRequest(new EventHandler<WindowEvent>() {
+                @Override
+                public void handle(WindowEvent event) {
+                    isSettingValues = false;
+                    if (!controller.leavingScene()) {
+                        event.consume();
+                    }
+                }
+            });
+        } catch (Exception e) {
+            MyBoxLog.error(e.toString());
+        }
     }
 
     @FXML
@@ -395,50 +382,26 @@ public class ImageManufactureScaleController extends ImageManufactureOperationCo
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 private Image newImage;
 
                 @Override
                 protected boolean handle() {
-                    int interpolation = -1, dither = -1, anti = -1, quality = -1;
-                    if (interpolation9Radio.isSelected()) {
-                        interpolation = 9;
-                    } else if (interpolation4Radio.isSelected()) {
-                        interpolation = 4;
-                    } else if (interpolation1Radio.isSelected()) {
-                        interpolation = 1;
-                    }
-                    if (ditherOnRadio.isSelected()) {
-                        dither = 1;
-                    } else if (ditherOffRadio.isSelected()) {
-                        dither = 0;
-                    }
-                    if (antiOnRadio.isSelected()) {
-                        anti = 1;
-                    } else if (antiOffRadio.isSelected()) {
-                        anti = 0;
-                    }
-                    if (qualityOnRadio.isSelected()) {
-                        quality = 1;
-                    } else if (qualityOffRadio.isSelected()) {
-                        quality = 0;
-                    }
+
                     switch (scaleType) {
                         case Scale:
                             if (scale <= 0) {
                                 return false;
                             }
-                            newImage = mara.mybox.fximage.ScaleTools.scaleImage(imageView.getImage(), scale,
-                                    dither, anti, quality, interpolation);
+                            newImage = mara.mybox.fximage.ScaleTools.scaleImage(imageView.getImage(), scale);
                             break;
                         case Dragging:
                         case Pixels:
                             if (width <= 0 || height <= 0) {
                                 return false;
                             }
-                            newImage = mara.mybox.fximage.ScaleTools.scaleImage(imageView.getImage(), (int) width, (int) height,
-                                    dither, anti, quality, interpolation);
+                            newImage = mara.mybox.fximage.ScaleTools.scaleImage(imageView.getImage(), (int) width, (int) height);
                             break;
                         default:
                             return false;
@@ -467,11 +430,7 @@ public class ImageManufactureScaleController extends ImageManufactureOperationCo
                     }
                 }
             };
-            imageController.handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            imageController.start(task);
         }
 
     }

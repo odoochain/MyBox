@@ -1,13 +1,20 @@
 package mara.mybox.controller;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
+import javafx.event.ActionEvent;
+import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.scene.Node;
+import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
+import javafx.scene.control.TextArea;
 import javafx.scene.control.TextInputControl;
 import javafx.stage.Window;
 import mara.mybox.db.data.VisitHistory;
 import mara.mybox.dev.MyBoxLog;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.tools.TextFileTools;
 import mara.mybox.value.Fxmls;
 import mara.mybox.value.Languages;
@@ -20,6 +27,9 @@ import mara.mybox.value.Languages;
 public class MenuTextBaseController extends MenuController {
 
     protected TextInputControl textInput;
+
+    @FXML
+    protected Button replaceButton;
 
     public MenuTextBaseController() {
         baseTitle = Languages.message("Value");
@@ -44,10 +54,34 @@ public class MenuTextBaseController extends MenuController {
                     }
                 }
             }
+            if (textInput != null && !textInput.isEditable() && replaceButton != null) {
+                replaceButton.setDisable(true);
+            }
             super.setParameters(parent, node, x, y);
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
         }
+    }
+
+    public void addButtonsPane(List<String> names) {
+        List<Node> buttons = new ArrayList<>();
+        boolean isTextArea = textInput instanceof TextArea;
+        for (String name : names) {
+            Button button = new Button(name);
+            button.setOnAction(new EventHandler<ActionEvent>() {
+                @Override
+                public void handle(ActionEvent event) {
+                    if (isTextArea) {
+                        textInput.appendText(name);
+                    } else {
+                        textInput.setText(name);
+                    }
+                    textInput.requestFocus();
+                }
+            });
+            buttons.add(button);
+        }
+        addFlowPane(buttons);
     }
 
     @FXML
@@ -89,7 +123,6 @@ public class MenuTextBaseController extends MenuController {
         }
         Window window = thisPane.getScene().getWindow();
         FindReplacePopController.open(parentController, node, window.getX(), window.getY());
-        window.hide();
     }
 
     @FXML
@@ -120,7 +153,7 @@ public class MenuTextBaseController extends MenuController {
             if (file == null) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 @Override
                 protected boolean handle() {
@@ -134,15 +167,7 @@ public class MenuTextBaseController extends MenuController {
                 }
 
             };
-            if (parentController != null) {
-                parentController.handling(task);
-            } else {
-                handling(task);
-            }
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
     }
 

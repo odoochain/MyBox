@@ -8,21 +8,19 @@ import java.util.List;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
-import javafx.collections.FXCollections;
-import javafx.collections.ListChangeListener;
 import javafx.event.ActionEvent;
-import javafx.event.EventHandler;
 import javafx.fxml.FXML;
-import javafx.scene.control.ContextMenu;
+import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.Label;
 import javafx.scene.control.MenuItem;
-import javafx.scene.control.SelectionMode;
-import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
+import javafx.scene.control.TextField;
 import javafx.scene.control.Tooltip;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.image.ImageView;
-import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
@@ -30,15 +28,17 @@ import javafx.util.Callback;
 import mara.mybox.data.FileInformation;
 import mara.mybox.data.FileInformation.FileSelectorType;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.NodeStyleTools;
 import mara.mybox.fxml.PopTools;
-import mara.mybox.fxml.StyleTools;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.fxml.cell.TableFileSizeCell;
 import mara.mybox.fxml.cell.TableNumberCell;
 import mara.mybox.fxml.cell.TableTimeCell;
+import mara.mybox.fxml.style.NodeStyleTools;
+import mara.mybox.fxml.style.StyleTools;
 import mara.mybox.tools.ByteTools;
 import mara.mybox.tools.DateTools;
 import mara.mybox.tools.FileTools;
+import mara.mybox.value.FileFilters;
 import mara.mybox.value.Fxmls;
 import mara.mybox.value.Languages;
 import mara.mybox.value.UserConfig;
@@ -49,104 +49,73 @@ import mara.mybox.value.UserConfig;
  * @CreateDate 2018-11-28
  * @License Apache License Version 2.0
  */
-public abstract class BaseBatchTableController<P> extends BaseBatchTableController_Attributes<P> {
+public abstract class BaseBatchTableController<P> extends BaseTableViewController<P> {
+
+    protected long totalFilesNumber, totalFilesSize, fileSelectorSize, fileSelectorTime, currentIndex;
+    protected FileSelectorType fileSelectorType;
+
+    @FXML
+    protected Button addFilesButton, insertFilesButton, addDirectoryButton, insertDirectoryButton,
+            listButton, exampleRegexButton;
+    @FXML
+    protected TableColumn<P, String> handledColumn, fileColumn, typeColumn;
+    @FXML
+    protected TableColumn<P, Long> currentIndexColumn, numberColumn, sizeColumn, modifyTimeColumn, createTimeColumn;
+    @FXML
+    protected CheckBox tableSubdirCheck, tableCreateDirCheck, tableExpandDirCheck, countDirCheck;
+    @FXML
+    protected ComboBox<String> nameFiltersSelector;
+    @FXML
+    protected TextField tableFiltersInput;
+    @FXML
+    protected Label tableLabel;
 
     public BaseBatchTableController() {
+        sourceExtensionFilter = FileFilters.AllExtensionFilter;
+        targetExtensionFilter = sourceExtensionFilter;
     }
 
-    /*
-        Abstract methods
-     */
     protected abstract P create(File file);
 
-    /*
-        Pretected methods
-     */
-    protected void initTable() {
+    @Override
+    public void setControlsStyle() {
         try {
-            if (tableView == null) {
-                return;
+            super.setControlsStyle();
+
+            if (fileSelectorType != null && tableFiltersInput != null) {
+                switch (fileSelectorType) {
+                    case FileSizeLargerThan:
+                    case FileSizeSmallerThan:
+                        tableFiltersInput.setPromptText(Languages.message("FileSizeComments"));
+                        NodeStyleTools.setTooltip(tableFiltersInput, new Tooltip(Languages.message("FileSizeComments")));
+                        break;
+                    case ModifiedTimeEarlierThan:
+                    case ModifiedTimeLaterThan:
+                        tableFiltersInput.setText("2019-10-24 10:10:10");
+                        NodeStyleTools.setTooltip(tableFiltersInput, new Tooltip("2019-10-24 10:10:10"));
+                        break;
+                    default:
+                        tableFiltersInput.setPromptText(Languages.message("SeparateBySpace"));
+                        NodeStyleTools.setTooltip(tableFiltersInput, new Tooltip(Languages.message("SeparateBySpace")));
+                        break;
+                }
             }
-            tableData = FXCollections.observableArrayList();
-            tableData.addListener(new ListChangeListener<P>() {
-                @Override
-                public void onChanged(ListChangeListener.Change<? extends P> change) {
-                    if (!isSettingValues) {
-                        tableChanged();
-                    }
-                }
-            });
-
-            tableView.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
-            tableView.getSelectionModel().selectedItemProperty().addListener(new ChangeListener() {
-                @Override
-                public void changed(ObservableValue ov, Object t, Object t1) {
-                    if (!isSettingValues) {
-                        tableSelected();
-                    }
-                }
-            });
-            tableView.setOnMouseClicked(new EventHandler<MouseEvent>() {
-                @Override
-                public void handle(MouseEvent event) {
-                    if (popMenu != null && popMenu.isShowing()) {
-                        popMenu.hide();
-                    }
-                    if (event.getButton() == MouseButton.SECONDARY) {
-                        popTableMenu(event);
-                    } else if (event.getClickCount() == 1) {
-                        itemClicked();
-                    } else if (event.getClickCount() > 1) {
-                        itemDoubleClicked();
-                    }
-                }
-            });
-
-            initColumns();
-            tableView.setItems(tableData);
-
-            checkButtons();
-
         } catch (Exception e) {
-            MyBoxLog.error(e.toString());
+            MyBoxLog.debug(e.toString());
         }
     }
 
-    protected void popTableMenu(MouseEvent event) {
-        if (isSettingValues) {
-            return;
-        }
-        List<MenuItem> items = makeTableContextMenu();
-        if (items == null || items.isEmpty()) {
-            return;
-        }
-        items.add(new SeparatorMenuItem());
-        MenuItem menu = new MenuItem(Languages.message("PopupClose"));
-        menu.setStyle("-fx-text-fill: #2e598a;");
-        menu.setOnAction((ActionEvent menuItemEvent) -> {
-            if (popMenu != null && popMenu.isShowing()) {
-                popMenu.hide();
-            }
-            popMenu = null;
-        });
-        items.add(menu);
-        if (popMenu != null && popMenu.isShowing()) {
-            popMenu.hide();
-        }
-        popMenu = new ContextMenu();
-        popMenu.setAutoHide(true);
-        popMenu.getItems().addAll(items);
-        popMenu.show(tableView, event.getScreenX(), event.getScreenY());
-
-    }
-
+    /*
+        table
+     */
+    @Override
     protected List<MenuItem> makeTableContextMenu() {
         try {
             List<MenuItem> items = new ArrayList<>();
             MenuItem menu;
 
             if (addFilesButton != null && addFilesButton.isVisible() && !addFilesButton.isDisabled()) {
-                menu = new MenuItem(Languages.message("AddFiles"));
+                menu = new MenuItem(Languages.message("AddFiles"), StyleTools.getIconImage("iconFileAdd.png"));
                 menu.setOnAction((ActionEvent menuItemEvent) -> {
                     addFilesAction();
                 });
@@ -154,14 +123,14 @@ public abstract class BaseBatchTableController<P> extends BaseBatchTableControll
             }
 
             if (addDirectoryButton != null && addDirectoryButton.isVisible() && !addDirectoryButton.isDisabled()) {
-                menu = new MenuItem(Languages.message("AddDirectory"));
+                menu = new MenuItem(Languages.message("AddDirectory"), StyleTools.getIconImage("iconFolderAdd.png"));
                 menu.setOnAction((ActionEvent menuItemEvent) -> {
                     addDirectoryAction();
                 });
                 items.add(menu);
             }
             if (insertFilesButton != null && insertFilesButton.isVisible() && !insertFilesButton.isDisabled()) {
-                menu = new MenuItem(Languages.message("InsertFiles"));
+                menu = new MenuItem(Languages.message("InsertFiles"), StyleTools.getIconImage("iconFileInsert.png"));
                 menu.setOnAction((ActionEvent menuItemEvent) -> {
                     insertFilesAction();
                 });
@@ -169,80 +138,65 @@ public abstract class BaseBatchTableController<P> extends BaseBatchTableControll
             }
 
             if (insertDirectoryButton != null && insertDirectoryButton.isVisible() && !insertDirectoryButton.isDisabled()) {
-                menu = new MenuItem(Languages.message("InsertDirectory"));
+                menu = new MenuItem(Languages.message("InsertDirectory"), StyleTools.getIconImage("iconFolderInsert.png"));
                 menu.setOnAction((ActionEvent menuItemEvent) -> {
                     insertDirectoryAction();
                 });
                 items.add(menu);
             }
 
-            if (upFilesButton != null && upFilesButton.isVisible() && !upFilesButton.isDisabled()) {
-                menu = new MenuItem(Languages.message("MoveUp"));
+            if (moveUpButton != null && moveUpButton.isVisible() && !moveUpButton.isDisabled()) {
+                menu = new MenuItem(Languages.message("MoveUp"), StyleTools.getIconImage("iconUp.png"));
                 menu.setOnAction((ActionEvent menuItemEvent) -> {
                     upFilesAction(null);
                 });
                 items.add(menu);
             }
 
-            if (downFilesButton != null && downFilesButton.isVisible() && !downFilesButton.isDisabled()) {
-                menu = new MenuItem(Languages.message("MoveDown"));
+            if (moveDownButton != null && moveDownButton.isVisible() && !moveDownButton.isDisabled()) {
+                menu = new MenuItem(Languages.message("MoveDown"), StyleTools.getIconImage("iconDown.png"));
                 menu.setOnAction((ActionEvent menuItemEvent) -> {
                     downFilesAction(null);
                 });
                 items.add(menu);
             }
-            if (viewFileButton != null && viewFileButton.isVisible() && !viewFileButton.isDisabled()) {
-                menu = new MenuItem(Languages.message("View"));
+            if (viewButton != null && viewButton.isVisible() && !viewButton.isDisabled()) {
+                menu = new MenuItem(Languages.message("View"), StyleTools.getIconImage("iconView.png"));
                 menu.setOnAction((ActionEvent menuItemEvent) -> {
-                    viewFileAction();
+                    viewAction();
                 });
                 items.add(menu);
             }
-            if (editFileButton != null && editFileButton.isVisible() && !editFileButton.isDisabled()) {
-                menu = new MenuItem(Languages.message("Edit"));
+            if (editButton != null && editButton.isVisible() && !editButton.isDisabled()) {
+                menu = new MenuItem(Languages.message("Edit"), StyleTools.getIconImage("iconEdit.png"));
                 menu.setOnAction((ActionEvent menuItemEvent) -> {
-                    editFileAction();
-                });
-                items.add(menu);
-            }
-            if (selectAllFilesButton != null && selectAllFilesButton.isVisible() && !selectAllFilesButton.isDisabled()) {
-                menu = new MenuItem(Languages.message("SelectAll") + "  CTRL+a");
-                menu.setOnAction((ActionEvent menuItemEvent) -> {
-                    selectAllFilesAction();
-                });
-                items.add(menu);
-            }
-            if (unselectAllFilesButton != null && unselectAllFilesButton.isVisible() && !unselectAllFilesButton.isDisabled()) {
-                menu = new MenuItem(Languages.message("UnselectAll"));
-                menu.setOnAction((ActionEvent menuItemEvent) -> {
-                    unselectAllFilesAction();
-                });
-                items.add(menu);
-            }
-            if (deleteFilesButton != null && deleteFilesButton.isVisible() && !deleteFilesButton.isDisabled()) {
-                menu = new MenuItem(Languages.message("Delete"));
-                menu.setOnAction((ActionEvent menuItemEvent) -> {
-                    deleteFilesAction();
-                });
-                items.add(menu);
-            }
-            if (clearFilesButton != null && clearFilesButton.isVisible() && !clearFilesButton.isDisabled()) {
-                menu = new MenuItem(Languages.message("Clear"));
-                menu.setOnAction((ActionEvent menuItemEvent) -> {
-                    clearFilesAction();
+                    editAction();
                 });
                 items.add(menu);
             }
 
+            if (deleteButton != null && deleteButton.isVisible() && !deleteButton.isDisabled()) {
+                menu = new MenuItem(Languages.message("Delete"), StyleTools.getIconImage("iconDelete.png"));
+                menu.setOnAction((ActionEvent menuItemEvent) -> {
+                    deleteAction();
+                });
+                items.add(menu);
+            }
+            menu = new MenuItem(Languages.message("Clear"), StyleTools.getIconImage("iconClear.png"));
+            menu.setOnAction((ActionEvent menuItemEvent) -> {
+                clearFilesAction();
+            });
+            items.add(menu);
+
             if (infoButton != null && infoButton.isVisible() && !infoButton.isDisabled()) {
-                menu = new MenuItem(Languages.message("Information") + "  CTRL+i");
+                menu = new MenuItem(Languages.message("Information") + "  CTRL+i", StyleTools.getIconImage("iconInfo.png"));
                 menu.setOnAction((ActionEvent menuItemEvent) -> {
                     infoAction();
                 });
                 items.add(menu);
             }
             if (metaButton != null && metaButton.isVisible() && !metaButton.isDisabled()) {
-                menu = new MenuItem(Languages.message("MetaData"));
+                menu = new MenuItem(Languages.message("MetaData"), StyleTools.getIconImage("iconMeta.png"));
                 menu.setOnAction((ActionEvent menuItemEvent) -> {
                     metaAction();
                 });
@@ -257,18 +211,21 @@ public abstract class BaseBatchTableController<P> extends BaseBatchTableControll
         }
     }
 
+    @Override
     protected void initColumns() {
         try {
+            super.initColumns();
 
             if (handledColumn != null) {
                 handledColumn.setCellValueFactory(new PropertyValueFactory<>("handled"));
             }
-            if (tableIndexColumn != null) {
-                tableIndexColumn.setCellValueFactory(new PropertyValueFactory<>("fileSize"));  // not care column value
-                tableIndexColumn.setCellFactory(new Callback<TableColumn<P, Long>, TableCell<P, Long>>() {
+            currentIndex = -1;
+            if (currentIndexColumn != null) {
+                currentIndexColumn.setCellValueFactory(new PropertyValueFactory<>("fileSize"));  // not care column value
+                currentIndexColumn.setCellFactory(new Callback<TableColumn<P, Long>, TableCell<P, Long>>() {
                     @Override
                     public TableCell<P, Long> call(TableColumn<P, Long> param) {
-                        final ImageView imageview = new ImageView(StyleTools.getIcon("iconStar.png"));
+                        final ImageView imageview = StyleTools.getIconImage("iconStar.png");
                         imageview.setPreserveRatio(true);
                         imageview.setFitWidth(15);
                         imageview.setFitHeight(15);
@@ -276,18 +233,13 @@ public abstract class BaseBatchTableController<P> extends BaseBatchTableControll
                             @Override
                             public void updateItem(Long item, boolean empty) {
                                 super.updateItem(item, empty);
+                                setText(null);
+                                setGraphic(null);
                                 if (empty || item == null) {
-                                    setGraphic(null);
-                                    setText(null);
                                     return;
                                 }
-                                int rowIndex = getIndex() + 1;
-                                if (rowIndex == currentIndex) {
+                                if (getIndex() == currentIndex) {
                                     setGraphic(imageview);
-                                    setText(null);
-                                } else {
-                                    setGraphic(null);
-                                    setText(String.valueOf(rowIndex));
                                 }
                             }
                         };
@@ -300,7 +252,7 @@ public abstract class BaseBatchTableController<P> extends BaseBatchTableControll
                 fileColumn.setPrefWidth(320);
             }
             if (typeColumn != null) {
-                typeColumn.setCellValueFactory(new PropertyValueFactory<>("fileSuffix"));
+                typeColumn.setCellValueFactory(new PropertyValueFactory<>("suffix"));
             }
             if (numberColumn != null) {
                 numberColumn.setCellValueFactory(new PropertyValueFactory<>("filesNumber"));
@@ -325,62 +277,51 @@ public abstract class BaseBatchTableController<P> extends BaseBatchTableControll
         }
     }
 
+    @Override
     protected void tableChanged() {
+        if (isSettingValues) {
+            return;
+        }
+        super.tableChanged();
+        countSize();
+    }
+
+    @Override
+    protected void checkSelected() {
+        if (isSettingValues) {
+            return;
+        }
         checkButtons();
         countSize();
-        if (parentController != null) {
-            parentController.dataChanged();
+    }
+
+    @Override
+    public void itemDoubleClicked() {
+        viewAction();
+    }
+
+    public P row(int index) {
+        try {
+            return tableData.get(index);
+        } catch (Exception e) {
+            return null;
         }
     }
 
-    protected void tableSelected() {
-        checkButtons();
+    public FileInformation fileInformation(int index) {
+        try {
+            return (FileInformation) tableData.get(index);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
-    protected void checkButtons() {
-        boolean isEmpty = tableData.isEmpty();
-        boolean none = isEmpty;
-        if (!isEmpty) {
-            P selected = tableView.getSelectionModel().getSelectedItem();
-            none = (selected == null);
+    public File file(int index) {
+        try {
+            return fileInformation(index).getFile();
+        } catch (Exception e) {
+            return null;
         }
-        if (insertFilesButton != null) {
-            insertFilesButton.setDisable(none);
-        }
-        if (insertDirectoryButton != null) {
-            insertDirectoryButton.setDisable(none);
-        }
-        if (upFilesButton != null) {
-            upFilesButton.setDisable(none);
-        }
-        if (downFilesButton != null) {
-            downFilesButton.setDisable(none);
-        }
-        if (viewFileButton != null) {
-            viewFileButton.setDisable(none);
-        }
-        if (editFileButton != null) {
-            editFileButton.setDisable(none);
-        }
-        if (selectAllFilesButton != null) {
-            selectAllFilesButton.setDisable(isEmpty);
-        }
-        if (unselectAllFilesButton != null) {
-            unselectAllFilesButton.setDisable(none);
-        }
-        if (deleteFilesButton != null) {
-            deleteFilesButton.setDisable(none);
-        }
-        if (clearFilesButton != null) {
-            clearFilesButton.setDisable(isEmpty);
-        }
-        if (infoButton != null) {
-            infoButton.setDisable(none);
-        }
-        if (metaButton != null) {
-            metaButton.setDisable(none);
-        }
-
     }
 
     protected void expandDirectories() {
@@ -391,7 +332,7 @@ public abstract class BaseBatchTableController<P> extends BaseBatchTableControll
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
                 private boolean changed = false;
 
                 @Override
@@ -441,11 +382,7 @@ public abstract class BaseBatchTableController<P> extends BaseBatchTableControll
                 }
 
             };
-            super.handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            super.start(task);
         }
 
     }
@@ -454,261 +391,49 @@ public abstract class BaseBatchTableController<P> extends BaseBatchTableControll
         return true;
     }
 
-    protected void initSelector() {
-        try {
-            fileSelectorType = FileSelectorType.All;
-            if (nameFiltersSelector == null) {
-                return;
-            }
-            for (FileSelectorType type : FileSelectorType.values()) {
-                nameFiltersSelector.getItems().add(Languages.message(type.name()));
-            }
-            nameFiltersSelector.setVisibleRowCount(FileSelectorType.values().length);
-            nameFiltersSelector.getSelectionModel().selectedIndexProperty().addListener(new ChangeListener<Number>() {
-                @Override
-                public void changed(ObservableValue ov, Number oldValue, Number newValue) {
-                    String selected = nameFiltersSelector.getSelectionModel().getSelectedItem();
-                    for (FileSelectorType type : FileSelectorType.values()) {
-                        if (Languages.message(type.name()).equals(selected)) {
-                            fileSelectorType = type;
-                            break;
-                        }
-                    }
-                    if (exampleRegexButton != null) {
-                        exampleRegexButton.setVisible(
-                                fileSelectorType == FileSelectorType.NameMatchRegularExpression
-                                || fileSelectorType == FileSelectorType.NameNotMatchRegularExpression
-                                || fileSelectorType == FileSelectorType.NameIncludeRegularExpression
-                                || fileSelectorType == FileSelectorType.NameNotIncludeRegularExpression
-                        );
-                    }
+    protected boolean isSelected(int index) {
+        List<Integer> selected = tableView.getSelectionModel().getSelectedIndices();
+        return selected == null || selected.isEmpty() || selected.contains(index);
+    }
 
-                    tableFiltersInput.setText("");
-                    setControlsStyle();
+    public void markFileHandling(int index) {
+        Platform.runLater(new Runnable() {
+            @Override
+            public void run() {
+                if (index < 0) {
+                    currentIndex = -1;
+                    tableView.refresh();
+                    return;
                 }
-            });
-            nameFiltersSelector.getSelectionModel().select(0);
-
-            tableFiltersInput.textProperty().addListener(new ChangeListener<String>() {
-                @Override
-                public void changed(ObservableValue<? extends String> ov, String oldv, String newv) {
-                    if (newv == null || newv.trim().isEmpty()) {
-                        tableFiltersInput.setStyle(null);
-                        fileSelectorSize = -1;
-                        fileSelectorTime = -1;
-                        return;
-                    }
-                    if (fileSelectorType == FileSelectorType.FileSizeLargerThan
-                            || fileSelectorType == FileSelectorType.FileSizeSmallerThan) {
-                        long v = ByteTools.checkBytesValue(newv);
-                        if (v >= 0) {
-                            fileSelectorSize = v;
-                            tableFiltersInput.setStyle(null);
-                        } else {
-                            tableFiltersInput.setStyle(NodeStyleTools.badStyle);
-                            popError(Languages.message("FileSizeComments"));
-                        }
-
-                    } else if (fileSelectorType == FileSelectorType.ModifiedTimeEarlierThan
-                            || fileSelectorType == FileSelectorType.ModifiedTimeLaterThan) {
-                        Date d = DateTools.stringToDatetime(newv);
-                        if (d != null) {
-                            fileSelectorTime = d.getTime();
-                        } else {
-                            fileSelectorTime = -1;
-                        }
-
-                    }
+                FileInformation d = fileInformation(index);
+                if (d == null) {
+                    return;
                 }
-            });
-
-            if (previewButton != null && tableView != null) {
-                previewButton.disableProperty().bind(tableView.itemsProperty().isNull());
+                currentIndex = index;
+                tableData.set(index, tableData.get(index));
             }
+        });
 
-        } catch (Exception e) {
-            MyBoxLog.error(e.toString());
-        }
     }
 
-    protected void initOthers() {
-        try {
-
-            if (tableSubdirCheck != null) {
-                tableSubdirCheck.selectedProperty().addListener(new ChangeListener<Boolean>() {
-                    @Override
-                    public void changed(ObservableValue<? extends Boolean> ov, Boolean oldv, Boolean newv) {
-                        UserConfig.setBoolean("TableSubDirctories", newv);
-                        countSize();
-                    }
-                });
-                tableSubdirCheck.setSelected(UserConfig.getBoolean("TableSubDirctories", true));
-            }
-
-            if (tableExpandDirCheck != null) {
-                tableExpandDirCheck.selectedProperty().addListener(new ChangeListener<Boolean>() {
-                    @Override
-                    public void changed(ObservableValue<? extends Boolean> ov, Boolean oldv, Boolean newv) {
-                        if (tableExpandDirCheck.isSelected()) {
-                            expandDirectories();
-                        }
-                    }
-                });
-            }
-
-            if (tableCreateDirCheck != null) {
-                tableCreateDirCheck.selectedProperty().addListener(new ChangeListener<Boolean>() {
-                    @Override
-                    public void changed(ObservableValue<? extends Boolean> ov, Boolean oldv, Boolean newv) {
-                        UserConfig.setBoolean("TableCreateDirctories", newv);
-                    }
-                });
-                tableCreateDirCheck.setSelected(UserConfig.getBoolean("TableCreateDirctories", true));
-            }
-
-            if (countDirCheck != null) {
-                countDirCheck.selectedProperty().addListener(new ChangeListener<Boolean>() {
-                    @Override
-                    public void changed(ObservableValue<? extends Boolean> ov, Boolean oldv, Boolean newv) {
-                        UserConfig.setBoolean("TableCountDirctories", newv);
-                        countSize();
-                    }
-                });
-                countDirCheck.setSelected(UserConfig.getBoolean("TableCountDirctories", true));
-            }
-
-            if (tableLabel != null) {
-                if (nameFiltersSelector != null) {
-                    tableLabel.setText(Languages.message("FilesSelectBasedTable"));
-                } else {
-                    tableLabel.setText("");
+    public void markFileHandled(int index, String message) {
+        Platform.runLater(new Runnable() {
+            @Override
+            public void run() {
+                FileInformation d = fileInformation(index);
+                if (d == null) {
+                    return;
                 }
+                d.setHandled(message);
+                currentIndex = -1;
+                tableView.refresh();
             }
-
-        } catch (Exception e) {
-            MyBoxLog.error(e.toString());
-        }
-    }
-
-    public void updateLabel() {
-        if (tableLabel != null) {
-            String s = MessageFormat.format(Languages.message("TotalFilesNumberSize"),
-                    totalFilesNumber, FileTools.showFileSize(totalFilesSize));
-            if (countDirCheck != null && tableSubdirCheck != null) {
-                if (!countDirCheck.isSelected()) {
-                    s += "    (" + Languages.message("NotIncludeFolders") + ")";
-                } else if (!tableSubdirCheck.isSelected()) {
-                    s += "    (" + Languages.message("NotIncludeSubFolders") + ")";
-                } else {
-                    s += "    (" + Languages.message("IncludeFolders") + ")";
-                }
-            }
-            if (viewFileButton != null) {
-                s += "    " + Languages.message("DoubleClickToView");
-            }
-            tableLabel.setText(s);
-        }
-    }
-
-    @FXML
-    public void metaAction() {
+        });
 
     }
 
-    /*
-        Public methods
-     */
-    @Override
-    public void initControls() {
-        try {
-            super.initControls();
-
-            initTable();
-            initOthers();
-            initSelector();
-
-        } catch (Exception e) {
-            MyBoxLog.error(e.toString());
-        }
-    }
-
-    @Override
-    public void setControlsStyle() {
-        try {
-            super.setControlsStyle();
-
-            if (fileSelectorType != null && tableFiltersInput != null) {
-                switch (fileSelectorType) {
-                    case FileSizeLargerThan:
-                    case FileSizeSmallerThan:
-                        tableFiltersInput.setPromptText(Languages.message("FileSizeComments"));
-                        NodeStyleTools.setTooltip(tableFiltersInput, new Tooltip(Languages.message("FileSizeComments")));
-                        break;
-                    case ModifiedTimeEarlierThan:
-                    case ModifiedTimeLaterThan:
-                        tableFiltersInput.setText("2019-10-24 10:10:10");
-                        NodeStyleTools.setTooltip(tableFiltersInput, new Tooltip("2019-10-24 10:10:10"));
-                        break;
-                    default:
-                        tableFiltersInput.setPromptText(Languages.message("SeparateBySpace"));
-                        NodeStyleTools.setTooltip(tableFiltersInput, new Tooltip(Languages.message("SeparateBySpace")));
-                        break;
-                }
-            }
-        } catch (Exception e) {
-            MyBoxLog.debug(e.toString());
-        }
-    }
-
-    public P data(int index) {
-        try {
-            return tableData.get(index);
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    public FileInformation fileInformation(int index) {
-        try {
-            return (FileInformation) tableData.get(index);
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    public File file(int index) {
-        try {
-            return fileInformation(index).getFile();
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    public void itemClicked() {
-
-    }
-
-    public void itemDoubleClicked() {
-        viewFileAction();
-    }
-
-    @FXML
-    public void viewFileAction() {
-        int index = tableView.getSelectionModel().getSelectedIndex();
-        if (index < 0 || index > tableData.size() - 1) {
-            return;
-        }
-        FileInformation info = fileInformation(index);
-        if (info.getData() != null && !info.getData().isEmpty()) {
-            view(info.getData());
-        } else {
-            view(info.getFile());
-        }
-    }
-
-    @FXML
-    public void editFileAction() {
-
+    public void markFileHandled(int index) {
+        markFileHandled(index, Languages.message("Yes"));
     }
 
     public void stopCountSize() {
@@ -731,7 +456,7 @@ public abstract class BaseBatchTableController<P> extends BaseBatchTableControll
                 updateLabel();
                 return;
             }
-            backgroundTask = new SingletonTask<Void>() {
+            backgroundTask = new SingletonTask<Void>(this) {
 
                 private boolean canceled;
 
@@ -792,11 +517,215 @@ public abstract class BaseBatchTableController<P> extends BaseBatchTableControll
                 }
 
             };
-            backgroundTask.setSelf(backgroundTask);
-            Thread thread = new Thread(backgroundTask);
-            thread.setDaemon(false);
-            thread.start();
+            start(backgroundTask, false, null);
         }
+    }
+
+
+    /*
+        buttons
+     */
+    @Override
+    public void initMore() {
+        try {
+            super.initMore();
+
+            if (tableSubdirCheck != null) {
+                tableSubdirCheck.selectedProperty().addListener(new ChangeListener<Boolean>() {
+                    @Override
+                    public void changed(ObservableValue<? extends Boolean> ov, Boolean oldv, Boolean newv) {
+                        UserConfig.setBoolean("TableSubDirctories", newv);
+                        countSize();
+                    }
+                });
+                tableSubdirCheck.setSelected(UserConfig.getBoolean("TableSubDirctories", true));
+            }
+
+            if (tableExpandDirCheck != null) {
+                tableExpandDirCheck.selectedProperty().addListener(new ChangeListener<Boolean>() {
+                    @Override
+                    public void changed(ObservableValue<? extends Boolean> ov, Boolean oldv, Boolean newv) {
+                        if (tableExpandDirCheck.isSelected()) {
+                            expandDirectories();
+                        }
+                    }
+                });
+            }
+
+            if (tableCreateDirCheck != null) {
+                tableCreateDirCheck.selectedProperty().addListener(new ChangeListener<Boolean>() {
+                    @Override
+                    public void changed(ObservableValue<? extends Boolean> ov, Boolean oldv, Boolean newv) {
+                        UserConfig.setBoolean("TableCreateDirctories", newv);
+                    }
+                });
+                tableCreateDirCheck.setSelected(UserConfig.getBoolean("TableCreateDirctories", true));
+            }
+
+            if (countDirCheck != null) {
+                countDirCheck.selectedProperty().addListener(new ChangeListener<Boolean>() {
+                    @Override
+                    public void changed(ObservableValue<? extends Boolean> ov, Boolean oldv, Boolean newv) {
+                        UserConfig.setBoolean("TableCountDirctories", newv);
+                        countSize();
+                    }
+                });
+                countDirCheck.setSelected(UserConfig.getBoolean("TableCountDirctories", true));
+            }
+
+            if (tableLabel != null) {
+                if (nameFiltersSelector != null) {
+                    tableLabel.setText(Languages.message("FilesSelectBasedTable"));
+                } else {
+                    tableLabel.setText("");
+                }
+            }
+
+            fileSelectorType = FileSelectorType.All;
+            if (nameFiltersSelector == null) {
+                return;
+            }
+            for (FileSelectorType type : FileSelectorType.values()) {
+                nameFiltersSelector.getItems().add(Languages.message(type.name()));
+            }
+            nameFiltersSelector.setVisibleRowCount(FileSelectorType.values().length);
+            nameFiltersSelector.getSelectionModel().selectedIndexProperty().addListener(new ChangeListener<Number>() {
+                @Override
+                public void changed(ObservableValue ov, Number oldValue, Number newValue) {
+                    String selected = nameFiltersSelector.getSelectionModel().getSelectedItem();
+                    for (FileSelectorType type : FileSelectorType.values()) {
+                        if (Languages.message(type.name()).equals(selected)) {
+                            fileSelectorType = type;
+                            break;
+                        }
+                    }
+                    if (exampleRegexButton != null) {
+                        exampleRegexButton.setVisible(
+                                fileSelectorType == FileSelectorType.NameMatchRegularExpression
+                                || fileSelectorType == FileSelectorType.NameNotMatchRegularExpression
+                                || fileSelectorType == FileSelectorType.NameIncludeRegularExpression
+                                || fileSelectorType == FileSelectorType.NameNotIncludeRegularExpression
+                        );
+                    }
+
+                    tableFiltersInput.setText("");
+                    setControlsStyle();
+                }
+            });
+            nameFiltersSelector.getSelectionModel().select(0);
+
+            tableFiltersInput.textProperty().addListener(new ChangeListener<String>() {
+                @Override
+                public void changed(ObservableValue<? extends String> ov, String oldv, String newv) {
+                    if (newv == null || newv.trim().isEmpty()) {
+                        tableFiltersInput.setStyle(null);
+                        fileSelectorSize = -1;
+                        fileSelectorTime = -1;
+                        return;
+                    }
+                    if (fileSelectorType == FileSelectorType.FileSizeLargerThan
+                            || fileSelectorType == FileSelectorType.FileSizeSmallerThan) {
+                        long v = ByteTools.checkBytesValue(newv);
+                        if (v >= 0) {
+                            fileSelectorSize = v;
+                            tableFiltersInput.setStyle(null);
+                        } else {
+                            tableFiltersInput.setStyle(UserConfig.badStyle());
+                            popError(Languages.message("FileSizeComments"));
+                        }
+
+                    } else if (fileSelectorType == FileSelectorType.ModifiedTimeEarlierThan
+                            || fileSelectorType == FileSelectorType.ModifiedTimeLaterThan) {
+                        Date d = DateTools.encodeDate(newv, -1);
+                        if (d != null) {
+                            fileSelectorTime = d.getTime();
+                        } else {
+                            fileSelectorTime = -1;
+                        }
+
+                    }
+                }
+            });
+
+            if (previewButton != null && tableView != null) {
+                previewButton.disableProperty().bind(tableView.itemsProperty().isNull());
+            }
+
+        } catch (Exception e) {
+            MyBoxLog.error(e.toString());
+        }
+    }
+
+    @Override
+    protected void checkButtons() {
+        if (isSettingValues) {
+            return;
+        }
+        super.checkButtons();
+
+        boolean isEmpty = tableData == null || tableData.isEmpty();
+        boolean none = isEmpty || tableView.getSelectionModel().getSelectedItem() == null;
+        if (insertFilesButton != null) {
+            insertFilesButton.setDisable(none);
+        }
+        if (insertDirectoryButton != null) {
+            insertDirectoryButton.setDisable(none);
+        }
+        if (moveUpButton != null) {
+            moveUpButton.setDisable(none);
+        }
+        if (moveDownButton != null) {
+            moveDownButton.setDisable(none);
+        }
+        if (infoButton != null) {
+            infoButton.setDisable(none);
+        }
+        if (metaButton != null) {
+            metaButton.setDisable(none);
+        }
+
+    }
+
+    public void updateLabel() {
+        if (tableLabel != null) {
+            String s = MessageFormat.format(Languages.message("TotalFilesNumberSize"),
+                    totalFilesNumber, FileTools.showFileSize(totalFilesSize));
+            if (countDirCheck != null && tableSubdirCheck != null) {
+                if (!countDirCheck.isSelected()) {
+                    s += "    (" + Languages.message("NotIncludeFolders") + ")";
+                } else if (!tableSubdirCheck.isSelected()) {
+                    s += "    (" + Languages.message("NotIncludeSubFolders") + ")";
+                } else {
+                    s += "    (" + Languages.message("IncludeFolders") + ")";
+                }
+            }
+            if (viewButton != null) {
+                s += "    " + Languages.message("DoubleClickToView");
+            }
+            tableLabel.setText(s);
+        }
+    }
+
+    @FXML
+    public void metaAction() {
+
+    }
+
+    @FXML
+    @Override
+    public void viewAction() {
+        int index = tableView.getSelectionModel().getSelectedIndex();
+        if (index < 0 || index > tableData.size() - 1) {
+            return;
+        }
+        FileInformation info = fileInformation(index);
+        view(info.getFile());
+    }
+
+    @FXML
+    @Override
+    public void editAction() {
+
     }
 
     @FXML
@@ -862,7 +791,7 @@ public abstract class BaseBatchTableController<P> extends BaseBatchTableControll
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 private List<P> infos;
 
@@ -890,12 +819,10 @@ public abstract class BaseBatchTableController<P> extends BaseBatchTableControll
 
             };
             if (parentController != null) {
-                parentController.handling(task);
+                parentController.start(task, true);
+            } else {
+                start(task, false);
             }
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
         }
 
     }
@@ -1069,26 +996,12 @@ public abstract class BaseBatchTableController<P> extends BaseBatchTableControll
     }
 
     @FXML
-    public void selectAllFilesAction() {
-        isSettingValues = true;
-        tableView.getSelectionModel().selectAll();
-        isSettingValues = false;
-        tableSelected();
-    }
-
-    @FXML
-    public void unselectAllFilesAction() {
-        isSettingValues = true;
-        tableView.getSelectionModel().clearSelection();
-        isSettingValues = false;
-        tableSelected();
-    }
-
-    @FXML
-    public void deleteFilesAction() {
+    @Override
+    public void deleteAction() {
         List<Integer> selected = new ArrayList<>();
         selected.addAll(tableView.getSelectionModel().getSelectedIndices());
         if (selected.isEmpty()) {
+            clearFilesAction();
             return;
         }
         isSettingValues = true;
@@ -1111,46 +1024,6 @@ public abstract class BaseBatchTableController<P> extends BaseBatchTableControll
         tableView.refresh();
         isSettingValues = false;
         tableChanged();
-    }
-
-    public void markFileHandling(int index) {
-        Platform.runLater(new Runnable() {
-            @Override
-            public void run() {
-                if (index < 0) {
-                    currentIndex = -1;
-                    tableView.refresh();
-                    return;
-                }
-                FileInformation d = fileInformation(index);
-                if (d == null) {
-                    return;
-                }
-                currentIndex = index + 1;
-                tableData.set(index, tableData.get(index));
-            }
-        });
-
-    }
-
-    public void markFileHandled(int index, String message) {
-        Platform.runLater(new Runnable() {
-            @Override
-            public void run() {
-                FileInformation d = fileInformation(index);
-                if (d == null) {
-                    return;
-                }
-                d.setHandled(message);
-                currentIndex = -1;
-                tableView.refresh();
-            }
-        });
-
-    }
-
-    public void markFileHandled(int index) {
-        markFileHandled(index, Languages.message("Yes"));
     }
 
     public void listAction() {
@@ -1181,7 +1054,7 @@ public abstract class BaseBatchTableController<P> extends BaseBatchTableControll
 
     @FXML
     public void popRegexExample(MouseEvent mouseEvent) {
-        PopTools.popRegexExample(this, tableFiltersInput, mouseEvent);
+        PopTools.popRegexExamples(this, tableFiltersInput, mouseEvent);
     }
 
 }

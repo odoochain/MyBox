@@ -1,6 +1,5 @@
 package mara.mybox.controller;
 
-import java.awt.Toolkit;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,22 +28,20 @@ import javafx.scene.control.Toggle;
 import javafx.scene.control.Tooltip;
 import javafx.scene.input.ContextMenuEvent;
 import javafx.scene.input.MouseEvent;
-import javafx.scene.web.WebView;
 import javafx.stage.Popup;
-import javafx.stage.Screen;
 import javafx.stage.Window;
 import javafx.util.Duration;
+import mara.mybox.db.data.VisitHistoryTools;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fxml.LocateTools;
-import mara.mybox.fxml.NodeStyleTools;
 import mara.mybox.fxml.NodeTools;
-import mara.mybox.fxml.StyleTools;
 import mara.mybox.fxml.WindowTools;
-import mara.mybox.tools.DateTools;
-import mara.mybox.tools.FileNameTools;
+import mara.mybox.fxml.style.NodeStyleTools;
+import mara.mybox.fxml.style.StyleTools;
+import mara.mybox.value.AppPaths;
 import mara.mybox.value.AppValues;
 import mara.mybox.value.AppVariables;
-import mara.mybox.value.Languages;
+import static mara.mybox.value.Languages.message;
 import mara.mybox.value.UserConfig;
 
 /**
@@ -54,7 +51,9 @@ import mara.mybox.value.UserConfig;
  */
 public abstract class BaseController_Interface extends BaseController_Files {
 
+    protected final int minSize = 200;
     protected ChangeListener<Number> leftDividerListener, rightDividerListener;
+
 
     /*
         open fxml
@@ -83,7 +82,7 @@ public abstract class BaseController_Interface extends BaseController_Files {
                         (ObservableValue<? extends String> observable, String oldValue, String newValue) -> {
                             checkSourceFileInput();
                         });
-                sourceFileInput.setText(UserConfig.getString(baseName + "SourceFile", null));
+//                sourceFileInput.setText(UserConfig.getString(interfaceName + "SourceFile", null));
             }
 
             if (sourcePathInput != null) {
@@ -94,23 +93,7 @@ public abstract class BaseController_Interface extends BaseController_Files {
                         checkSourcetPathInput();
                     }
                 });
-                sourcePathInput.setText(UserConfig.getString(baseName + "SourcePath", AppVariables.MyBoxDownloadsPath.getAbsolutePath()));
-            }
-
-            if (targetFileInput != null) {
-                targetFileInput.textProperty().addListener(new ChangeListener<String>() {
-                    @Override
-                    public void changed(ObservableValue<? extends String> observable, String oldValue, String newValue) {
-                        checkTargetFileInput();
-                    }
-                });
-                String tv = UserConfig.getString(baseName + "TargetFile", null);
-                if (tv == null || tv.isBlank()) {
-                    tv = AppVariables.MyBoxDownloadsPath.getAbsolutePath() + File.separator + DateTools.nowFileString();
-                } else {
-                    tv = FileNameTools.appendName(tv, "_m");
-                }
-                targetFileInput.setText(tv);
+                sourcePathInput.setText(UserConfig.getString(interfaceName + "SourcePath", AppPaths.getGeneratedPath()));
             }
 
             if (targetPrefixInput != null) {
@@ -118,33 +101,43 @@ public abstract class BaseController_Interface extends BaseController_Files {
                     @Override
                     public void changed(ObservableValue<? extends String> observable, String oldValue, String newValue) {
                         if (newValue != null && !newValue.isBlank()) {
-                            UserConfig.setString(baseName + "TargetPrefix", newValue);
+                            UserConfig.setString(interfaceName + "TargetPrefix", newValue);
                         }
                     }
                 });
-                targetPrefixInput.setText(UserConfig.getString(baseName + "TargetPrefix", AppVariables.MyBoxDownloadsPath.getAbsolutePath()));
+                targetPrefixInput.setText(UserConfig.getString(interfaceName + "TargetPrefix", "mm"));
             }
 
-            if (targetPathInput != null) {
-                targetPathInput.textProperty().addListener(new ChangeListener<String>() {
+            if (targetFileController != null) {
+                targetFileController.notify.addListener(new ChangeListener<Boolean>() {
                     @Override
-                    public void changed(ObservableValue<? extends String> observable, String oldValue, String newValue) {
-                        checkTargetPathInput();
+                    public void changed(ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) {
+                        targetPath = targetFileController.file();
                     }
                 });
-                targetPathInput.setText(UserConfig.getString(baseName + "TargetPath", AppVariables.MyBoxDownloadsPath.getAbsolutePath()));
+                targetFileController.baseName(interfaceName).savedName(interfaceName + "TargetFile").type(TargetFileType).init();
+            }
+
+            if (targetPathController != null) {
+                targetPathController.notify.addListener(new ChangeListener<Boolean>() {
+                    @Override
+                    public void changed(ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) {
+                        targetPath = targetPathController.file();
+                    }
+                });
+                targetPathController.baseName(interfaceName).savedName(interfaceName + "TargetPath").type(TargetPathType).init();
             }
 
             if (operationBarController != null) {
                 operationBarController.parentController = myController;
                 if (operationBarController.openTargetButton != null) {
-                    if (targetFileInput != null) {
-                        operationBarController.openTargetButton.disableProperty().bind(Bindings.isEmpty(targetFileInput.textProperty())
-                                .or(targetFileInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                    if (targetFileController != null) {
+                        operationBarController.openTargetButton.disableProperty().bind(Bindings.isEmpty(targetFileController.fileInput.textProperty())
+                                .or(targetFileController.fileInput.styleProperty().isEqualTo(UserConfig.badStyle()))
                         );
-                    } else if (targetPathInput != null) {
-                        operationBarController.openTargetButton.disableProperty().bind(Bindings.isEmpty(targetPathInput.textProperty())
-                                .or(targetPathInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                    } else if (targetPathController != null) {
+                        operationBarController.openTargetButton.disableProperty().bind(Bindings.isEmpty(targetPathController.fileInput.textProperty())
+                                .or(targetPathController.fileInput.styleProperty().isEqualTo(UserConfig.badStyle()))
                         );
                     }
                 }
@@ -152,7 +145,7 @@ public abstract class BaseController_Interface extends BaseController_Files {
 
             saveAsType = BaseController.SaveAsType.Open;
             if (saveAsGroup != null && saveOpenRadio != null) {
-                String v = UserConfig.getString(baseName + "SaveAsType", BaseController.SaveAsType.Open.name());
+                String v = UserConfig.getString(interfaceName + "SaveAsType", BaseController.SaveAsType.Open.name());
                 for (BaseController.SaveAsType s : BaseController.SaveAsType.values()) {
                     if (v.equals(s.name())) {
                         saveAsType = s;
@@ -169,6 +162,13 @@ public abstract class BaseController_Interface extends BaseController_Files {
                     case Open:
                         saveOpenRadio.setSelected(true);
                         break;
+                    case Edit:
+                        if (saveEditRadio != null) {
+                            saveEditRadio.setSelected(true);
+                        } else if (saveLoadRadio != null) {
+                            saveLoadRadio.setSelected(true);
+                        }
+                        break;
                     case None:
                         saveJustRadio.setSelected(true);
                         break;
@@ -184,21 +184,23 @@ public abstract class BaseController_Interface extends BaseController_Files {
                             saveAsType = BaseController.SaveAsType.None;
                         } else if (saveLoadRadio != null && saveLoadRadio.isSelected()) {
                             saveAsType = BaseController.SaveAsType.Load;
+                        } else if (saveEditRadio != null && saveEditRadio.isSelected()) {
+                            saveAsType = BaseController.SaveAsType.Edit;
                         } else {
                             saveAsType = BaseController.SaveAsType.Open;
                         }
-                        UserConfig.setString(baseName + "SaveAsType", saveAsType.name());
+                        UserConfig.setString(interfaceName + "SaveAsType", saveAsType.name());
                     }
                 });
             }
 
             if (topCheck != null) {
-                topCheck.setSelected(UserConfig.getBoolean(baseName + "Top", true));
+                topCheck.setSelected(UserConfig.getBoolean(interfaceName + "Top", true));
                 topCheck.selectedProperty().addListener(new ChangeListener<Boolean>() {
                     @Override
                     public void changed(ObservableValue ov, Boolean oldValue, Boolean newValue) {
                         if (!isSettingValues) {
-                            UserConfig.setBoolean(baseName + "Top", newValue);
+                            UserConfig.setBoolean(interfaceName + "Top", newValue);
                         }
                         checkAlwaysTop();
                     }
@@ -211,44 +213,22 @@ public abstract class BaseController_Interface extends BaseController_Files {
                     @Override
                     public void changed(ObservableValue<? extends Boolean> ov,
                             Boolean oldVal, Boolean newVal) {
-                        UserConfig.setBoolean(baseName + "SaveClose", saveCloseCheck.isSelected());
+                        UserConfig.setBoolean(interfaceName + "SaveClose", saveCloseCheck.isSelected());
                     }
                 });
-                saveCloseCheck.setSelected(UserConfig.getBoolean(baseName + "SaveClose", false));
+                saveCloseCheck.setSelected(UserConfig.getBoolean(interfaceName + "SaveClose", false));
             }
 
-            if (targetExistGroup != null) {
-                targetExistGroup.selectedToggleProperty().addListener(new ChangeListener<Toggle>() {
-                    @Override
-                    public void changed(ObservableValue<? extends Toggle> ov, Toggle old_toggle, Toggle new_toggle) {
-                        checkTargetExistType();
-                    }
-                });
-                isSettingValues = true;
-                NodeTools.setRadioSelected(targetExistGroup, UserConfig.getString(baseName + "TargetExistType", Languages.message("Replace")));
-                if (targetAppendInput != null) {
-                    targetAppendInput.textProperty().addListener(new ChangeListener<String>() {
-                        @Override
-                        public void changed(ObservableValue<? extends String> ov, String oldv, String newv) {
-                            checkTargetExistType();
-                        }
-                    });
-                    targetAppendInput.setText(UserConfig.getString(baseName + "TargetExistAppend", "_m"));
-                }
-                isSettingValues = false;
-                checkTargetExistType();
-            }
-
-            dpi = UserConfig.getInt(baseName + "DPI", 96);
+            dpi = UserConfig.getInt(interfaceName + "DPI", 96);
             if (dpiSelector != null) {
                 List<String> dpiValues = new ArrayList();
                 dpiValues.addAll(Arrays.asList("96", "72", "300", "160", "240", "120", "600", "400"));
-                String sValue = Toolkit.getDefaultToolkit().getScreenResolution() + "";
+                String sValue = (int) NodeTools.screenResolution() + "";
                 if (dpiValues.contains(sValue)) {
                     dpiValues.remove(sValue);
                 }
                 dpiValues.add(0, sValue);
-                sValue = (int) Screen.getPrimary().getDpi() + "";
+                sValue = (int) NodeTools.screenDpi() + "";
                 if (dpiValues.contains(sValue)) {
                     dpiValues.remove(sValue);
                 }
@@ -261,43 +241,8 @@ public abstract class BaseController_Interface extends BaseController_Files {
                         });
             }
 
-            if (splitPane != null && leftPane != null && leftPaneControl != null) {
-                leftPaneControl.setOnMouseEntered(new EventHandler<MouseEvent>() {
-                    @Override
-                    public void handle(MouseEvent event) {
-                        if (UserConfig.getBoolean("MousePassControlPanes", true)) {
-                            controlLeftPane();
-                        }
-                    }
-                });
-                leftPaneControl.setOnMouseClicked(new EventHandler<MouseEvent>() {
-                    @Override
-                    public void handle(MouseEvent event) {
-                        controlLeftPane();
-                    }
-                });
-                leftPaneControl.setPickOnBounds(UserConfig.getBoolean("ControlSplitPanesSensitive", false));
-                leftPane.setHvalue(0);
-            }
-
-            if (splitPane != null && rightPane != null && rightPaneControl != null) {
-                rightPaneControl.setOnMouseEntered(new EventHandler<MouseEvent>() {
-                    @Override
-                    public void handle(MouseEvent event) {
-                        if (UserConfig.getBoolean("MousePassControlPanes", true)) {
-                            controlRightPane();
-                        }
-                    }
-                });
-                rightPaneControl.setOnMouseClicked(new EventHandler<MouseEvent>() {
-                    @Override
-                    public void handle(MouseEvent event) {
-                        controlRightPane();
-                    }
-                });
-                rightPaneControl.setPickOnBounds(UserConfig.getBoolean("ControlSplitPanesSensitive", false));
-                rightPane.setHvalue(0);
-            }
+            initLeftPaneControl();
+            initRightPaneControl();
 
             initNodes(thisPane);
             initSplitPanes();
@@ -308,11 +253,55 @@ public abstract class BaseController_Interface extends BaseController_Files {
         }
     }
 
+    public void initLeftPaneControl() {
+        if (splitPane != null && leftPane != null && leftPaneControl != null) {
+            leftPaneControl.setOnMouseEntered(new EventHandler<MouseEvent>() {
+                @Override
+                public void handle(MouseEvent event) {
+                    if (UserConfig.getBoolean("MousePassControlPanes", true)) {
+                        controlLeftPane();
+                    }
+                }
+            });
+            leftPaneControl.setOnMouseClicked(new EventHandler<MouseEvent>() {
+                @Override
+                public void handle(MouseEvent event) {
+                    controlLeftPane();
+                }
+            });
+            leftPaneControl.setPickOnBounds(UserConfig.getBoolean("ControlSplitPanesSensitive", false));
+            leftPane.setHvalue(0);
+            leftPane.setVvalue(0);
+        }
+    }
+
+    public void initRightPaneControl() {
+        if (splitPane != null && rightPane != null && rightPaneControl != null) {
+            rightPaneControl.setOnMouseEntered(new EventHandler<MouseEvent>() {
+                @Override
+                public void handle(MouseEvent event) {
+                    if (UserConfig.getBoolean("MousePassControlPanes", true)) {
+                        controlRightPane();
+                    }
+                }
+            });
+            rightPaneControl.setOnMouseClicked(new EventHandler<MouseEvent>() {
+                @Override
+                public void handle(MouseEvent event) {
+                    controlRightPane();
+                }
+            });
+            rightPaneControl.setPickOnBounds(UserConfig.getBoolean("ControlSplitPanesSensitive", false));
+            rightPane.setHvalue(0);
+            rightPane.setVvalue(0);
+        }
+    }
+
     private void initNodes(Node node) {
         if (node == null) {
             return;
         }
-//       MyBoxLog.console(this.getClass() + "  " + node.getClass() + "  " + node.getId());
+//        MyBoxLog.console(this.getClass() + "  " + node.getClass() + "  " + node.getId());
         Object o = node.getUserData();
         // Controls in embedded fxmls have been initialized by themselves
         if (o != null && o instanceof BaseController && node != thisPane) {
@@ -324,10 +313,6 @@ public abstract class BaseController_Interface extends BaseController_Files {
             ComboBox cb = (ComboBox) node;
             if (cb.isEditable()) {
                 makeEditContextMenu(cb, cb.getEditor());
-            }
-        } else if (node instanceof WebView && !(this instanceof FunctionsListController)) {
-            if (!(this instanceof BaseWebViewController) || !"webView".equals(node.getId())) {
-                new BaseWebViewController().setParent(myController, (WebView) node);
             }
         } else if (node instanceof SplitPane) {
             for (Node child : ((SplitPane) node).getItems()) {
@@ -370,14 +355,18 @@ public abstract class BaseController_Interface extends BaseController_Files {
             int v = Integer.parseInt(dpiSelector.getValue());
             if (v > 0) {
                 dpi = v;
-                UserConfig.setInt(baseName + "DPI", dpi);
+                UserConfig.setInt(interfaceName + "DPI", dpi);
                 dpiSelector.getEditor().setStyle(null);
             } else {
-                dpiSelector.getEditor().setStyle(NodeStyleTools.badStyle);
+                dpiSelector.getEditor().setStyle(UserConfig.badStyle());
             }
         } catch (Exception e) {
-            dpiSelector.getEditor().setStyle(NodeStyleTools.badStyle);
+            dpiSelector.getEditor().setStyle(UserConfig.badStyle());
         }
+    }
+
+    public void initControls() {
+
     }
 
     /*
@@ -390,13 +379,89 @@ public abstract class BaseController_Interface extends BaseController_Files {
             getMyScene();
             getMyStage();
 
-            int minSize = 200;
             myStage.setMinWidth(minSize);
-            myStage.setMinHeight(minSize);
+            myStage.setMinHeight(20);
 
-            if (AppVariables.restoreStagesSize) {
+            refreshStyle();
+
+            if (this instanceof LoadingController) {
+                return;
+            }
+
+            setStageStatus();
+
+            Rectangle2D screen = NodeTools.getScreen();
+            if (myStage.getHeight() > screen.getHeight()) {
+                myStage.setHeight(screen.getHeight());
+            }
+            if (myStage.getWidth() > screen.getWidth()) {
+                myStage.setWidth(screen.getWidth());
+            }
+            if (myStage.getX() < 0) {
+                myStage.setX(0);
+            }
+            if (myStage.getY() < 0) {
+                myStage.setY(0);
+            }
+
+            toFront();
+
+            if (leftPane != null || rightPane != null) {
+                new Timer().schedule(new TimerTask() {
+                    @Override
+                    public void run() {
+                        Platform.runLater(() -> {
+                            if (leftPane != null) {
+                                leftPane.setHvalue(0);
+                                leftPane.setVvalue(0);
+                            }
+
+                            if (rightPane != null) {
+                                rightPane.setHvalue(0);
+                                rightPane.setVvalue(0);
+                            }
+                        });
+                    }
+                }, 1000);
+            }
+        } catch (Exception e) {
+            MyBoxLog.error(e.toString());
+        }
+    }
+
+    public String interfaceKeysPrefix() {
+        return "Interface_" + interfaceName + (isPop ? "_Pop" : "");
+    }
+
+    public void setStageStatus() {
+        setAsNormal();
+    }
+
+    public void setAsNormal() {
+        try {
+            isPop = false;
+            if (AppVariables.recordWindowsSizeLocation) {
                 String prefix = interfaceKeysPrefix();
-                setStageStatus(prefix, minSize);
+                if (UserConfig.getBoolean(prefix + "FullScreen", false)) {
+                    myStage.setFullScreen(true);
+
+                } else if (UserConfig.getBoolean(prefix + "Maximized", false)) {
+                    NodeTools.setMaximized(myStage, true);
+
+                } else {
+                    int mw = UserConfig.getInt(prefix + "StageWidth", -1);
+                    int mh = UserConfig.getInt(prefix + "StageHeight", -1);
+                    int mx = UserConfig.getInt(prefix + "StageX", -1);
+                    int my = UserConfig.getInt(prefix + "StageY", -1);
+                    if (mw > minSize && mh > minSize) {
+                        myStage.setWidth(mw);
+                        myStage.setHeight(mh);
+                    }
+                    if (mx >= 0 && my >= 0) {
+                        myStage.setX(mx);
+                        myStage.setY(my);
+                    }
+                }
 
                 myStage.fullScreenProperty().addListener(new ChangeListener<Boolean>() {
                     @Override
@@ -415,24 +480,49 @@ public abstract class BaseController_Interface extends BaseController_Files {
                 myStage.sizeToScene();
                 myStage.centerOnScreen();
             }
+        } catch (Exception e) {
+            MyBoxLog.error(e.toString());
+        }
+    }
 
-            Rectangle2D screen = NodeTools.getScreen();
-            if (myStage.getHeight() > screen.getHeight()) {
-                myStage.setHeight(screen.getHeight());
-            }
-            if (myStage.getWidth() > screen.getWidth()) {
-                myStage.setWidth(screen.getWidth());
-            }
-            if (myStage.getX() < 0) {
-                myStage.setX(0);
-            }
-            if (myStage.getY() < 0) {
-                myStage.setY(0);
-            }
+    public void setAsPop(String name) {
+        try {
+            isPop = true;
+            this.interfaceName = name;
 
-            refreshStyle();
-            toFront();
+            String prefix = interfaceKeysPrefix();
+            int mw = UserConfig.getInt(prefix + "StageWidth", Math.min(600, (int) myStage.getWidth()));
+            int mh = UserConfig.getInt(prefix + "StageHeight", Math.min(500, (int) myStage.getHeight()));
+            int mx = UserConfig.getInt(prefix + "StageX", (int) myStage.getX());
+            int my = UserConfig.getInt(prefix + "StageY", (int) myStage.getY());
+            if (mw > minSize) {
+                myStage.setWidth(mw);
+                myStage.setHeight(mh);
+            }
+            if (mx >= 0 && my >= 0) {
+                myStage.setX(mx);
+                myStage.setY(my);
+            }
+            if (topCheck != null) {
+                topCheck.setVisible(true);
+                checkAlwaysTop();
+            } else {
+                myStage.setAlwaysOnTop(true);
+            }
+        } catch (Exception e) {
+            MyBoxLog.error(e.toString());
+        }
+    }
 
+    public void setMinWidth(int minWidth) {
+        try {
+            if (getMyStage() == null) {
+                return;
+            }
+            int w = (int) myStage.getWidth();
+            if (w < minWidth) {
+                myStage.setWidth(minWidth);
+            }
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
         }
@@ -463,47 +553,6 @@ public abstract class BaseController_Interface extends BaseController_Files {
         }
     }
 
-    public void setStageStatus(String prefix, int minSize) {
-        setStageStatus(prefix, minSize, -1, -1, -1, -1);
-    }
-
-    public void setStageStatus(String prefix, int minSize, int initX, int initY, int initW, int initH) {
-        if (UserConfig.getBoolean(prefix + "FullScreen", false)) {
-            myStage.setFullScreen(true);
-
-        } else if (UserConfig.getBoolean(prefix + "Maximized", false)) {
-            NodeTools.setMaximized(myStage, true);
-
-        } else {
-            int mw = UserConfig.getInt(prefix + "StageWidth", initW);
-            int mh = UserConfig.getInt(prefix + "StageHeight", initH);
-            int mx = UserConfig.getInt(prefix + "StageX", initX);
-            int my = UserConfig.getInt(prefix + "StageY", initY);
-            if (mw > minSize && mh > minSize) {
-                myStage.setWidth(mw);
-                myStage.setHeight(mh);
-            }
-            if (mx >= 0 && my >= 0) {
-                myStage.setX(mx);
-                myStage.setY(my);
-            }
-        }
-    }
-
-    public void setAsPopup(String baseName) {
-        isPop = true;
-        this.baseName = baseName;
-        setStageStatus(interfaceKeysPrefix(), 200, 0, 0, 600, 500);
-//        hideLeftPane();
-//        hideRightPane();
-        if (topCheck != null) {
-            topCheck.setVisible(true);
-            checkAlwaysTop();
-        } else {
-            myStage.setAlwaysOnTop(true);
-        }
-    }
-
     public void refreshStyle() {
         if (getMyScene() != null) {
             refreshStyle(myScene.getRoot());
@@ -513,8 +562,12 @@ public abstract class BaseController_Interface extends BaseController_Files {
     }
 
     public void refreshStyle(Parent node) {
-        NodeStyleTools.refreshStyle(node);
-        setControlsStyle();
+        try {
+            NodeStyleTools.refreshStyle(node);
+            setControlsStyle();
+        } catch (Exception e) {
+            MyBoxLog.error(e.toString());
+        }
     }
 
     public void toFront() {
@@ -526,23 +579,26 @@ public abstract class BaseController_Interface extends BaseController_Files {
                         getMyWindow().requestFocus();
                         getMyStage().setIconified(false);
                         myStage.toFront();
-                        if (selectFileButton != null) {
-                            selectFileButton.requestFocus();
-                        } else if (tipsView != null) {
-                            tipsView.requestFocus();
-                        } else {
-                            thisPane.requestFocus();
-                        }
-                        if (mainMenuController != null) {
-                            LocateTools.mouseCenter(myStage);
-                        }
-                        if (leftPane != null) {
-                            leftPane.setHvalue(0);
-                        }
                         checkAlwaysTop();
                     });
                 }
             }, 500);
+        } catch (Exception e) {
+            MyBoxLog.error(e.toString());
+        }
+    }
+
+    public void requestMouse() {
+        try {
+            if (getMyStage() == null || this instanceof MyBoxLogViewerController) {
+                return;
+            }
+            Platform.runLater(() -> {
+                myStage.toFront();
+                myStage.requestFocus();
+                LocateTools.mouseCenter(myStage);
+                closePopup();
+            });
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
         }
@@ -555,7 +611,7 @@ public abstract class BaseController_Interface extends BaseController_Files {
         }
         myStage.setAlwaysOnTop(topCheck.isSelected());
         if (topCheck.isSelected()) {
-            popWarn(Languages.message("AlwaysTopWarning"));
+            popWarn(message("AlwaysTopWarning"));
             FadeTransition fade = new FadeTransition(Duration.millis(300));
             fade.setFromValue(1.0);
             fade.setToValue(0f);
@@ -564,10 +620,6 @@ public abstract class BaseController_Interface extends BaseController_Files {
             fade.setNode(topCheck);
             fade.play();
         }
-    }
-
-    public String interfaceKeysPrefix() {
-        return "Interface_" + baseName;
     }
 
     // Do not call "refreshStyle" in this method, or else endless loop happens
@@ -580,29 +632,33 @@ public abstract class BaseController_Interface extends BaseController_Files {
                 NodeStyleTools.setTooltip(rightPaneControl, new Tooltip("F5"));
             }
             if (tipsLabel != null && TipsLabelKey != null) {
-                NodeStyleTools.setTooltip(tipsLabel, new Tooltip(Languages.message(TipsLabelKey)));
+                NodeStyleTools.setTooltip(tipsLabel, new Tooltip(message(TipsLabelKey)));
             }
             if (tipsView != null && TipsLabelKey != null) {
-                NodeStyleTools.setTooltip(tipsView, new Tooltip(Languages.message(TipsLabelKey)));
+                NodeStyleTools.setTooltip(tipsView, new Tooltip(message(TipsLabelKey)));
             }
             if (rightTipsView != null && TipsLabelKey != null) {
-                NodeStyleTools.setTooltip(rightTipsView, new Tooltip(Languages.message(TipsLabelKey)));
+                NodeStyleTools.setTooltip(rightTipsView, new Tooltip(message(TipsLabelKey)));
             }
 
             if (copyButton == null) {
                 if (copyToSystemClipboardButton != null) {
-                    NodeStyleTools.setTooltip(copyToSystemClipboardButton, new Tooltip(Languages.message("CopyToSystemClipboard") + "\nCTRL+c / ALT+c"));
+                    NodeStyleTools.setTooltip(copyToSystemClipboardButton, new Tooltip(message("CopyToSystemClipboard") + "\nCTRL+c / ALT+c"));
                 } else if (copyToMyBoxClipboardButton != null) {
-                    NodeStyleTools.setTooltip(copyToMyBoxClipboardButton, new Tooltip(Languages.message("CopyToMyBoxClipboard") + "\nCTRL+c / ALT+c"));
+                    NodeStyleTools.setTooltip(copyToMyBoxClipboardButton, new Tooltip(message("CopyToMyBoxClipboard") + "\nCTRL+c / ALT+c"));
                 }
             }
 
             if (pasteButton == null) {
                 if (pasteContentInSystemClipboardButton != null) {
-                    NodeStyleTools.setTooltip(pasteContentInSystemClipboardButton, new Tooltip(Languages.message("PasteContentInSystemClipboard") + "\nCTRL+v / ALT+v"));
+                    NodeStyleTools.setTooltip(pasteContentInSystemClipboardButton, new Tooltip(message("PasteContentInSystemClipboard") + "\nCTRL+v / ALT+v"));
                 } else if (loadContentInSystemClipboardButton != null) {
-                    NodeStyleTools.setTooltip(loadContentInSystemClipboardButton, new Tooltip(Languages.message("LoadContentInSystemClipboard") + "\nCTRL+v / ALT+v"));
+                    NodeStyleTools.setTooltip(loadContentInSystemClipboardButton, new Tooltip(message("LoadContentInSystemClipboard") + "\nCTRL+v / ALT+v"));
                 }
+            }
+
+            if (panesMenuButton != null) {
+                StyleTools.setIconTooltips(panesMenuButton, "iconPanes.png", message("Panes"));
             }
 
         } catch (Exception e) {
@@ -728,6 +784,10 @@ public abstract class BaseController_Interface extends BaseController_Files {
             if (!checkBeforeNextAction(thisPane)) {
                 return false;
             }
+            if (!AppVariables.isTesting && getMyStage() != null && mainMenuController != null
+                    && !isPop && myStage.getOwner() == null) {
+                VisitHistoryTools.visitMenu(baseTitle, myFxml);
+            }
             leaveScene();
             return true;
         } catch (Exception e) {
@@ -778,8 +838,12 @@ public abstract class BaseController_Interface extends BaseController_Files {
     }
 
     public void leaveScene() {
-        cleanNode(thisPane);
-        cleanWindow();
+        try {
+            cleanNode(thisPane);
+            cleanWindow();
+        } catch (Exception e) {
+            MyBoxLog.error(e);
+        }
     }
 
     public static void cleanNode(Node node) {
@@ -858,12 +922,12 @@ public abstract class BaseController_Interface extends BaseController_Files {
                 UserConfig.setInt(prefix + "StageHeight", (int) myStage.getHeight());
                 myStage = null;
             }
+
             myWindow = null;
             System.gc();
         } catch (Exception e) {
             MyBoxLog.debug(e.toString());
         }
-
     }
 
     public boolean close() {
@@ -879,7 +943,6 @@ public abstract class BaseController_Interface extends BaseController_Files {
         return close();
     }
 
-
     /*
         split panes
      */
@@ -888,51 +951,101 @@ public abstract class BaseController_Interface extends BaseController_Files {
             if (splitPane == null || splitPane.getDividers().isEmpty()) {
                 return;
             }
-            if (closeRightPaneCheck != null) {
-                closeRightPaneCheck.setSelected(UserConfig.getBoolean(baseName + "CloseRightPane", false));
-                closeRightPaneCheck.selectedProperty().addListener((ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) -> {
-                    if (isSettingValues) {
-                        return;
-                    }
-                    UserConfig.setBoolean(baseName + "CloseRightPane", closeRightPaneCheck.isSelected());
-                    checkRightPaneClose();
-                });
-                checkRightPaneClose();
+            if (rightPaneCheck != null) {
+                rightPaneCheck.setSelected(UserConfig.getBoolean(interfaceName + "DisplayRightPane", true));
+                rightPaneCheck.selectedProperty().addListener(
+                        (ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) -> {
+                            if (isSettingValues) {
+                                return;
+                            }
+                            UserConfig.setBoolean(interfaceName + "DisplayRightPane", rightPaneCheck.isSelected());
+                            checkRightPane();
+                        });
+                checkRightPane();
             }
 
-            checkRightPaneHide();
-
+            if (leftPaneCheck != null) {
+                leftPaneCheck.setSelected(UserConfig.getBoolean(interfaceName + "DisplayLeftPane", true));
+                checkLeftPane();
+                leftPaneCheck.selectedProperty().addListener(new ChangeListener<Boolean>() {
+                    @Override
+                    public void changed(ObservableValue<? extends Boolean> o, Boolean ov, Boolean nv) {
+                        UserConfig.setBoolean(interfaceName + "DisplayLeftPane", leftPaneCheck.isSelected());
+                        checkLeftPane();
+                    }
+                });
+            }
+            if (!checkRightPaneHide()) {
+                setSplitDividerPositions();
+                refreshStyle(splitPane);
+            }
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
         }
     }
 
-    public void checkRightPaneClose() {
-        if (isSettingValues || splitPane == null || rightPane == null
-                || closeRightPaneCheck == null || rightPaneControl == null) {
-            return;
-        }
-        if (closeRightPaneCheck.isSelected()) {
-            hideRightPane();
-            rightPaneControl.setVisible(false);
-        } else {
-            rightPaneControl.setVisible(true);
-            showRightPane();
+    public void checkLeftPane() {
+        try {
+            if (isSettingValues || splitPane == null || leftPane == null
+                    || leftPaneCheck == null) {
+                return;
+            }
+            if (leftPaneCheck.isSelected()) {
+                if (leftPaneControl != null) {
+                    leftPaneControl.setVisible(true);
+                }
+                showLeftPane();
+            } else {
+                hideLeftPane();
+                if (leftPaneControl != null) {
+                    leftPaneControl.setVisible(false);
+                }
+            }
+        } catch (Exception e) {
+            MyBoxLog.error(e.toString());
         }
     }
 
-    public void checkRightPaneHide() {
-        if (isSettingValues || splitPane == null || rightPane == null
-                || rightPaneControl == null || !rightPaneControl.isVisible()
-                || !splitPane.getItems().contains(rightPane)
-                || splitPane.getItems().size() == 1) {
-            return;
+    public void checkRightPane() {
+        try {
+            if (isSettingValues || splitPane == null || rightPane == null
+                    || rightPaneCheck == null) {
+                return;
+            }
+            if (rightPaneCheck.isSelected()) {
+                if (rightPaneControl != null) {
+                    rightPaneControl.setVisible(true);
+                }
+                showRightPane();
+            } else {
+                hideRightPane();
+                if (rightPaneControl != null) {
+                    rightPaneControl.setVisible(false);
+                }
+            }
+        } catch (Exception e) {
+            MyBoxLog.error(e.toString());
         }
-        if (!UserConfig.getBoolean(baseName + "ShowRightControl", true)) {
-            hideRightPane();
+    }
+
+    public boolean checkRightPaneHide() {
+        try {
+            if (isSettingValues || splitPane == null || rightPane == null
+                    || (rightPaneControl != null && !rightPaneControl.isVisible())
+                    || !splitPane.getItems().contains(rightPane)
+                    || splitPane.getItems().size() == 1) {
+                return false;
+            }
+            if (!UserConfig.getBoolean(interfaceName + "ShowRightControl", true)) {
+                hideRightPane();
+            }
+            setSplitDividerPositions();
+            refreshStyle(splitPane);
+            return true;
+        } catch (Exception e) {
+            MyBoxLog.error(e.toString());
+            return false;
         }
-        setSplitDividerPositions();
-        refreshStyle(splitPane);
     }
 
     public void setSplitDividerPositions() {
@@ -958,14 +1071,14 @@ public abstract class BaseController_Interface extends BaseController_Files {
             if (splitPane.getItems().contains(leftPane)) {
                 double defaultv = dividersSize == 1 ? 0.35 : 0.15;
                 try {
-                    String v = UserConfig.getString(baseName + "LeftPanePosition", defaultv + "");
+                    String v = UserConfig.getString(interfaceName + "LeftPanePosition", defaultv + "");
                     splitPane.setDividerPosition(0, Double.parseDouble(v));
                 } catch (Exception e) {
                     splitPane.setDividerPosition(0, defaultv);
                 }
                 leftDividerListener = (ObservableValue<? extends Number> observable, Number oldValue, Number newValue) -> {
                     if (!isSettingValues) {
-                        UserConfig.setString(baseName + "LeftPanePosition", newValue.doubleValue() + "");
+                        UserConfig.setString(interfaceName + "LeftPanePosition", newValue.doubleValue() + "");
                     }
                 };
                 splitPane.getDividers().get(0).positionProperty().addListener(leftDividerListener);
@@ -974,14 +1087,14 @@ public abstract class BaseController_Interface extends BaseController_Files {
                 int index = splitPane.getDividers().size() - 1;
                 double defaultv = index > 0 ? 0.85 : 0.65;
                 try {
-                    String v = UserConfig.getString(baseName + "RightPanePosition", defaultv + "");
+                    String v = UserConfig.getString(interfaceName + "RightPanePosition", defaultv + "");
                     splitPane.setDividerPosition(index, Double.parseDouble(v));
                 } catch (Exception e) {
                     splitPane.setDividerPosition(index, defaultv);
                 }
                 rightDividerListener = (ObservableValue<? extends Number> observable, Number oldValue, Number newValue) -> {
                     if (!isSettingValues) {
-                        UserConfig.setString(baseName + "RightPanePosition", newValue.doubleValue() + "");
+                        UserConfig.setString(interfaceName + "RightPanePosition", newValue.doubleValue() + "");
                     }
                 };
                 splitPane.getDividers().get(index).positionProperty().addListener(rightDividerListener);
@@ -995,7 +1108,7 @@ public abstract class BaseController_Interface extends BaseController_Files {
     @FXML
     public void controlLeftPane() {
         if (isSettingValues || splitPane == null || leftPane == null
-                || leftPaneControl == null || !leftPaneControl.isVisible()) {
+                || (leftPaneControl != null && !leftPaneControl.isVisible())) {
             return;
         }
         if (splitPane.getItems().contains(leftPane)) {
@@ -1007,7 +1120,7 @@ public abstract class BaseController_Interface extends BaseController_Files {
 
     public void hideLeftPane() {
         if (isSettingValues || splitPane == null || leftPane == null
-                || leftPaneControl == null || !leftPaneControl.isVisible()
+                || (leftPaneControl != null && !leftPaneControl.isVisible())
                 || !splitPane.getItems().contains(leftPane)
                 || splitPane.getItems().size() == 1) {
             return;
@@ -1017,13 +1130,15 @@ public abstract class BaseController_Interface extends BaseController_Files {
         isSettingValues = false;
         setSplitDividerPositions();
         refreshStyle(splitPane);
-        UserConfig.setBoolean(baseName + "ShowLeftControl", false);
-        StyleTools.setIconName(leftPaneControl, "iconDoubleRight.png");
+        UserConfig.setBoolean(interfaceName + "ShowLeftControl", false);
+        if (leftPaneControl != null) {
+            StyleTools.setIconName(leftPaneControl, "iconDoubleRight.png");
+        }
     }
 
     public void showLeftPane() {
         if (isSettingValues || splitPane == null || leftPane == null
-                || leftPaneControl == null || !leftPaneControl.isVisible()
+                || (leftPaneControl != null && !leftPaneControl.isVisible())
                 || splitPane.getItems().contains(leftPane)) {
             return;
         }
@@ -1032,14 +1147,18 @@ public abstract class BaseController_Interface extends BaseController_Files {
         isSettingValues = false;
         setSplitDividerPositions();
         refreshStyle(splitPane);
-        UserConfig.setBoolean(baseName + "ShowLeftControl", true);
-        StyleTools.setIconName(leftPaneControl, "iconDoubleLeft.png");
+        UserConfig.setBoolean(interfaceName + "ShowLeftControl", true);
+        if (leftPaneControl != null) {
+            StyleTools.setIconName(leftPaneControl, "iconDoubleLeft.png");
+        }
+        leftPane.setHvalue(0);
+        leftPane.setVvalue(0);
     }
 
     @FXML
     public void controlRightPane() {
         if (isSettingValues || splitPane == null || rightPane == null
-                || rightPaneControl == null || !rightPaneControl.isVisible()) {
+                || (rightPaneControl != null && !rightPaneControl.isVisible())) {
             return;
         }
         if (splitPane.getItems().contains(rightPane)) {
@@ -1051,7 +1170,7 @@ public abstract class BaseController_Interface extends BaseController_Files {
 
     public void hideRightPane() {
         if (isSettingValues || splitPane == null || rightPane == null
-                || rightPaneControl == null || !rightPaneControl.isVisible()
+                || (rightPaneControl != null && !rightPaneControl.isVisible())
                 || !splitPane.getItems().contains(rightPane)
                 || splitPane.getItems().size() == 1) {
             return;
@@ -1061,23 +1180,33 @@ public abstract class BaseController_Interface extends BaseController_Files {
         isSettingValues = false;
         setSplitDividerPositions();
         refreshStyle(splitPane);
-        UserConfig.setBoolean(baseName + "ShowRightControl", false);
-        StyleTools.setIconName(rightPaneControl, "iconDoubleLeft.png");
+        UserConfig.setBoolean(interfaceName + "ShowRightControl", false);
+        if (rightPaneControl != null) {
+            StyleTools.setIconName(rightPaneControl, "iconDoubleLeft.png");
+        }
     }
 
     public void showRightPane() {
-        if (isSettingValues || splitPane == null || rightPane == null
-                || rightPaneControl == null || !rightPaneControl.isVisible()
-                || splitPane.getItems().contains(rightPane)) {
-            return;
+        try {
+            if (isSettingValues || splitPane == null || rightPane == null
+                    || (rightPaneControl != null && !rightPaneControl.isVisible())
+                    || splitPane.getItems().contains(rightPane)) {
+                return;
+            }
+            isSettingValues = true;
+            splitPane.getItems().add(rightPane);
+            isSettingValues = false;
+            setSplitDividerPositions();
+            refreshStyle(splitPane);
+            UserConfig.setBoolean(interfaceName + "ShowRightControl", true);
+            if (rightPaneControl != null) {
+                StyleTools.setIconName(rightPaneControl, "iconDoubleRight.png");
+            }
+            rightPane.setHvalue(0);
+            rightPane.setVvalue(0);
+        } catch (Exception e) {
+            MyBoxLog.error(e.toString());
         }
-        isSettingValues = true;
-        splitPane.getItems().add(rightPane);
-        isSettingValues = false;
-        setSplitDividerPositions();
-        refreshStyle(splitPane);
-        UserConfig.setBoolean(baseName + "ShowRightControl", true);
-        StyleTools.setIconName(rightPaneControl, "iconDoubleRight.png");
     }
 
 }

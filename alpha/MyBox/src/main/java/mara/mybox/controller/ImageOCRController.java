@@ -4,7 +4,6 @@ import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.InputStreamReader;
 import java.nio.charset.Charset;
 import java.text.MessageFormat;
 import java.util.ArrayList;
@@ -27,7 +26,7 @@ import javafx.scene.layout.VBox;
 import mara.mybox.bufferedimage.AlphaTools;
 import mara.mybox.db.data.VisitHistory;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.NodeStyleTools;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.imagefile.ImageFileWriters;
 import mara.mybox.tools.DateTools;
 import mara.mybox.tools.FileDeleteTools;
@@ -36,6 +35,7 @@ import mara.mybox.tools.TextFileTools;
 import mara.mybox.tools.TmpFileTools;
 import mara.mybox.value.FileFilters;
 import mara.mybox.value.Languages;
+import mara.mybox.value.UserConfig;
 import net.sourceforge.tess4j.ITessAPI;
 import net.sourceforge.tess4j.ITesseract;
 import net.sourceforge.tess4j.Tesseract;
@@ -156,7 +156,7 @@ public class ImageOCRController extends ImageViewerController {
         } else if (rightPane.isFocused() || ocrTabPane.isFocused()) {
 
             if (txtTab.isSelected()) {
-                TextPopController.open(this, textArea.getText());
+                TextPopController.openInput(this, textArea);
                 return true;
 
             } else if (htmlTab.isSelected()) {
@@ -182,7 +182,7 @@ public class ImageOCRController extends ImageViewerController {
                 return false;
             }
 
-            String name = sourceFile != null ? FileNameTools.getFilePrefix(sourceFile.getName()) : "";
+            String name = sourceFile != null ? FileNameTools.prefix(sourceFile.getName()) : "";
             regionsTableController.baseTitle = name + "_regions";
             wordsTableController.baseTitle = name + "_words";
             htmlController.baseTitle = name + "_texts";
@@ -203,10 +203,10 @@ public class ImageOCRController extends ImageViewerController {
     @Override
     public void startAction() {
         ocrOptionsController.setLanguages();
-        File dataPath = ocrOptionsController.dataPathController.file;
+        File dataPath = ocrOptionsController.dataPathController.file();
         if (!dataPath.exists()) {
             popError(Languages.message("InvalidParameters"));
-            ocrOptionsController.dataPathController.fileInput.setStyle(NodeStyleTools.badStyle);
+            ocrOptionsController.dataPathController.fileInput.setStyle(UserConfig.badStyle());
             return;
         }
         if (ocrOptionsController.embedRadio.isSelected()) {
@@ -218,13 +218,13 @@ public class ImageOCRController extends ImageViewerController {
 
     protected void command() {
         if (preprocessController.imageView.getImage() == null || timer != null || process != null
-                || ocrOptionsController.dataPathController.file == null) {
+                || ocrOptionsController.dataPathController.file() == null) {
             return;
         }
-        File tesseract = ocrOptionsController.tesseractPathController.file;
+        File tesseract = ocrOptionsController.tesseractPathController.file();
         if (!tesseract.exists()) {
             popError(Languages.message("InvalidParameters"));
-            ocrOptionsController.tesseractPathController.fileInput.setStyle(NodeStyleTools.badStyle);
+            ocrOptionsController.tesseractPathController.fileInput.setStyle(UserConfig.badStyle());
             return;
         }
         loading = handling();
@@ -234,7 +234,7 @@ public class ImageOCRController extends ImageViewerController {
             @Override
             public void run() {
                 try {
-                    Image selected = preprocessController.scopeImage();
+                    Image selected = preprocessController.imageToHandle();
                     if (selected == null) {
                         selected = preprocessController.imageView.getImage();
                     }
@@ -249,7 +249,7 @@ public class ImageOCRController extends ImageViewerController {
                     parameters.addAll(Arrays.asList(
                             tesseract.getAbsolutePath(),
                             imageFile, fileBase,
-                            "--tessdata-dir", ocrOptionsController.dataPathController.file.getAbsolutePath(),
+                            "--tessdata-dir", ocrOptionsController.dataPathController.file().getAbsolutePath(),
                             version > 3 ? "--psm" : "-psm", ocrOptionsController.psm + ""
                     ));
                     if (ocrOptionsController.selectedLanguages != null) {
@@ -270,7 +270,7 @@ public class ImageOCRController extends ImageViewerController {
                     ProcessBuilder pb = new ProcessBuilder(parameters).redirectErrorStream(true);
                     long startTime = new Date().getTime();
                     process = pb.start();
-                    try ( BufferedReader inReader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                    try ( BufferedReader inReader = process.inputReader(Charset.defaultCharset())) {
                         String line;
                         while ((line = inReader.readLine()) != null) {
                             outputs += line + "\n";
@@ -343,14 +343,14 @@ public class ImageOCRController extends ImageViewerController {
 
     protected void embedded() {
         if (preprocessController.imageView.getImage() == null
-                || ocrOptionsController.dataPathController.file == null) {
+                || ocrOptionsController.dataPathController.file() == null) {
             return;
         }
         synchronized (this) {
-            if (task != null && !task.isQuit()) {
-                return;
+            if (task != null) {
+                task.cancel();
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 private String texts, html;
                 private List<Rectangle> rectangles;
@@ -359,22 +359,22 @@ public class ImageOCRController extends ImageViewerController {
                 @Override
                 protected boolean handle() {
                     try {
-                        ITesseract instance = new Tesseract();
+                        Tesseract instance = new Tesseract();
                         // https://stackoverflow.com/questions/58286373/tess4j-pdf-to-tiff-to-tesseract-warning-invalid-resolution-0-dpi-using-70/58296472#58296472
-                        instance.setTessVariable("user_defined_dpi", "96");
-                        instance.setTessVariable("debug_file", "/dev/null");
+                        instance.setVariable("user_defined_dpi", "96");
+                        instance.setVariable("debug_file", "/dev/null");
                         instance.setPageSegMode(ocrOptionsController.psm);
                         Map<String, String> p = ocrOptionsController.checkParameters();
                         if (p != null && !p.isEmpty()) {
                             for (String key : p.keySet()) {
-                                instance.setTessVariable(key, p.get(key));
+                                instance.setVariable(key, p.get(key));
                             }
                         }
-                        instance.setDatapath(ocrOptionsController.dataPathController.file.getAbsolutePath());
+                        instance.setDatapath(ocrOptionsController.dataPathController.file().getAbsolutePath());
                         if (ocrOptionsController.selectedLanguages != null) {
                             instance.setLanguage(ocrOptionsController.selectedLanguages);
                         }
-                        Image selected = preprocessController.scopeImage();
+                        Image selected = preprocessController.imageToHandle();
                         if (selected == null) {
                             selected = preprocessController.imageView.getImage();
                         }
@@ -392,7 +392,8 @@ public class ImageOCRController extends ImageViewerController {
                         File tmpFile = File.createTempFile("MyboxOCR", "");
                         String tmp = File.createTempFile("MyboxOCR", "").getAbsolutePath();
                         FileDeleteTools.delete(tmpFile);
-                        instance.createDocumentsWithResults​(bufferedImage, null,
+
+                        instance.createDocumentsWithResults​(bufferedImage, tmp,
                                 tmp, formats, ITessAPI.TessPageIteratorLevel.RIL_SYMBOL);
                         File txtFile = new File(tmp + ".txt");
                         texts = TextFileTools.readTexts(txtFile);
@@ -476,11 +477,7 @@ public class ImageOCRController extends ImageViewerController {
                 }
 
             };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
 
     }

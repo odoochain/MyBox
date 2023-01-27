@@ -2,7 +2,7 @@ package mara.mybox.controller;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.InputStreamReader;
+import java.nio.charset.Charset;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -16,9 +16,7 @@ import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
-import javafx.scene.control.ListView;
 import javafx.scene.control.RadioButton;
-import javafx.scene.control.SelectionMode;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.Toggle;
 import javafx.scene.control.ToggleGroup;
@@ -27,19 +25,12 @@ import javafx.scene.layout.VBox;
 import mara.mybox.data.StringTable;
 import mara.mybox.db.data.VisitHistory;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.NodeTools;
-import static mara.mybox.fxml.NodeStyleTools.badStyle;
 import mara.mybox.fxml.FxFileTools;
-import mara.mybox.fxml.NodeStyleTools;
-
 import mara.mybox.tools.HtmlWriteTools;
 import mara.mybox.tools.OCRTools;
 import mara.mybox.tools.SystemTools;
-import mara.mybox.value.AppVariables;
-import static mara.mybox.value.Languages.message;
-
 import mara.mybox.value.Fxmls;
-import mara.mybox.value.Languages;
+import static mara.mybox.value.Languages.message;
 import mara.mybox.value.UserConfig;
 import net.sourceforge.tess4j.ITessAPI;
 
@@ -73,7 +64,7 @@ public class ControlOCROptions extends BaseController {
     @FXML
     protected Label resultLabel, originalViewLabel, currentOCRFilesLabel;
     @FXML
-    protected ListView<String> languageList;
+    protected ControlSelection languagesController;
     @FXML
     protected ComboBox<String> psmSelector, regionSelector, wordSelector;
     @FXML
@@ -88,7 +79,7 @@ public class ControlOCROptions extends BaseController {
     protected Button helpMeButton;
 
     public ControlOCROptions() {
-        baseTitle = Languages.message("ImageOCR");
+        baseTitle = message("ImageOCR");
         TipsLabelKey = "ImageOCRComments";
     }
 
@@ -100,12 +91,12 @@ public class ControlOCROptions extends BaseController {
             String os = SystemTools.os();
             tesseractPathController.type(VisitHistory.FileType.Bytes)
                     .isDirectory(false).mustExist(true).permitNull(true)
-                    .defaultValue("win".equals(os) ? "D:\\Programs\\Tesseract-OCR\\tesseract.exe" : "/bin/tesseract")
-                    .name("TesseractPath", true);
+                    .defaultFile("win".equals(os) ? new File("D:\\Programs\\Tesseract-OCR\\tesseract.exe") : new File("/bin/tesseract"))
+                    .baseName(baseName).savedName("TesseractPath").init();
 
             dataPathController.isDirectory(true).mustExist(true).permitNull(false)
-                    .defaultValue("win".equals(os) ? "D:\\Programs\\Tesseract-OCR\\tessdata" : "/usr/local/share/tessdata/")
-                    .name(OCRTools.TessDataPath, true);
+                    .defaultFile("win".equals(os) ? new File("D:\\Programs\\Tesseract-OCR\\tessdata") : new File("/usr/local/share/tessdata/"))
+                    .baseName(baseName).savedName(OCRTools.TessDataPath).init();
 
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
@@ -123,7 +114,7 @@ public class ControlOCROptions extends BaseController {
                 initWin();
             } else {
                 embedRadio.setDisable(true);
-                tesseractRadio.fire();
+                tesseractRadio.setSelected(true);
             }
             engineGroup.selectedToggleProperty().addListener(new ChangeListener<Toggle>() {
                 @Override
@@ -133,22 +124,30 @@ public class ControlOCROptions extends BaseController {
                 }
             });
 
+            languagesController.setParameters(this, message("Language"), "");
+            languagesController.selectedNotify.addListener(new ChangeListener<Boolean>() {
+                @Override
+                public void changed(ObservableValue ov, Boolean oldV, Boolean newV) {
+                    checkLanguages();
+                }
+            });
+
             psm = 6;
             psmSelector.getItems().addAll(Arrays.asList(
-                    "0    " + Languages.message("PSM0"),
-                    "1    " + Languages.message("PSM1"),
-                    "2    " + Languages.message("PSM2"),
-                    "3    " + Languages.message("PSM3"),
-                    "4    " + Languages.message("PSM4"),
-                    "5    " + Languages.message("PSM5"),
-                    "6    " + Languages.message("PSM6"),
-                    "7    " + Languages.message("PSM7"),
-                    "8    " + Languages.message("PSM8"),
-                    "9    " + Languages.message("PSM9"),
-                    "10    " + Languages.message("PSM10"),
-                    "11    " + Languages.message("PSM11"),
-                    "12    " + Languages.message("PSM12"),
-                    "13    " + Languages.message("PSM13")
+                    "0    " + message("PSM0"),
+                    "1    " + message("PSM1"),
+                    "2    " + message("PSM2"),
+                    "3    " + message("PSM3"),
+                    "4    " + message("PSM4"),
+                    "5    " + message("PSM5"),
+                    "6    " + message("PSM6"),
+                    "7    " + message("PSM7"),
+                    "8    " + message("PSM8"),
+                    "9    " + message("PSM9"),
+                    "10    " + message("PSM10"),
+                    "11    " + message("PSM11"),
+                    "12    " + message("PSM12"),
+                    "13    " + message("PSM13")
             ));
             psmSelector.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<String>() {
                 @Override
@@ -184,31 +183,31 @@ public class ControlOCROptions extends BaseController {
     public void initWin() {
         embedRadio.setDisable(false);
         if (UserConfig.getBoolean("ImageOCREmbed", true)) {
-            embedRadio.fire();
+            embedRadio.setSelected(true);
         } else {
-            tesseractRadio.fire();
+            tesseractRadio.setSelected(true);
         }
         regionLevel = -1;
-        regionSelector.getItems().addAll(Arrays.asList(Languages.message("None"),
-                Languages.message("Block"), Languages.message("Paragraph"), Languages.message("Textline"),
-                Languages.message("Word"), Languages.message("Symbol")
+        regionSelector.getItems().addAll(Arrays.asList(message("None"),
+                message("Block"), message("Paragraph"), message("Textline"),
+                message("Word"), message("Symbol")
         ));
         regionSelector.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<String>() {
             @Override
             public void changed(ObservableValue ov, String oldValue, String newValue) {
-                if (Languages.message("Block").equals(newValue)) {
+                if (message("Block").equals(newValue)) {
                     regionLevel = ITessAPI.TessPageIteratorLevel.RIL_BLOCK;
 
-                } else if (Languages.message("Paragraph").equals(newValue)) {
+                } else if (message("Paragraph").equals(newValue)) {
                     regionLevel = ITessAPI.TessPageIteratorLevel.RIL_PARA;
 
-                } else if (Languages.message("Textline").equals(newValue)) {
+                } else if (message("Textline").equals(newValue)) {
                     regionLevel = ITessAPI.TessPageIteratorLevel.RIL_TEXTLINE;
 
-                } else if (Languages.message("Word").equals(newValue)) {
+                } else if (message("Word").equals(newValue)) {
                     regionLevel = ITessAPI.TessPageIteratorLevel.RIL_WORD;
 
-                } else if (Languages.message("Symbol").equals(newValue)) {
+                } else if (message("Symbol").equals(newValue)) {
                     regionLevel = ITessAPI.TessPageIteratorLevel.RIL_SYMBOL;
 
                 } else {
@@ -217,29 +216,29 @@ public class ControlOCROptions extends BaseController {
                 UserConfig.setString("ImageOCRRegionLevel", newValue);
             }
         });
-        regionSelector.getSelectionModel().select(UserConfig.getString("ImageOCRRegionLevel", Languages.message("Symbol")));
+        regionSelector.getSelectionModel().select(UserConfig.getString("ImageOCRRegionLevel", message("Symbol")));
 
         wordLevel = -1;
-        wordSelector.getItems().addAll(Arrays.asList(Languages.message("None"),
-                Languages.message("Block"), Languages.message("Paragraph"), Languages.message("Textline"),
-                Languages.message("Word"), Languages.message("Symbol")
+        wordSelector.getItems().addAll(Arrays.asList(message("None"),
+                message("Block"), message("Paragraph"), message("Textline"),
+                message("Word"), message("Symbol")
         ));
         wordSelector.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<String>() {
             @Override
             public void changed(ObservableValue ov, String oldValue, String newValue) {
-                if (Languages.message("Block").equals(newValue)) {
+                if (message("Block").equals(newValue)) {
                     wordLevel = ITessAPI.TessPageIteratorLevel.RIL_BLOCK;
 
-                } else if (Languages.message("Paragraph").equals(newValue)) {
+                } else if (message("Paragraph").equals(newValue)) {
                     wordLevel = ITessAPI.TessPageIteratorLevel.RIL_PARA;
 
-                } else if (Languages.message("Textline").equals(newValue)) {
+                } else if (message("Textline").equals(newValue)) {
                     wordLevel = ITessAPI.TessPageIteratorLevel.RIL_TEXTLINE;
 
-                } else if (Languages.message("Word").equals(newValue)) {
+                } else if (message("Word").equals(newValue)) {
                     wordLevel = ITessAPI.TessPageIteratorLevel.RIL_WORD;
 
-                } else if (Languages.message("Symbol").equals(newValue)) {
+                } else if (message("Symbol").equals(newValue)) {
                     wordLevel = ITessAPI.TessPageIteratorLevel.RIL_SYMBOL;
 
                 } else {
@@ -248,39 +247,36 @@ public class ControlOCROptions extends BaseController {
                 UserConfig.setString("ImageOCRWordLevel", newValue);
             }
         });
-        wordSelector.getSelectionModel().select(UserConfig.getString("ImageOCRWordLevel", Languages.message("Symbol")));
+        wordSelector.getSelectionModel().select(UserConfig.getString("ImageOCRWordLevel", message("Symbol")));
     }
 
     public void setLanguages() {
         try {
-            languageList.getItems().clear();
-            languageList.getItems().addAll(OCRTools.namesList(tesseractVersion > 3));
-            languageList.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
-            languageList.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<String>() {
-                @Override
-                public void changed(ObservableValue<? extends String> ov, String oldVal, String newVal) {
-                    checkLanguages();
-                }
-            });
+            List<String> langs = OCRTools.namesList(tesseractVersion > 3);
+            languagesController.loadNames(langs);
+
             selectedLanguages = UserConfig.getString("ImageOCRLanguages", null);
             if (selectedLanguages != null && !selectedLanguages.isEmpty()) {
-                currentOCRFilesLabel.setText(MessageFormat.format(Languages.message("CurrentDataFiles"), selectedLanguages));
+                currentOCRFilesLabel.setText(MessageFormat.format(message("CurrentDataFiles"), selectedLanguages));
                 currentOCRFilesLabel.setStyle(null);
                 isSettingValues = true;
-                String[] langs = selectedLanguages.split("\\+");
+                String[] selected = selectedLanguages.split("\\+");
                 Map<String, String> codes = OCRTools.codeName();
-                for (String code : langs) {
+                List<String> selectedNames = new ArrayList<>();
+                for (String code : selected) {
                     String name = codes.get(code);
                     if (name == null) {
                         name = code;
                     }
-                    languageList.getSelectionModel().select(name);
+                    selectedNames.add(name);
                 }
+                languagesController.selectNames(selectedNames);
                 isSettingValues = false;
             } else {
-                currentOCRFilesLabel.setText(MessageFormat.format(Languages.message("CurrentDataFiles"), Languages.message("NoData")));
-                currentOCRFilesLabel.setStyle(NodeStyleTools.badStyle);
+                currentOCRFilesLabel.setText(MessageFormat.format(message("CurrentDataFiles"), message("NoData")));
+                currentOCRFilesLabel.setStyle(UserConfig.badStyle());
             }
+
         } catch (Exception e) {
             MyBoxLog.debug(e.toString());
         }
@@ -349,17 +345,17 @@ public class ControlOCROptions extends BaseController {
 
     public int tesseractVersion() {
         try {
-            if (tesseractPathController.file == null || !tesseractPathController.file.exists()) {
+            if (tesseractPathController.file() == null || !tesseractPathController.file().exists()) {
                 return -1;
             }
             List<String> parameters = new ArrayList<>();
             parameters.addAll(Arrays.asList(
-                    tesseractPathController.file.getAbsolutePath(),
+                    tesseractPathController.file().getAbsolutePath(),
                     "--version"
             ));
             ProcessBuilder pb = new ProcessBuilder(parameters).redirectErrorStream(true);
             Process process = pb.start();
-            try ( BufferedReader inReader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            try ( BufferedReader inReader = process.inputReader(Charset.defaultCharset())) {
                 String line;
                 while ((line = inReader.readLine()) != null) {
                     if (line.contains("tesseract v4.") || line.contains("tesseract 4.")) {
@@ -390,27 +386,28 @@ public class ControlOCROptions extends BaseController {
             return;
         }
         try {
-            List<String> langsList = languageList.getSelectionModel().getSelectedItems();
             selectedLanguages = null;
-            Map<String, String> names = OCRTools.nameCode();
-            for (String name : langsList) {
-                String code = names.get(name);
-                if (code == null) {
-                    code = name;
+            List<String> langsList = languagesController.selectedNames();
+            if (langsList != null) {
+                Map<String, String> names = OCRTools.nameCode();
+                for (String name : langsList) {
+                    String code = names.get(name);
+                    if (code == null) {
+                        code = name;
+                    }
+                    if (selectedLanguages == null) {
+                        selectedLanguages = code;
+                    } else {
+                        selectedLanguages += "+" + code;
+                    }
                 }
-                if (selectedLanguages == null) {
-                    selectedLanguages = code;
-                } else {
-                    selectedLanguages += "+" + code;
-                }
-            }
-            if (selectedLanguages != null) {
                 UserConfig.setString("ImageOCRLanguages", selectedLanguages);
-                currentOCRFilesLabel.setText(MessageFormat.format(Languages.message("CurrentDataFiles"), selectedLanguages));
+                currentOCRFilesLabel.setText(MessageFormat.format(message("CurrentDataFiles"), selectedLanguages));
                 currentOCRFilesLabel.setStyle(null);
             } else {
-                currentOCRFilesLabel.setText(MessageFormat.format(Languages.message("CurrentDataFiles"), Languages.message("NoData")));
-                currentOCRFilesLabel.setStyle(NodeStyleTools.badStyle);
+                UserConfig.setString("ImageOCRLanguages", null);
+                currentOCRFilesLabel.setText(MessageFormat.format(message("CurrentDataFiles"), message("NoData")));
+                currentOCRFilesLabel.setStyle(UserConfig.badStyle());
             }
         } catch (Exception e) {
             MyBoxLog.debug(e.toString());
@@ -435,87 +432,6 @@ public class ControlOCROptions extends BaseController {
     }
 
     @FXML
-    public void upAction() {
-        List<Integer> selected = new ArrayList<>();
-        selected.addAll(languageList.getSelectionModel().getSelectedIndices());
-        if (selected.isEmpty()) {
-            return;
-        }
-        isSettingValues = true;
-        List<Integer> newselected = new ArrayList<>();
-        for (Integer index : selected) {
-            if (index == 0 || newselected.contains(index - 1)) {
-                newselected.add(index);
-                continue;
-            }
-            String lang = (String) languageList.getItems().get(index);
-            languageList.getItems().set(index, languageList.getItems().get(index - 1));
-            languageList.getItems().set(index - 1, lang);
-            newselected.add(index - 1);
-        }
-        languageList.getSelectionModel().clearSelection();
-        for (int index : newselected) {
-            languageList.getSelectionModel().select(index);
-        }
-        languageList.refresh();
-        isSettingValues = false;
-        checkLanguages();
-    }
-
-    @FXML
-    public void downAction() {
-        List<Integer> selected = new ArrayList<>();
-        selected.addAll(languageList.getSelectionModel().getSelectedIndices());
-        if (selected.isEmpty()) {
-            return;
-        }
-        isSettingValues = true;
-        List<Integer> newselected = new ArrayList<>();
-        for (int i = selected.size() - 1; i >= 0; --i) {
-            int index = selected.get(i);
-            if (index == languageList.getItems().size() - 1
-                    || newselected.contains(index + 1)) {
-                newselected.add(index);
-                continue;
-            }
-            String lang = (String) languageList.getItems().get(index);
-            languageList.getItems().set(index, languageList.getItems().get(index + 1));
-            languageList.getItems().set(index + 1, lang);
-            newselected.add(index + 1);
-        }
-        languageList.getSelectionModel().clearSelection();
-        for (int index : newselected) {
-            languageList.getSelectionModel().select(index);
-        }
-        languageList.refresh();
-        isSettingValues = false;
-        checkLanguages();
-    }
-
-    @FXML
-    public void topAction() {
-        List<Integer> selectedIndices = new ArrayList<>();
-        selectedIndices.addAll(languageList.getSelectionModel().getSelectedIndices());
-        if (selectedIndices.isEmpty()) {
-            return;
-        }
-        List<String> selected = new ArrayList<>();
-        selected.addAll(languageList.getSelectionModel().getSelectedItems());
-        isSettingValues = true;
-        int size = selectedIndices.size();
-        for (int i = size - 1; i >= 0; --i) {
-            int index = selectedIndices.get(i);
-            languageList.getItems().remove(index);
-        }
-        languageList.getSelectionModel().clearSelection();
-        languageList.getItems().addAll(0, selected);
-        languageList.getSelectionModel().selectRange(0, size);
-        languageList.refresh();
-        isSettingValues = false;
-        checkLanguages();
-    }
-
-    @FXML
     public void download() {
         openLink("https://tesseract-ocr.github.io/tessdoc/Home.html");
     }
@@ -528,14 +444,12 @@ public class ControlOCROptions extends BaseController {
     @FXML
     public void aboutTesseract() {
         try {
-            StringTable table = new StringTable(null, Languages.message("AboutTesseract"));
+            StringTable table = new StringTable(null, message("AboutTesseract"));
             table.newLinkRow("Home", "https://github.com/tesseract-ocr/tesseract");
             table.newLinkRow("Installation", "https://tesseract-ocr.github.io/tessdoc/Home.html");
             table.newLinkRow("InstallationOnWindows", "https://github.com/UB-Mannheim/tesseract/wiki");
-            table.newLinkRow("HomeBrew on Mac for Chinese", "https://www.jianshu.com/p/6a0fff005f20");
             table.newLinkRow("DataFiles", "https://tesseract-ocr.github.io/tessdoc/Data-Files.html");
             table.newLinkRow("Documents", "https://github.com/tesseract-ocr/tessdoc");
-            table.newLinkRow("Parameters", "https://github.com/tesseract-ocr/tessdoc/blob/master/ControlParams.md");
             table.newLinkRow("ImproveQuality", "https://tesseract-ocr.github.io/tessdoc/ImproveQuality.html");
 
             File htmFile = HtmlWriteTools.writeHtml(table.html());
@@ -553,7 +467,7 @@ public class ControlOCROptions extends BaseController {
         TextEditorController controller = (TextEditorController) openStage(Fxmls.TextEditorFxml);
         controller.hideLeftPane();
         controller.hideRightPane();
-        controller.openTextFile(help);
+        controller.sourceFileChanged(help);
     }
 
 }

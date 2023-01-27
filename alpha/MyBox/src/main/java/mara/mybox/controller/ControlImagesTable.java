@@ -2,7 +2,6 @@ package mara.mybox.controller;
 
 import java.io.File;
 import java.text.MessageFormat;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import javafx.application.Platform;
@@ -15,23 +14,25 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.image.Image;
-import javafx.util.converter.LongStringConverter;
 import mara.mybox.bufferedimage.ImageFileInformation;
 import mara.mybox.bufferedimage.ImageInformation;
 import mara.mybox.db.data.VisitHistory;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fxml.ControllerTools;
 import mara.mybox.fxml.ImageClipboardTools;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.fxml.ValidationTools;
+import mara.mybox.fxml.cell.TableAutoCommitCell;
 import mara.mybox.fxml.cell.TableImageInfoCell;
-import mara.mybox.imagefile.ImageFileReaders;
+import mara.mybox.fxml.converter.LongStringFromatConverter;
 import mara.mybox.tools.DateTools;
+import mara.mybox.tools.FileNameTools;
 import mara.mybox.tools.FileTools;
 import mara.mybox.tools.StringTools;
 import mara.mybox.value.Fxmls;
 import mara.mybox.value.Languages;
+import static mara.mybox.value.Languages.message;
 import mara.mybox.value.UserConfig;
-import thridparty.TableAutoCommitCell;
 
 /**
  * @Author Mara
@@ -40,7 +41,6 @@ import thridparty.TableAutoCommitCell;
  */
 public class ControlImagesTable extends BaseBatchTableController<ImageInformation> {
 
-    protected boolean isOpenning;
     protected SimpleBooleanProperty hasSampled;
     protected Image image;
     protected long duration;
@@ -85,7 +85,7 @@ public class ControlImagesTable extends BaseBatchTableController<ImageInformatio
 
     @Override
     public void setFileType() {
-        setFileType(VisitHistory.FileType.Image);
+        setFileType(VisitHistory.FileType.ImagesList, VisitHistory.FileType.Image);
     }
 
     @Override
@@ -111,7 +111,7 @@ public class ControlImagesTable extends BaseBatchTableController<ImageInformatio
     public void checkThumb() {
         if (tableThumbCheck.isSelected()) {
             if (!tableView.getColumns().contains(imageColumn)) {
-                tableView.getColumns().add(0, imageColumn);
+                tableView.getColumns().add(2, imageColumn);
             }
         } else {
             if (tableView.getColumns().contains(imageColumn)) {
@@ -146,31 +146,37 @@ public class ControlImagesTable extends BaseBatchTableController<ImageInformatio
                 durationColumn.setCellValueFactory(new PropertyValueFactory<>("duration"));
                 durationColumn.setCellFactory((TableColumn<ImageInformation, Long> param) -> {
                     TableAutoCommitCell<ImageInformation, Long> cell
-                            = new TableAutoCommitCell<ImageInformation, Long>(new LongStringConverter()) {
+                            = new TableAutoCommitCell<ImageInformation, Long>(new LongStringFromatConverter()) {
+
                         @Override
-                        public void commitEdit(Long val) {
-                            if (val <= 0) {
-                                cancelEdit();
-                            } else {
-                                super.commitEdit(val);
+                        public boolean valid(Long value) {
+                            return value != null && value > 0;
+                        }
+
+                        @Override
+                        public void commitEdit(Long value) {
+                            try {
+                                int rowIndex = rowIndex();
+                                if (rowIndex < 0 || !valid(value)) {
+                                    cancelEdit();
+                                    return;
+                                }
+                                ImageInformation row = tableData.get(rowIndex);
+                                if (value != row.getDuration()) {
+                                    super.commitEdit(value);
+                                    row.setDuration(value);
+                                    if (!isSettingValues) {
+                                        Platform.runLater(() -> {
+                                            updateLabel();
+                                        });
+                                    }
+                                }
+                            } catch (Exception e) {
+                                MyBoxLog.debug(e);
                             }
                         }
                     };
                     return cell;
-                });
-                durationColumn.setOnEditCommit((TableColumn.CellEditEvent<ImageInformation, Long> t) -> {
-                    if (t == null) {
-                        return;
-                    }
-                    if (t.getNewValue() > 0) {
-                        ImageInformation row = t.getRowValue();
-                        row.setDuration(t.getNewValue());
-                        if (!isSettingValues) {
-                            Platform.runLater(() -> {
-                                updateLabel();
-                            });
-                        }
-                    }
                 });
                 durationColumn.getStyleClass().add("editable-column");
             }
@@ -184,6 +190,33 @@ public class ControlImagesTable extends BaseBatchTableController<ImageInformatio
     public void tableChanged() {
         super.tableChanged();
         hasSampled.set(hasSampled());
+    }
+
+    @Override
+    protected void checkButtons() {
+        super.checkButtons();
+        try {
+            editButton.setDisable(true);
+            infoButton.setDisable(true);
+            metaButton.setDisable(true);
+            ImageInformation info = tableView.getSelectionModel().getSelectedItem();
+            if (info == null || info.getFile() == null) {
+                return;
+            }
+            String suffix = FileNameTools.suffix(info.getFile().getName());
+            if (suffix == null) {
+                return;
+            }
+            boolean notImageFile = suffix.equalsIgnoreCase("ppt")
+                    || suffix.equalsIgnoreCase("pptx")
+                    || suffix.equalsIgnoreCase("pdf");
+            editButton.setDisable(notImageFile);
+            infoButton.setDisable(notImageFile);
+            metaButton.setDisable(notImageFile);
+
+        } catch (Exception e) {
+            MyBoxLog.error(e.toString());
+        }
     }
 
     @Override
@@ -204,7 +237,7 @@ public class ControlImagesTable extends BaseBatchTableController<ImageInformatio
         }
         s += MessageFormat.format(Languages.message("TotalFilesNumberSize"),
                 totalFilesNumber, FileTools.showFileSize(totalFilesSize));
-        if (viewFileButton != null) {
+        if (viewButton != null) {
             s += "  " + Languages.message("DoubleClickToView");
         }
         tableLabel.setText(s);
@@ -230,64 +263,72 @@ public class ControlImagesTable extends BaseBatchTableController<ImageInformatio
         if (files == null || files.isEmpty()) {
             return;
         }
-        synchronized (this) {
-            if (task != null && !task.isQuit()) {
-                return;
-            }
-            task = new SingletonTask<Void>() {
-
-                private List<ImageInformation> infos;
-
-                @Override
-                protected boolean handle() {
-                    infos = new ArrayList<>();
-                    for (File file : files) {
-                        if (task == null || isCancelled()) {
-                            return false;
-                        }
-                        ImageFileInformation finfo = ImageFileReaders.readImageFileMetaData(file);
-                        infos.addAll(finfo.getImagesInformation());
-                    }
-                    return true;
-                }
-
-                @Override
-                protected void whenSucceeded() {
-                    if (!infos.isEmpty()) {
-                        if (index < 0 || index >= tableData.size()) {
-                            tableData.addAll(infos);
-                        } else {
-                            tableData.addAll(index, infos);
-                        }
-                        tableView.refresh();
-                        popDone();
-                        recordFileAdded(files);
-                    }
-                    isOpenning = false;
-                }
-
-            };
-            if (parentController != null) {
-                parentController.handling(task);
-            } else {
-                handling(task);
-            }
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+        if (task != null) {
+            task.cancel();
         }
+
+        task = new SingletonTask<Void>(this) {
+
+            private int offset;
+
+            @Override
+            protected boolean handle() {
+                offset = index >= 0 && index < tableData.size() ? index : tableData.size();
+                for (int i = 0; i < files.size(); i++) {
+                    File file = files.get(i);
+                    if (task == null || isCancelled()) {
+                        return false;
+                    }
+                    if (task != null) {
+                        task.setInfo(message("Add") + ": " + file);
+                    }
+                    ImageFileInformation finfo = ImageFileInformation.create(file);
+                    if (finfo == null) {
+                        continue;
+                    }
+                    Platform.runLater(new Runnable() {
+                        @Override
+                        public void run() {
+                            List<ImageInformation> infos = finfo.getImagesInformation();
+                            tableData.addAll(offset, infos);
+                            offset += infos.size();
+                        }
+                    });
+                }
+                return true;
+            }
+
+            @Override
+            protected void whenSucceeded() {
+                tableView.refresh();
+                popDone();
+                recordFileAdded(files);
+            }
+
+        };
+        start(task);
     }
 
     @FXML
     @Override
-    public void viewFileAction() {
+    public void viewAction() {
         try {
             ImageInformation info = tableView.getSelectionModel().getSelectedItem();
-            if (info == null) {
+            if (info == null || info.getFile() == null) {
                 return;
             }
-            ControllerTools.openImageViewer(info);
+            String suffix = FileNameTools.suffix(info.getFile().getName());
+            if (suffix != null && suffix.equalsIgnoreCase("pdf")) {
+                PdfViewController controller = (PdfViewController) openStage(Fxmls.PdfViewFxml);
+                controller.loadFile(info.getFile(), null, info.getIndex());
+
+            } else if (suffix != null && (suffix.equalsIgnoreCase("ppt") || suffix.equalsIgnoreCase("pptx"))) {
+                PptViewController controller = (PptViewController) openStage(Fxmls.PptViewFxml);
+                controller.loadFile(info.getFile(), info.getIndex());
+
+            } else {
+                ControllerTools.openImageViewer(info);
+            }
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
         }
@@ -295,15 +336,13 @@ public class ControlImagesTable extends BaseBatchTableController<ImageInformatio
 
     @FXML
     @Override
-    public void editFileAction() {
+    public void editAction() {
         try {
             ImageInformation info = tableView.getSelectionModel().getSelectedItem();
             if (info == null) {
                 return;
             }
-            ImageManufactureController controller
-                    = (ImageManufactureController) openStage(Fxmls.ImageManufactureFxml);
-            controller.loadImageInfo(info);
+            ControllerTools.openImageManufacture(null, info);
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
         }

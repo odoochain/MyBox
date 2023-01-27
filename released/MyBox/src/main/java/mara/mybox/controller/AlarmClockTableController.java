@@ -1,9 +1,9 @@
 package mara.mybox.controller;
 
+import java.sql.Connection;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
-import javafx.collections.ListChangeListener;
 import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
@@ -15,13 +15,11 @@ import javafx.scene.control.TableView;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
+import mara.mybox.db.DerbyBase;
 import mara.mybox.db.data.AlarmClock;
+import mara.mybox.db.table.TableAlarmClock;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.NodeTools;
 import mara.mybox.fxml.PopTools;
-import mara.mybox.tools.DateTools;
-import mara.mybox.value.AppVariables;
-import static mara.mybox.value.Languages.message;
 import mara.mybox.value.Languages;
 
 /**
@@ -34,6 +32,7 @@ public class AlarmClockTableController extends BaseController {
 
     protected AlarmClockController alarmClockController;
     protected ObservableList<AlarmClock> tableData = FXCollections.observableArrayList();
+    protected TableAlarmClock tableAlarmClock;
 
     @FXML
     protected HBox alarmClocksPane;
@@ -49,6 +48,8 @@ public class AlarmClockTableController extends BaseController {
     @Override
     public void initControls() {
         try {
+            tableAlarmClock = new TableAlarmClock();
+
             super.initControls();
             statusColumn.setCellValueFactory(new PropertyValueFactory<>("status"));
             descriptionColumn.setCellValueFactory(new PropertyValueFactory<>("description"));
@@ -61,29 +62,11 @@ public class AlarmClockTableController extends BaseController {
             alarmClocksView.setItems(tableData);
             alarmClocksView.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
 
-            tableData.addAll(AlarmClock.readAlarmClocks());
-
-            tableData.addListener(new ListChangeListener() {
-                @Override
-                public void onChanged(ListChangeListener.Change change) {
-                    if (tableData.size() > 0) {
-                        clearButton.setDisable(false);
-                    } else {
-                        clearButton.setDisable(true);
-                    }
-                }
-            });
-            if (tableData.size() > 0) {
-                clearButton.setDisable(false);
-            } else {
-                clearButton.setDisable(true);
-            }
-
             alarmClocksView.getSelectionModel().selectedItemProperty().addListener(new ChangeListener() {
                 @Override
                 public void changed(ObservableValue ov, Object t, Object t1) {
                     ObservableList<AlarmClock> selected = alarmClocksView.getSelectionModel().getSelectedItems();
-                    if (selected != null && selected.size() > 0) {
+                    if (selected != null && !selected.isEmpty()) {
                         editButton.setDisable(false);
                         deleteButton.setDisable(false);
                         activeButton.setDisable(true);
@@ -109,12 +92,14 @@ public class AlarmClockTableController extends BaseController {
                 public void handle(MouseEvent event) {
                     if (event.getClickCount() > 1) {
                         ObservableList<AlarmClock> selected = alarmClocksView.getSelectionModel().getSelectedItems();
-                        if (selected != null && selected.size() > 0) {
+                        if (selected != null && !selected.isEmpty()) {
                             alarmClockController.edit(selected.get(0));
                         }
                     }
                 }
             });
+
+            refreshAction();
 
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
@@ -122,18 +107,23 @@ public class AlarmClockTableController extends BaseController {
     }
 
     @FXML
+    public void refreshAction() {
+        tableData.clear();
+        tableData.addAll(tableAlarmClock.readAll());
+    }
+
+    @FXML
     @Override
     public void clearAction() {
-        if (!PopTools.askSure(myStage.getTitle(), Languages.message("SureClearAlarmClocks"))) {
+        if (!PopTools.askSure(myController, myStage.getTitle(), Languages.message("SureClearAlarmClocks"))) {
             return;
         }
-
         tableData.clear();
         deleteButton.setDisable(true);
         editButton.setDisable(true);
         activeButton.setDisable(true);
         inactiveButton.setDisable(true);
-        AlarmClock.clearAllAlarmClocks();
+        tableAlarmClock.clearData();
     }
 
     @FXML
@@ -143,12 +133,12 @@ public class AlarmClockTableController extends BaseController {
         if (selected == null || selected.isEmpty()) {
             return;
         }
-        AlarmClock.deleteAlarmClocks(selected);
+        tableAlarmClock.deleteData(selected);
         tableData.removeAll(selected);
     }
 
     @FXML
-    public void editAction(ActionEvent event) {
+    public void editAction() {
         ObservableList<AlarmClock> selected = alarmClocksView.getSelectionModel().getSelectedItems();
         if (selected == null || selected.isEmpty()) {
             return;
@@ -162,19 +152,19 @@ public class AlarmClockTableController extends BaseController {
         if (selected == null || selected.isEmpty()) {
             return;
         }
-        for (AlarmClock alarm : selected) {
-            alarm.setIsActive(true);
-            alarm.setStatus(Languages.message("Active"));
-            AlarmClock.calculateNextTime(alarm);
-            alarm.setNext(DateTools.datetimeToString(alarm.getNextTime()));
-            AlarmClock.scheduleAlarmClock(alarm);
-
+        try ( Connection conn = DerbyBase.getConnection()) {
+            for (AlarmClock alarm : selected) {
+                alarm.setIsActive(true);
+                alarm.calculateNextTime();
+                alarm.addInSchedule();
+            }
+            tableAlarmClock.updateList(conn, selected);
+            alarmClocksView.refresh();
+            activeButton.setDisable(true);
+            inactiveButton.setDisable(false);
+        } catch (Exception e) {
+            MyBoxLog.error(e);
         }
-        AlarmClock.writeAlarmClocks(selected);
-        alarmClocksView.refresh();
-        activeButton.setDisable(true);
-        inactiveButton.setDisable(false);
-
     }
 
     @FXML
@@ -183,30 +173,19 @@ public class AlarmClockTableController extends BaseController {
         if (selected == null || selected.isEmpty()) {
             return;
         }
-        for (AlarmClock alarm : selected) {
-            alarm.setIsActive(false);
-            alarm.setStatus(Languages.message("Inactive"));
-            alarm.setNextTime(-1);
-            alarm.setNext("");
-            AlarmClock.scheduleAlarmClock(alarm);
+        try ( Connection conn = DerbyBase.getConnection()) {
+            for (AlarmClock alarm : selected) {
+                alarm.setIsActive(false);
+                alarm.setNextTime(null);
+                alarm.removeFromSchedule();
+            }
+            tableAlarmClock.updateList(conn, selected);
+            alarmClocksView.refresh();
+            inactiveButton.setDisable(true);
+            activeButton.setDisable(false);
+        } catch (Exception e) {
+            MyBoxLog.error(e);
         }
-        AlarmClock.writeAlarmClocks(selected);
-        alarmClocksView.refresh();
-        inactiveButton.setDisable(true);
-        activeButton.setDisable(false);
-    }
-
-    @FXML
-    public void refreshAction() {
-        tableData.clear();
-        tableData.addAll(AlarmClock.readAlarmClocks());
-
-        if (tableData.size() > 0) {
-            clearButton.setDisable(false);
-        } else {
-            clearButton.setDisable(true);
-        }
-
     }
 
     public AlarmClockController getAlarmClockController() {
@@ -217,21 +196,21 @@ public class AlarmClockTableController extends BaseController {
         this.alarmClockController = alarmClockController;
     }
 
-    public void saveAlarm(AlarmClock alarm, boolean isNew) {
-        AlarmClock.setExtraValues(alarm);
-        AlarmClock.writeAlarmClock(alarm);
-        AlarmClock.scheduleAlarmClock(alarm);
-        if (isNew) {
-            tableData.add(alarm);
-        } else {
-            int i = AlarmClock.findAlarmIndex(tableData, alarm.getKey());
-            if (i >= 0) {
-                tableData.set(i, alarm);
-//                alarmClocksView.refresh();
-            } else {
-                tableData.add(alarm);
-            }
-        }
+    public void saveAlarm(AlarmClock alarm) {
+//        AlarmClock.setExtraValues(alarm);
+//        AlarmClock.writeAlarmClock(alarm);
+//        AlarmClock.scheduleAlarmClock(alarm);
+//        if (isNew) {
+//            tableData.add(alarm);
+//        } else {
+//            int i = AlarmClock.findAlarmIndex(tableData, alarm.getKey());
+//            if (i >= 0) {
+//                tableData.set(i, alarm);
+////                alarmClocksView.refresh();
+//            } else {
+//                tableData.add(alarm);
+//            }
+//        }
     }
 
 }

@@ -12,6 +12,7 @@ import javafx.scene.image.Image;
 import mara.mybox.controller.ImageManufactureController_Image.ImageOperation;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fximage.TransformTools;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.fxml.ValidationTools;
 
 /**
@@ -34,6 +35,8 @@ public class ImageManufactureTransformController extends ImageManufactureOperati
     @Override
     public void initPane() {
         try {
+            super.initPane();
+
             List<String> shears = Arrays.asList(
                     "0.5", "-0.5", "0.4", "-0.4", "0.2", "-0.2", "0.1", "-0.1",
                     "0.7", "-0.7", "0.9", "-0.9", "0.8", "-0.8", "1", "-1",
@@ -100,7 +103,7 @@ public class ImageManufactureTransformController extends ImageManufactureOperati
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 private Image newImage;
 
@@ -120,11 +123,7 @@ public class ImageManufactureTransformController extends ImageManufactureOperati
                             newImage, cost);
                 }
             };
-            imageController.handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            imageController.start(task);
         }
     }
 
@@ -135,7 +134,7 @@ public class ImageManufactureTransformController extends ImageManufactureOperati
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 private Image newImage;
 
@@ -156,11 +155,7 @@ public class ImageManufactureTransformController extends ImageManufactureOperati
                 }
 
             };
-            imageController.handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            imageController.start(task);
         }
     }
 
@@ -170,7 +165,7 @@ public class ImageManufactureTransformController extends ImageManufactureOperati
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 private Image newImage;
 
@@ -190,11 +185,7 @@ public class ImageManufactureTransformController extends ImageManufactureOperati
                 }
 
             };
-            imageController.handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            imageController.start(task);
         }
     }
 
@@ -204,7 +195,7 @@ public class ImageManufactureTransformController extends ImageManufactureOperati
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 private Image newImage;
 
@@ -224,11 +215,7 @@ public class ImageManufactureTransformController extends ImageManufactureOperati
                 }
 
             };
-            imageController.handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            imageController.start(task);
         }
     }
 
@@ -238,7 +225,7 @@ public class ImageManufactureTransformController extends ImageManufactureOperati
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 private Image newImage;
 
@@ -258,11 +245,7 @@ public class ImageManufactureTransformController extends ImageManufactureOperati
                 }
 
             };
-            imageController.handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            imageController.start(task);
         }
     }
 
@@ -277,7 +260,7 @@ public class ImageManufactureTransformController extends ImageManufactureOperati
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 private int angle;
                 private Image newImage;
@@ -298,11 +281,7 @@ public class ImageManufactureTransformController extends ImageManufactureOperati
                     imageController.updateImage(ImageOperation.Transform, "rotate", angle + "", newImage, cost);
                 }
             };
-            imageController.handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            imageController.start(task);
         }
     }
 

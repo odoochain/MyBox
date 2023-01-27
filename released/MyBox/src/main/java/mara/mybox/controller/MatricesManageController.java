@@ -2,12 +2,12 @@ package mara.mybox.controller;
 
 import java.util.ArrayList;
 import java.util.List;
-import javafx.fxml.FXML;
 import javafx.stage.Window;
-import mara.mybox.dev.MyBoxLog;
+import mara.mybox.data2d.DataFileCSV;
+import mara.mybox.data2d.DataTable;
+import mara.mybox.db.data.Data2DColumn;
+import mara.mybox.db.data.Data2DDefinition;
 import mara.mybox.fxml.WindowTools;
-import static mara.mybox.value.Languages.message;
-
 import mara.mybox.value.Fxmls;
 import mara.mybox.value.Languages;
 
@@ -16,40 +16,17 @@ import mara.mybox.value.Languages;
  * @CreateDate 2020-12-15
  * @License Apache License Version 2.0
  */
-public class MatricesManageController extends BaseController {
-
-    protected ControlMatrix editController;
-
-    @FXML
-    protected ControlMatricesList listController;
+public class MatricesManageController extends BaseData2DController {
 
     public MatricesManageController() {
         baseTitle = Languages.message("MatricesManage");
+        type = Data2DDefinition.Type.Matrix;
     }
 
-    @Override
-    public void initValues() {
-        try {
-            super.initValues();
-            editController = listController.editController;
-        } catch (Exception e) {
-            MyBoxLog.error(e.toString());
-        }
-    }
 
-    @Override
-    public void afterSceneLoaded() {
-        super.afterSceneLoaded();
-
-        listController.loadTableData();
-//        editController.setManager(listController);
-    }
-
-    @Override
-    public boolean checkBeforeNextAction() {
-        return editController.checkBeforeNextAction();
-    }
-
+    /*
+        static
+     */
     public static MatricesManageController oneOpen() {
         MatricesManageController controller = null;
         List<Window> windows = new ArrayList<>();
@@ -59,7 +36,6 @@ public class MatricesManageController extends BaseController {
             if (object != null && object instanceof MatricesManageController) {
                 try {
                     controller = (MatricesManageController) object;
-                    controller.toFront();
                     break;
                 } catch (Exception e) {
                 }
@@ -68,6 +44,32 @@ public class MatricesManageController extends BaseController {
         if (controller == null) {
             controller = (MatricesManageController) WindowTools.openStage(Fxmls.MatricesManageFxml);
         }
+        controller.requestMouse();
+        return controller;
+    }
+
+    public static MatricesManageController open(Data2DDefinition def) {
+        MatricesManageController controller = oneOpen();
+        controller.loadDef(def);
+        return controller;
+    }
+
+    public static MatricesManageController open(String name, List<Data2DColumn> cols, List<List<String>> data) {
+        MatricesManageController controller = oneOpen();
+        controller.dataController.loadTmpData(name, cols, data);
+        return controller;
+    }
+
+    public static MatricesManageController loadCSV(DataFileCSV csvData) {
+        MatricesManageController controller = oneOpen();
+        controller.loadCSVData(csvData);
+        return controller;
+    }
+
+    public static MatricesManageController loadTable(DataTable dataTable) {
+        MatricesManageController controller = oneOpen();
+        controller.loadTableData(dataTable);
+        controller.requestMouse();
         return controller;
     }
 

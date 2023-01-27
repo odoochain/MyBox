@@ -10,6 +10,7 @@ import javafx.scene.paint.Color;
 import mara.mybox.controller.ImageManufactureController_Image.ImageOperation;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fximage.FxImageTools;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.fxml.ValidationTools;
 import mara.mybox.value.UserConfig;
 
@@ -30,6 +31,8 @@ public class ImageManufactureArcController extends ImageManufactureOperationCont
     @Override
     public void initPane() {
         try {
+            super.initPane();
+
             colorSetController.init(this, baseName + "Color");
 
             arc = UserConfig.getInt(baseName + "Arc", 20);
@@ -79,7 +82,7 @@ public class ImageManufactureArcController extends ImageManufactureOperationCont
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 private Image newImage;
 
@@ -99,11 +102,7 @@ public class ImageManufactureArcController extends ImageManufactureOperationCont
                 }
 
             };
-            imageController.handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            imageController.start(task);
         }
     }
 }

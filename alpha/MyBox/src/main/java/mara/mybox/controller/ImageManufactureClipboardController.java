@@ -12,7 +12,6 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.Slider;
 import javafx.scene.control.Tab;
-import javafx.scene.control.TabPane;
 import javafx.scene.image.Image;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.paint.Color;
@@ -30,6 +29,7 @@ import mara.mybox.fximage.MarginTools;
 import mara.mybox.fximage.ScaleTools;
 import mara.mybox.fximage.TransformTools;
 import mara.mybox.fxml.ImageClipboardTools;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.fxml.ValidationTools;
 import mara.mybox.value.Languages;
 import mara.mybox.value.UserConfig;
@@ -45,12 +45,10 @@ public class ImageManufactureClipboardController extends ImageManufactureOperati
     protected float opacity;
     protected Image clipSource, currentClip, blendedImage, finalClip, bgImage;
     protected DoubleRectangle rectangle;
-    protected int rotateAngle, keepRatioType, currentAngle;
+    protected int keepRatioType;
 
     @FXML
     protected ControlImagesClipboard clipsController;
-    @FXML
-    protected TabPane tabPane;
     @FXML
     protected Tab imagesPane, setPane;
     @FXML
@@ -93,6 +91,8 @@ public class ImageManufactureClipboardController extends ImageManufactureOperati
     @Override
     public void initPane() {
         try {
+            super.initPane();
+
             rotateAngle = currentAngle = 0;
             clipsController.setParameters(imageController, true);
 
@@ -245,6 +245,7 @@ public class ImageManufactureClipboardController extends ImageManufactureOperati
         imageController.showRightPane();
         imageController.resetImagePane();
         imageController.imageTab();
+
     }
 
     public void selectClip() {
@@ -256,7 +257,7 @@ public class ImageManufactureClipboardController extends ImageManufactureOperati
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 private Image clipImage;
 
@@ -279,11 +280,7 @@ public class ImageManufactureClipboardController extends ImageManufactureOperati
                     setSourceClip(clipImage);
                 }
             };
-            imageController.handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            imageController.start(task);
         }
     }
 
@@ -313,7 +310,7 @@ public class ImageManufactureClipboardController extends ImageManufactureOperati
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 private boolean enlarged;
 
@@ -386,24 +383,23 @@ public class ImageManufactureClipboardController extends ImageManufactureOperati
                     tabPane.getSelectionModel().select(setPane);
                     okButton.setDisable(false);
                     okButton.requestFocus();
+                    imageController.adjustRightPane();
                     imageController.operation = ImageOperation.Paste;
                 }
             };
-            imageController.handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            imageController.start(task);
         }
 
     }
 
     @FXML
+    @Override
     public void rotateRight() {
         pasteClip(rotateAngle);
     }
 
     @FXML
+    @Override
     public void rotateLeft() {
         pasteClip(360 - rotateAngle);
 

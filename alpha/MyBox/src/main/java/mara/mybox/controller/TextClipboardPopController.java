@@ -1,35 +1,24 @@
 package mara.mybox.controller;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import javafx.event.ActionEvent;
-import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.geometry.Bounds;
 import javafx.scene.Node;
-import javafx.scene.Parent;
-import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
-import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
-import javafx.scene.control.MenuItem;
-import javafx.scene.control.SeparatorMenuItem;
-import javafx.scene.control.TableView;
 import javafx.scene.control.TextInputControl;
 import javafx.scene.control.Tooltip;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
 import javafx.stage.Window;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.LocateTools;
-import mara.mybox.fxml.NodeStyleTools;
+import mara.mybox.fxml.style.NodeStyleTools;
+import mara.mybox.fxml.PopTools;
 import mara.mybox.fxml.WindowTools;
 import mara.mybox.value.Fxmls;
 import mara.mybox.value.Languages;
 import static mara.mybox.value.Languages.message;
-import mara.mybox.value.UserConfig;
 
 /**
  * @Author Mara_
@@ -48,8 +37,6 @@ public class TextClipboardPopController extends TextInMyBoxClipboardController {
     @FXML
     protected Label titleLabel;
     @FXML
-    protected Button useButton;
-    @FXML
     protected HBox buttonsBox;
 
     public TextClipboardPopController() {
@@ -57,14 +44,14 @@ public class TextClipboardPopController extends TextInMyBoxClipboardController {
     }
 
     @Override
-    public void setStageStatus(String prefix, int minSize) {
-        setAsPopup(baseName);
+    public void setStageStatus() {
+        setAsPop(baseName);
     }
 
     @Override
     public void textChanged(String nv) {
         super.textChanged(nv);
-        useButton.setDisable(!inputEditable || copyToSystemClipboardButton.isDisable());
+        pasteButton.setDisable(!inputEditable || copyToSystemClipboardButton.isDisable());
     }
 
     public void setParameters(BaseController parent, Node node, double x, double y) {
@@ -85,12 +72,12 @@ public class TextClipboardPopController extends TextInMyBoxClipboardController {
                 titleLabel.setText(Languages.message("Target") + ": " + node.getId());
             }
             inputEditable = textInput != null && !textInput.isDisable() && textInput.isEditable();
-            useButton.setDisable(true);
+            pasteButton.setDisable(true);
             if (inputEditable) {
                 NodeStyleTools.setTooltip(tipsView, new Tooltip(message("TextClipboardUseComments")
                         + "\n\n" + message("TextInMyBoxClipboardTips")));
             } else {
-                buttonsBox.getChildren().remove(useButton);
+                buttonsBox.getChildren().remove(pasteButton);
                 NodeStyleTools.setTooltip(tipsView, new Tooltip(message("TextInMyBoxClipboardTips")));
             }
 
@@ -98,23 +85,34 @@ public class TextClipboardPopController extends TextInMyBoxClipboardController {
             if (baseStyle == null) {
                 baseStyle = "";
             }
-            String style = UserConfig.getString(baseName + "WindowStyle", "");
-            setLabelsStyle(baseStyle + style);
         } catch (Exception e) {
             MyBoxLog.debug(e.toString());
         }
     }
 
     @Override
+    public void setControlsStyle() {
+        try {
+            super.setControlsStyle();
+
+            PopTools.setWindowStyle(thisPane, baseName, baseStyle);
+
+        } catch (Exception e) {
+            MyBoxLog.error(e.toString());
+        }
+    }
+
+    @Override
     public void itemDoubleClicked() {
-        useAction();
+        pasteAction();
     }
 
     @FXML
-    public void useAction() {
+    @Override
+    public void pasteAction() {
         if (textInput == null || !inputEditable) {
             inputEditable = false;
-            buttonsBox.getChildren().remove(useButton);
+            buttonsBox.getChildren().remove(pasteButton);
             return;
         }
         String s = textArea.getSelectedText();
@@ -122,7 +120,7 @@ public class TextClipboardPopController extends TextInMyBoxClipboardController {
             s = textArea.getText();
         }
         if (s == null || s.isEmpty()) {
-            popError(Languages.message("CopyNone"));
+            popError(Languages.message("SelectToHandle"));
             return;
         }
         textInput.insertText(textInput.getAnchor(), s);
@@ -130,65 +128,7 @@ public class TextClipboardPopController extends TextInMyBoxClipboardController {
 
     @FXML
     public void popStyles(MouseEvent mouseEvent) {
-        try {
-            if (popMenu != null && popMenu.isShowing()) {
-                popMenu.hide();
-            }
-            popMenu = new ContextMenu();
-            popMenu.setAutoHide(true);
-
-            MenuItem menu;
-            Map<String, String> styles = new LinkedHashMap<>();
-            styles.put("Default", "");
-            styles.put("Transparent", "; -fx-text-fill: black; -fx-background-color: transparent;");
-            styles.put("Console", "; -fx-text-fill: #CCFF99; -fx-background-color: black;");
-            styles.put("Blackboard", "; -fx-text-fill: white; -fx-background-color: #336633;");
-            styles.put("Ago", "; -fx-text-fill: white; -fx-background-color: darkblue;");
-            styles.put("Book", "; -fx-text-fill: black; -fx-background-color: #F6F1EB;");
-            for (String name : styles.keySet()) {
-                menu = new MenuItem(Languages.message(name));
-                menu.setOnAction(new EventHandler<ActionEvent>() {
-                    @Override
-                    public void handle(ActionEvent event) {
-                        String style = styles.get(name);
-                        UserConfig.setString(baseName + "WindowStyle", style);
-                        setLabelsStyle(baseStyle + style);
-                    }
-                });
-                popMenu.getItems().add(menu);
-            }
-
-            popMenu.getItems().add(new SeparatorMenuItem());
-
-            menu = new MenuItem(Languages.message("PopupClose"));
-            menu.setStyle("-fx-text-fill: #2e598a;");
-            menu.setOnAction(new EventHandler<ActionEvent>() {
-                @Override
-                public void handle(ActionEvent event) {
-                    popMenu.hide();
-                }
-            });
-            popMenu.getItems().add(menu);
-
-            LocateTools.locateMouse(mouseEvent, popMenu);
-        } catch (Exception e) {
-            MyBoxLog.error(e.toString());
-        }
-    }
-
-    public void setLabelsStyle(String style) {
-        thisPane.setStyle(style);
-        setLabelsStyle(thisPane, style);
-    }
-
-    public void setLabelsStyle(Node node, String style) {
-        if (node instanceof Label) {
-            node.setStyle(style);
-        } else if (node instanceof Parent && !(node instanceof TableView)) {
-            for (Node child : ((Parent) node).getChildrenUnmodifiable()) {
-                setLabelsStyle(child, style);
-            }
-        }
+        PopTools.popWindowStyles(this, baseStyle, mouseEvent);
     }
 
     @FXML

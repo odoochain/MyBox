@@ -5,10 +5,13 @@ import javafx.beans.binding.Bindings;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.fxml.FXML;
+import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.TextArea;
+import javafx.scene.control.TextInputControl;
 import mara.mybox.db.data.VisitHistory.FileType;
 import mara.mybox.dev.MyBoxLog;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.fxml.WindowTools;
 import mara.mybox.tools.FileTools;
 import mara.mybox.tools.TextFileTools;
@@ -21,12 +24,17 @@ import mara.mybox.value.UserConfig;
  * @CreateDate 2021-8-7
  * @License Apache License Version 2.0
  */
-public class TextPopController extends BaseController {
+public class TextPopController extends BaseChildController {
+
+    protected TextInputControl sourceInput;
+    protected ChangeListener listener;
 
     @FXML
     protected TextArea textArea;
     @FXML
-    protected CheckBox wrapCheck, openCheck;
+    protected CheckBox wrapCheck, refreshChangeCheck;
+    @FXML
+    protected Button refreshButton;
 
     public TextPopController() {
         baseTitle = message("Texts");
@@ -37,13 +45,42 @@ public class TextPopController extends BaseController {
         setFileType(FileType.Text);
     }
 
-    @Override
-    public void initControls() {
+    public void setSourceInput(String baseName, TextInputControl sourceInput) {
         try {
-            super.initControls();
+            this.baseName = baseName;
+            this.sourceInput = sourceInput;
+            refreshAction();
 
+            setControls();
+        } catch (Exception e) {
+            MyBoxLog.debug(e.toString());
+        }
+    }
+
+    public void setText(String text) {
+        try {
+            this.sourceInput = null;
+            refreshAction();
+            setControls();
+            textArea.setText(text);
+        } catch (Exception e) {
+            MyBoxLog.debug(e.toString());
+        }
+    }
+
+    public void setControls() {
+        try {
             editButton.disableProperty().bind(Bindings.isEmpty(textArea.textProperty()));
             saveAsButton.disableProperty().bind(Bindings.isEmpty(textArea.textProperty()));
+
+            refreshChangeCheck.setSelected(UserConfig.getBoolean(baseName + "Sychronized", true));
+            checkSychronize();
+            refreshChangeCheck.selectedProperty().addListener(new ChangeListener<Boolean>() {
+                @Override
+                public void changed(ObservableValue ov, Boolean oldState, Boolean newState) {
+                    checkSychronize();
+                }
+            });
 
             wrapCheck.setSelected(UserConfig.getBoolean(baseName + "Wrap", true));
             wrapCheck.selectedProperty().addListener(new ChangeListener<Boolean>() {
@@ -55,33 +92,49 @@ public class TextPopController extends BaseController {
             });
             textArea.setWrapText(wrapCheck.isSelected());
 
-            openCheck.setSelected(UserConfig.getBoolean(baseName + "Open", true));
-            openCheck.selectedProperty().addListener(new ChangeListener<Boolean>() {
-                @Override
-                public void changed(ObservableValue<? extends Boolean> ov, Boolean oldValue, Boolean newValue) {
-                    UserConfig.setBoolean(baseName + "Open", newValue);
-                }
-            });
-
         } catch (Exception e) {
             MyBoxLog.debug(e.toString());
         }
     }
 
-    @Override
-    public void setStageStatus(String prefix, int minSize) {
-        setAsPopup(baseName);
+    public void checkSychronize() {
+        if (sourceInput == null) {
+            refreshChangeCheck.setVisible(false);
+            refreshButton.setVisible(false);
+            return;
+        }
+        if (listener == null) {
+            listener = new ChangeListener<String>() {
+                @Override
+                public void changed(ObservableValue ov, String oldv, String newv) {
+                    if (refreshChangeCheck.isVisible() && refreshChangeCheck.isSelected()) {
+                        refreshAction();
+                    }
+                }
+            };
+        }
+        if (refreshChangeCheck.isVisible() && refreshChangeCheck.isSelected()) {
+            sourceInput.textProperty().addListener(listener);
+        } else {
+            sourceInput.textProperty().removeListener(listener);
+        }
     }
 
-    public void loadText(String text) {
-        textArea.setText(text);
+    @FXML
+    public void refreshAction() {
+        if (sourceInput == null) {
+            refreshChangeCheck.setVisible(false);
+            refreshButton.setVisible(false);
+            return;
+        }
+        textArea.setText(sourceInput.getText());
     }
 
     @FXML
     public void editAction() {
         TextEditorController controller = (TextEditorController) WindowTools.openStage(Fxmls.TextEditorFxml);
         controller.loadContents(textArea.getText());
-        controller.toFront();
+        controller.requestMouse();
     }
 
     @FXML
@@ -95,7 +148,7 @@ public class TextPopController extends BaseController {
             if (file == null) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
                 @Override
                 protected boolean handle() {
                     try {
@@ -111,30 +164,49 @@ public class TextPopController extends BaseController {
                 protected void whenSucceeded() {
                     popSaved();
                     recordFileWritten(file);
-                    if (openCheck.isSelected()) {
-                        TextEditorController controller = (TextEditorController) WindowTools.openStage(Fxmls.TextEditorFxml);
-                        controller.sourceFileChanged(file);
-                    }
+                    TextEditorController controller = (TextEditorController) WindowTools.openStage(Fxmls.TextEditorFxml);
+                    controller.sourceFileChanged(file);
                 }
             };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
     }
+
+    @Override
+    public void cleanPane() {
+        try {
+            if (sourceInput != null) {
+                sourceInput.textProperty().removeListener(listener);
+            }
+            listener = null;
+            sourceInput = null;
+        } catch (Exception e) {
+        }
+        super.cleanPane();
+    }
+
 
     /*
         static methods
      */
-    public static TextPopController open(BaseController parent, String text) {
+    public static TextPopController openInput(BaseController parent, TextInputControl textInput) {
         try {
-            if (text == null) {
+            if (textInput == null) {
                 return null;
             }
             TextPopController controller = (TextPopController) WindowTools.openChildStage(parent.getMyWindow(), Fxmls.TextPopFxml, false);
-            controller.loadText(text);
+            controller.setSourceInput(parent.baseName, textInput);
+            return controller;
+        } catch (Exception e) {
+            MyBoxLog.error(e.toString());
+            return null;
+        }
+    }
+
+    public static TextPopController loadText(BaseController parent, String text) {
+        try {
+            TextPopController controller = (TextPopController) WindowTools.openChildStage(parent.getMyWindow(), Fxmls.TextPopFxml, false);
+            controller.setText(text);
             return controller;
         } catch (Exception e) {
             MyBoxLog.error(e.toString());

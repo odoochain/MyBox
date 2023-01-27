@@ -1,6 +1,7 @@
 package mara.mybox.tools;
 
 import java.io.File;
+import mara.mybox.value.AppPaths;
 import mara.mybox.value.AppVariables;
 
 /**
@@ -15,7 +16,15 @@ public class TmpFileTools {
     }
 
     public static String getTempFileName(String path) {
-        return path + File.separator + DateTools.nowFileString() + "_" + IntTools.getRandomInt(100);
+        return path + File.separator + DateTools.nowFileString() + "_" + IntTools.random(100);
+    }
+
+    public static String getTempFileName(String path, String prefix) {
+        if (prefix == null) {
+            return getTempFileName(path);
+        }
+        return path + File.separator + FileNameTools.filter(prefix)
+                + "_" + DateTools.nowFileString() + "_" + IntTools.random(100);
     }
 
     public static File getTempFile() {
@@ -35,11 +44,25 @@ public class TmpFileTools {
     }
 
     public static File getPathTempFile(String path, String suffix) {
-        File file = new File(getTempFileName(path) + suffix);
+        String s = FileNameTools.filter(suffix);
+        File file = new File(getTempFileName(path) + s);
         while (file.exists()) {
-            file = new File(getTempFileName(path) + suffix);
+            file = new File(getTempFileName(path) + s);
         }
         return file;
+    }
+
+    public static File getPathTempFile(String path, String prefix, String suffix) {
+        String p = FileNameTools.filter(prefix);
+        String s = FileNameTools.filter(suffix);
+        if (p != null && !p.isBlank()) {
+            File tFile = new File(path + File.separator + p + s);
+            while (tFile.exists()) {
+                tFile = new File(getTempFileName(path, p) + s);
+            }
+            return tFile;
+        }
+        return getPathTempFile(path, s);
     }
 
     public static File getTempDirectory() {
@@ -53,6 +76,22 @@ public class TmpFileTools {
         }
         file.mkdirs();
         return file;
+    }
+
+    public static File pdfFile() {
+        return getPathTempFile(AppPaths.getGeneratedPath(), ".pdf");
+    }
+
+    public static File csvFile() {
+        return getPathTempFile(AppPaths.getGeneratedPath(), ".csv");
+    }
+
+    public static File txtFile() {
+        return getPathTempFile(AppPaths.getGeneratedPath(), ".txt");
+    }
+
+    public static File excelFile() {
+        return getPathTempFile(AppPaths.getGeneratedPath(), ".xlsx");
     }
 
 }

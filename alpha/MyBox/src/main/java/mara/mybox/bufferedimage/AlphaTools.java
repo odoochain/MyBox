@@ -5,9 +5,7 @@ import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import mara.mybox.data.DoubleRectangle;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.value.FileFilters;
-
-import mara.mybox.color.ColorBase;
+import mara.mybox.value.AppVariables;
 import mara.mybox.value.Colors;
 import mara.mybox.value.FileExtensions;
 
@@ -25,7 +23,9 @@ public class AlphaTools {
         }
         BufferedImage checked = source;
         if (FileExtensions.NoAlphaImages.contains(targetFormat.toLowerCase())) {
-            checked = AlphaTools.removeAlpha(source);
+            if (hasAlpha(source)) {
+                checked = AlphaTools.premultipliedAlpha(source, true);
+            }
         }
         return checked;
     }
@@ -55,21 +55,21 @@ public class AlphaTools {
         if (!hasAlpha(source)) {
             return source;
         }
-        return AlphaTools.removeAlpha(source, ColorConvertTools.getAlphaColor());
+        return AlphaTools.removeAlpha(source, ColorConvertTools.alphaColor());
     }
 
-    public static BufferedImage removeAlpha(BufferedImage source, Color color) {
+    public static BufferedImage removeAlpha(BufferedImage source, Color alphaColor) {
         try {
             int width = source.getWidth();
             int height = source.getHeight();
             int imageType = BufferedImage.TYPE_INT_RGB;
             BufferedImage target = new BufferedImage(width, height, imageType);
-            int colorPixel = color.getRGB();
+            int alphaPixel = alphaColor.getRGB();
             for (int j = 0; j < height; ++j) {
                 for (int i = 0; i < width; ++i) {
                     int pixel = source.getRGB(i, j);
                     if (pixel == 0) {
-                        target.setRGB(i, j, colorPixel);
+                        target.setRGB(i, j, alphaPixel);
                     } else {
                         target.setRGB(i, j, new Color(pixel, false).getRGB());
                     }
@@ -95,14 +95,20 @@ public class AlphaTools {
             Color color;
             Color newColor;
             int pixel;
+            int alphaPixel = ColorConvertTools.alphaColor().getRGB();
             for (int j = 0; j < height; ++j) {
                 for (int i = 0; i < width; ++i) {
                     pixel = source.getRGB(i, j);
-                    color = new Color(pixel, true);
-                    newColor = new Color(color.getRed(), color.getGreen(), color.getBlue());
-                    noAlphaImage.setRGB(i, j, newColor.getRGB());
-                    newColor = new Color(0, 0, 0, color.getAlpha());
-                    alphaImage.setRGB(i, j, newColor.getRGB());
+                    if (pixel == 0) {
+                        noAlphaImage.setRGB(i, j, alphaPixel);
+                        alphaImage.setRGB(i, j, 0);
+                    } else {
+                        color = new Color(pixel, true);
+                        newColor = new Color(color.getRed(), color.getGreen(), color.getBlue());
+                        noAlphaImage.setRGB(i, j, newColor.getRGB());
+                        newColor = new Color(0, 0, 0, color.getAlpha());
+                        alphaImage.setRGB(i, j, newColor.getRGB());
+                    }
                 }
             }
             bfs[0] = noAlphaImage;
@@ -156,7 +162,7 @@ public class AlphaTools {
             BufferedImage target = new BufferedImage(sourceWidth, sourceHeight, imageType);
             Color sourceColor;
             Color newColor;
-            Color bkColor = ColorConvertTools.getAlphaColor();
+            Color bkColor = ColorConvertTools.alphaColor();
             int bkPixel = bkColor.getRGB();
             for (int j = 0; j < sourceHeight; ++j) {
                 for (int i = 0; i < sourceWidth; ++i) {
@@ -261,12 +267,14 @@ public class AlphaTools {
         }
     }
 
-    public static BufferedImage[] outline(BufferedImage srcImage, DoubleRectangle rect, int targetWidth, int targetHeight, boolean keepRatio, Color bgColor, boolean exclude) {
+    public static BufferedImage[] outline(BufferedImage srcImage, DoubleRectangle rect,
+            int targetWidth, int targetHeight, boolean keepRatio, Color bgColor, boolean exclude) {
         try {
             if (srcImage == null) {
                 return null;
             }
-            BufferedImage scaledImage = ScaleTools.scaleImage(srcImage, (int) rect.getWidth(), (int) rect.getHeight(), keepRatio, BufferedImageTools.KeepRatioType.BaseOnWidth);
+            BufferedImage scaledImage = ScaleTools.scaleImage(srcImage,
+                    (int) rect.getWidth(), (int) rect.getHeight(), keepRatio, BufferedImageTools.KeepRatioType.BaseOnWidth);
             int offsetX = (int) rect.getSmallX();
             int offsetY = (int) rect.getSmallY();
             int scaledWidth = scaledImage.getWidth();
@@ -277,6 +285,9 @@ public class AlphaTools {
             int startY = offsetY >= 0 ? offsetY : 0;
             BufferedImage target = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
             Graphics2D g = target.createGraphics();
+            if (AppVariables.imageRenderHints != null) {
+                g.addRenderingHints(AppVariables.imageRenderHints);
+            }
             if (!exclude) {
                 g.setColor(bgColor);
             } else {

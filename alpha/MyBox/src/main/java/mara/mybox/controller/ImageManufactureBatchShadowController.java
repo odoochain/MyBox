@@ -6,23 +6,17 @@ import javafx.beans.binding.Bindings;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.fxml.FXML;
-import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.RadioButton;
 import javafx.scene.control.Toggle;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.Tooltip;
 import javafx.scene.paint.Color;
-import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.NodeTools;
-import static mara.mybox.fxml.NodeStyleTools.badStyle;
-import mara.mybox.bufferedimage.BufferedImageTools;
 import mara.mybox.bufferedimage.ShadowTools;
+import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fximage.FxColorTools;
-import mara.mybox.fxml.NodeStyleTools;
+import mara.mybox.fxml.style.NodeStyleTools;
 import mara.mybox.fxml.ValidationTools;
-import mara.mybox.value.AppVariables;
-import static mara.mybox.value.Languages.message;
 import mara.mybox.value.Languages;
 import mara.mybox.value.UserConfig;
 
@@ -43,8 +37,6 @@ public class ImageManufactureBatchShadowController extends BaseImageManufactureB
     protected ToggleGroup shadowGroup;
     @FXML
     protected ComboBox<String> perBox, shadowBox;
-    @FXML
-    protected CheckBox preAlphaCheck;
 
     public ImageManufactureBatchShadowController() {
         baseTitle = Languages.message("ImageManufactureBatchShadow");
@@ -57,11 +49,10 @@ public class ImageManufactureBatchShadowController extends BaseImageManufactureB
             super.initControls();
 
             startButton.disableProperty().unbind();
-            startButton.disableProperty().bind(Bindings.isEmpty(targetPathInput.textProperty())
-                    .or(targetPathInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+            startButton.disableProperty().bind(targetPathController.valid.not()
                     .or(Bindings.isEmpty(tableView.getItems()))
-                    .or(shadowBox.getEditor().styleProperty().isEqualTo(NodeStyleTools.badStyle))
-                    .or(perBox.getEditor().styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                    .or(shadowBox.getEditor().styleProperty().isEqualTo(UserConfig.badStyle()))
+                    .or(perBox.getEditor().styleProperty().isEqualTo(UserConfig.badStyle()))
             );
 
         } catch (Exception e) {
@@ -181,11 +172,7 @@ public class ImageManufactureBatchShadowController extends BaseImageManufactureB
             }
             Color color = (Color) colorSetController.rect.getFill();
             BufferedImage target;
-            if (preAlphaCheck.isSelected()) {
-                target = ShadowTools.addShadowNoAlpha(source, value, FxColorTools.toAwtColor(color));
-            } else {
-                target = ShadowTools.addShadowAlpha(source, value, FxColorTools.toAwtColor(color));
-            }
+            target = ShadowTools.addShadowAlpha(source, value, FxColorTools.toAwtColor(color));
             return target;
         } catch (Exception e) {
             MyBoxLog.error(e.toString());

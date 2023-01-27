@@ -16,6 +16,22 @@ import javafx.scene.control.IndexRange;
  */
 public class IntTools {
 
+    // invalid values are always in the end
+    public static int compare(String s1, String s2, boolean desc) {
+        float f1, f2;
+        try {
+            f1 = Integer.valueOf(s1.replaceAll(",", ""));
+        } catch (Exception e) {
+            f1 = Float.NaN;
+        }
+        try {
+            f2 = Integer.valueOf(s2.replaceAll(",", ""));
+        } catch (Exception e) {
+            f2 = Float.NaN;
+        }
+        return FloatTools.compare(f1, f2, desc);
+    }
+
     public static int mapInt(int value, IndexRange originalRange, IndexRange newlRange) {
         if (originalRange == null || newlRange == null || originalRange.getStart() > value || originalRange.getEnd() < value) {
             return value;
@@ -29,9 +45,17 @@ public class IntTools {
         return Math.round((value + zipStep / 2) / zipStep) * zipStep;
     }
 
-    public static int getRandomInt(int max) {
-        Random r = new Random();
-        return r.nextInt(max);
+    public static int random(int max) {
+        return new Random().nextInt(max);
+    }
+
+    public static int random(Random r, int max, boolean nonNegative) {
+        if (r == null) {
+            r = new Random();
+        }
+        int sign = nonNegative ? 1 : r.nextInt(2);
+        int i = r.nextInt(max);
+        return sign == 1 ? i : -i;
     }
 
     public static int[] sortArray(int[] numbers) {
@@ -42,7 +66,13 @@ public class IntTools {
         Collections.sort(list, new Comparator<Integer>() {
             @Override
             public int compare(Integer p1, Integer p2) {
-                return p1 - p2;
+                if (p1 > p2) {
+                    return 1;
+                } else if (p1 < p2) {
+                    return -1;
+                } else {
+                    return 0;
+                }
             }
         });
         int[] sorted = new int[numbers.length];
@@ -50,6 +80,15 @@ public class IntTools {
             sorted[i] = list.get(i);
         }
         return sorted;
+    }
+
+    public static void sortList(List<Integer> numbers) {
+        Collections.sort(numbers, new Comparator<Integer>() {
+            @Override
+            public int compare(Integer p1, Integer p2) {
+                return p1 - p2;
+            }
+        });
     }
 
 }

@@ -1,26 +1,34 @@
 package mara.mybox.controller;
 
 import com.github.jaiimageio.impl.plugins.gif.GIFImageMetadata;
+import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.text.MessageFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.List;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
+import javafx.collections.ListChangeListener;
+import javafx.collections.ObservableList;
 import javafx.embed.swing.SwingFXUtils;
 import javafx.fxml.FXML;
+import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.RadioButton;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TitledPane;
 import javafx.scene.control.Toggle;
 import javafx.scene.control.ToggleGroup;
+import javafx.scene.control.Tooltip;
 import javafx.scene.image.Image;
 import javafx.scene.input.MouseEvent;
+import javafx.scene.layout.HBox;
 import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
 import javax.imageio.ImageTypeSpecifier;
@@ -35,7 +43,9 @@ import mara.mybox.db.data.VisitHistory;
 import mara.mybox.db.data.VisitHistory.FileType;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fxml.ControllerTools;
-import mara.mybox.fxml.NodeStyleTools;
+import mara.mybox.fxml.SingletonTask;
+import mara.mybox.fxml.ValidationTools;
+import mara.mybox.fxml.style.NodeStyleTools;
 import mara.mybox.imagefile.ImageFileWriters;
 import mara.mybox.imagefile.ImageGifFile;
 import mara.mybox.imagefile.ImageTiffFile;
@@ -48,7 +58,9 @@ import mara.mybox.tools.StringTools;
 import mara.mybox.tools.TmpFileTools;
 import mara.mybox.value.AppValues;
 import mara.mybox.value.AppVariables;
+import mara.mybox.value.FileFilters;
 import mara.mybox.value.Fxmls;
+import mara.mybox.value.Languages;
 import static mara.mybox.value.Languages.message;
 import mara.mybox.value.UserConfig;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -67,11 +79,12 @@ import org.apache.poi.hslf.usermodel.HSLFSlideShow;
  */
 public class ControlImagesSave extends BaseController {
 
+    protected BaseImagesListController listController;
     protected int digit;
     protected String imagesFormat;
-    protected int gifWidth, pptWidth, pptHeight, pptMargin;
+    protected int gifWidth, pptWidth, pptHeight, pptMargin, savedWidth;
     protected boolean gifKeepSize;
-    protected List<ImageInformation> images;
+    protected ObservableList<ImageInformation> imageInfos;
     protected LoadingController loading;
 
     @FXML
@@ -79,7 +92,8 @@ public class ControlImagesSave extends BaseController {
     @FXML
     protected ToggleGroup saveGroup;
     @FXML
-    protected RadioButton imagesRadio, spiceRadio, pdfRadio, pptRadio, tifFileRadio, gifFileRadio;
+    protected RadioButton imagesRadio, spliceRadio, pdfRadio, pptRadio,
+            tifFileRadio, gifFileRadio, videoRadio;
     @FXML
     protected Label saveImagesLabel;
     @FXML
@@ -92,6 +106,12 @@ public class ControlImagesSave extends BaseController {
     protected CheckBox gifLoopCheck, pptMarginCheck;
     @FXML
     protected ControlPdfWriteOptions pdfOptionsController;
+    @FXML
+    protected Button thumbsListButton;
+    @FXML
+    protected ComboBox<String> savedWidthSelector;
+    @FXML
+    protected HBox savedWidthBox;
 
     public ControlImagesSave() {
         baseTitle = message("ImagesEditor");
@@ -103,10 +123,21 @@ public class ControlImagesSave extends BaseController {
         setFileType(FileType.Image);
     }
 
-    public void setParent(BaseController parent) {
+    @Override
+    public void setControlsStyle() {
+        try {
+            super.setControlsStyle();
+            NodeStyleTools.setTooltip(thumbsListButton, new Tooltip(Languages.message("ImagesEditor")));
+        } catch (Exception e) {
+            MyBoxLog.debug(e.toString());
+        }
+    }
+
+    public void setParent(BaseImagesListController parent) {
         try {
             baseName = parent.baseName;
             parentController = parent;
+            listController = parent;
 
             initSavePane();
             initGifPane();
@@ -114,16 +145,23 @@ public class ControlImagesSave extends BaseController {
             formatController.setParameters(this, false);
             pdfOptionsController.set(baseName, true);
 
-            setImages(null);
+            imageInfos = listController.imageInfos;
+            imageInfos.addListener(new ListChangeListener<ImageInformation>() {
+                @Override
+                public void onChanged(ListChangeListener.Change<? extends ImageInformation> change) {
+                    imageInfosChanged();
+                }
+            });
+            imageInfosChanged();
 
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
         }
     }
 
-    public void setImages(List<ImageInformation> images) {
-        this.images = images;
-        saveButton.setDisable(images == null || images.isEmpty());
+    public void imageInfosChanged() {
+        thumbsListButton.setDisable(imageInfos.isEmpty());
+        saveAsButton.setDisable(imageInfos.isEmpty());
     }
 
     public void initSavePane() {
@@ -135,6 +173,33 @@ public class ControlImagesSave extends BaseController {
                 }
             });
             checkSaveType();
+
+            savedWidth = UserConfig.getInt(baseName + "SavedWidth", -1);
+            List<String> values = Arrays.asList(message("OriginalSize"),
+                    "512", "1024", "256", "128", "2048", "100", "80", "4096");
+            savedWidthSelector.getItems().addAll(values);
+            if (savedWidth <= 0) {
+                savedWidthSelector.getSelectionModel().select(0);
+            } else {
+                savedWidthSelector.setValue(savedWidth + "");
+            }
+            savedWidthSelector.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<String>() {
+                @Override
+                public void changed(ObservableValue ov, String oldValue, String newValue) {
+                    if (message("OriginalSize").equals(newValue)) {
+                        savedWidth = -1;
+                    } else {
+                        try {
+                            savedWidth = Integer.valueOf(newValue);
+                            ValidationTools.setEditorNormal(savedWidthSelector);
+                        } catch (Exception e) {
+                            ValidationTools.setEditorBadStyle(savedWidthSelector);
+                            return;
+                        }
+                    }
+                    UserConfig.setInt(baseName + "SavedWidth", savedWidth);
+                }
+            });
         } catch (Exception e) {
             MyBoxLog.debug(e.toString());
         }
@@ -150,7 +215,7 @@ public class ControlImagesSave extends BaseController {
             setTargetFileType(VisitHistory.FileType.Image);
             saveImagesLabel.setVisible(true);
             convertPane.setExpanded(true);
-        } else if (spiceRadio.isSelected()) {
+        } else if (spliceRadio.isSelected()) {
             setTargetFileType(VisitHistory.FileType.Image);
         } else if (tifFileRadio.isSelected()) {
             setTargetFileType(VisitHistory.FileType.Tif);
@@ -164,6 +229,7 @@ public class ControlImagesSave extends BaseController {
             setTargetFileType(VisitHistory.FileType.PPT);
             pptPane.setExpanded(true);
         }
+        savedWidthBox.setDisable(spliceRadio.isSelected() || videoRadio.isSelected());
     }
 
     public void initGifPane() {
@@ -207,10 +273,10 @@ public class ControlImagesSave extends BaseController {
                 gifWidthInput.setStyle(null);
                 UserConfig.setInt(baseName + "GifWidth", v);
             } else {
-                gifWidthInput.setStyle(NodeStyleTools.badStyle);
+                gifWidthInput.setStyle(UserConfig.badStyle());
             }
         } catch (Exception e) {
-            gifWidthInput.setStyle(NodeStyleTools.badStyle);
+            gifWidthInput.setStyle(UserConfig.badStyle());
         }
     }
 
@@ -253,10 +319,10 @@ public class ControlImagesSave extends BaseController {
                 pptWidthInput.setStyle(null);
                 UserConfig.setInt(baseName + "PptWidth", v);
             } else {
-                pptWidthInput.setStyle(NodeStyleTools.badStyle);
+                pptWidthInput.setStyle(UserConfig.badStyle());
             }
         } catch (Exception e) {
-            pptWidthInput.setStyle(NodeStyleTools.badStyle);
+            pptWidthInput.setStyle(UserConfig.badStyle());
         }
     }
 
@@ -268,10 +334,10 @@ public class ControlImagesSave extends BaseController {
                 pptHeightInput.setStyle(null);
                 UserConfig.setInt(baseName + "PptHeight", v);
             } else {
-                pptHeightInput.setStyle(NodeStyleTools.badStyle);
+                pptHeightInput.setStyle(UserConfig.badStyle());
             }
         } catch (Exception e) {
-            pptHeightInput.setStyle(NodeStyleTools.badStyle);
+            pptHeightInput.setStyle(UserConfig.badStyle());
         }
     }
 
@@ -283,26 +349,36 @@ public class ControlImagesSave extends BaseController {
                 pptMarginInput.setStyle(null);
                 UserConfig.setInt(baseName + "PptMargin", v);
             } else {
-                pptMarginInput.setStyle(NodeStyleTools.badStyle);
+                pptMarginInput.setStyle(UserConfig.badStyle());
             }
         } catch (Exception e) {
-            pptMarginInput.setStyle(NodeStyleTools.badStyle);
+            pptMarginInput.setStyle(UserConfig.badStyle());
         }
     }
 
     @FXML
     public void pptMaxSize() {
-        if (images == null || images.isEmpty()) {
+        if (imageInfos == null || imageInfos.isEmpty()) {
             parentController.popError(message("NoData"));
             return;
         }
         int maxW = 0, maxH = 0;
-        for (ImageInformation info : images) {
-            if (info.getWidth() > maxW) {
-                maxW = info.getWidth();
-            }
-            if (info.getHeight() > maxH) {
-                maxH = info.getHeight();
+        for (ImageInformation info : imageInfos) {
+            Rectangle region = info.getRegion();
+            if (region != null) {
+                if (region.getWidth() > maxW) {
+                    maxW = (int) region.getWidth();
+                }
+                if (region.getHeight() > maxH) {
+                    maxH = (int) region.getHeight();
+                }
+            } else {
+                if (info.getWidth() > maxW) {
+                    maxW = (int) info.getWidth();
+                }
+                if (info.getHeight() > maxH) {
+                    maxH = (int) info.getHeight();
+                }
             }
         }
         if (pptMarginCheck.isSelected()) {
@@ -319,20 +395,8 @@ public class ControlImagesSave extends BaseController {
 
     @FXML
     @Override
-    public void playAction() {
-
-    }
-
-    @FXML
-    @Override
-    public void saveAction() {
-        saveAsAction();
-    }
-
-    @FXML
-    @Override
     public void popSaveAs(MouseEvent event) {
-        if (spiceRadio.isSelected()) {
+        if (spliceRadio.isSelected() || videoRadio.isSelected()) {
             return;
         }
         super.popSaveAs(event);
@@ -341,21 +405,22 @@ public class ControlImagesSave extends BaseController {
     @FXML
     @Override
     public void saveAsAction() {
-        if (images == null || images.isEmpty()) {
+        if (imageInfos == null || imageInfos.isEmpty()) {
             parentController.popError(message("NoData"));
             return;
         }
-        digit = (images.size() + "").length();
+        digit = (imageInfos.size() + "").length();
 
         if (imagesRadio.isSelected()) {
             imagesFormat = formatController.attributes.getImageFormat();
-            targetFile = chooseSaveFile(TargetFileType, DateTools.nowFileString() + "." + imagesFormat);
+            targetFile = chooseSaveFile(defaultTargetPath(TargetFileType),
+                    DateTools.nowFileString() + "." + imagesFormat, FileFilters.imageFilter(imagesFormat));
             if (targetFile == null) {
                 return;
             }
             saveAsImages();
 
-        } else if (spiceRadio.isSelected()) {
+        } else if (spliceRadio.isSelected()) {
             saveAsSplice();
 
         } else if (tifFileRadio.isSelected()) {
@@ -386,17 +451,24 @@ public class ControlImagesSave extends BaseController {
             }
             saveAsPPT();
 
+        } else if (videoRadio.isSelected()) {
+            saveAsVideo();
+
         }
     }
 
     protected BufferedImage image(int index) {
         try {
-            ImageInformation info = images.get(index);
-            Image image;
-            if (info.getRegion() != null) {
-                image = info.loadRegion(-1);
-            } else {
-                image = info.loadImage();
+            if (imageInfos == null || index < 0 || index >= imageInfos.size()) {
+                return null;
+            }
+            ImageInformation info = imageInfos.get(index);
+            if (info == null) {
+                return null;
+            }
+            Image image = info.loadThumbnail(savedWidth);
+            if (image == null) {
+                return null;
             }
             return SwingFXUtils.fromFXImage(image, null);
         } catch (Exception e) {
@@ -413,14 +485,14 @@ public class ControlImagesSave extends BaseController {
             @Override
             public void run() {
                 loading.setInfo(msg);
-                loading.setProgress(number * 1f / images.size());
+                loading.setProgress(number * 1f / imageInfos.size());
             }
         });
     }
 
     protected void saveAsImages() {
         synchronized (this) {
-            if (targetFile == null || images == null || images.isEmpty()) {
+            if (targetFile == null || imageInfos == null || imageInfos.isEmpty()) {
                 return;
             }
             if (task != null && !task.isQuit()) {
@@ -432,21 +504,24 @@ public class ControlImagesSave extends BaseController {
                 parentController.popError(message("InvalidParameters"));
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
                 List<String> fileNames;
 
                 @Override
                 protected boolean handle() {
                     fileNames = new ArrayList<>();
                     try {
-                        String imagesFilePrefix = targetFile.getParent() + File.separator + FileNameTools.getFilePrefix(targetFile.getName());
-                        for (int i = 0; i < images.size(); ++i) {
+                        String imagesFilePrefix = targetFile.getParent() + File.separator + FileNameTools.prefix(targetFile.getName());
+                        for (int i = 0; i < imageInfos.size(); ++i) {
                             if (task == null || task.isCancelled()) {
                                 return false;
                             }
                             BufferedImage bufferedImage = image(i);
                             if (task == null || task.isCancelled()) {
                                 return false;
+                            }
+                            if (bufferedImage == null) {
+                                continue;
                             }
                             String filename = imagesFilePrefix + "-" + StringTools.fillLeftZero(i, digit) + "." + imagesFormat;
                             BufferedImage converted = ImageConvertTools.convertColorSpace(bufferedImage, formatController.attributes);
@@ -456,7 +531,7 @@ public class ControlImagesSave extends BaseController {
                             }
                             fileNames.add(filename);
                             String msg = MessageFormat.format(message("NumberFileGenerated"),
-                                    (i + 1) + "/" + images.size(), "\"" + filename + "\"");
+                                    (i + 1) + "/" + imageInfos.size(), "\"" + filename + "\"");
                             updateLabel(msg, i + 1);
                         }
                     } catch (Exception e) {
@@ -468,82 +543,50 @@ public class ControlImagesSave extends BaseController {
                 @Override
                 protected void whenSucceeded() {
                     recordFileWritten(targetFile.getParent());
-                    if (spiceRadio.isSelected()) {
-                        ImagesSpliceController.open(images);
-                    } else {
-                        multipleFilesGenerated(fileNames);
-                    }
+                    multipleFilesGenerated(fileNames);
                 }
 
             };
-            loading = parentController.handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            loading = parentController.start(task);
         }
     }
 
     protected void saveAsSplice() {
-        synchronized (this) {
-            if (images == null || images.isEmpty()) {
-                return;
-            }
-            if (task != null && !task.isQuit()) {
-                task.cancel();
-                loading = null;
-            }
-            task = new SingletonTask<Void>() {
-                List<ImageInformation> infos = new ArrayList<>();
-
-                @Override
-                protected boolean handle() {
-                    try {
-                        for (int i = 0; i < images.size(); ++i) {
-                            if (task == null || task.isCancelled()) {
-                                return false;
-                            }
-                            ImageInformation info = images.get(i);
-                            Image image;
-                            if (info.getRegion() != null) {
-                                image = info.loadRegion(-1);
-                            } else {
-                                image = info.loadImage();
-                            }
-                            infos.add(new ImageInformation(image));
-                            String msg = (i + 1) + "/" + images.size();
-                            updateLabel(msg, i + 1);
-                        }
-                    } catch (Exception e) {
-                        MyBoxLog.error(e.toString());
-                    }
-                    return !infos.isEmpty();
-                }
-
-                @Override
-                protected void whenSucceeded() {
-                    ImagesSpliceController.open(infos);
-                }
-
-            };
-            loading = parentController.handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+        if (imageInfos == null || imageInfos.isEmpty()) {
+            return;
         }
+        List<ImageInformation> infos = new ArrayList<>();
+        for (int i = 0; i < imageInfos.size(); ++i) {
+            ImageInformation info = imageInfos.get(i).cloneAttributes();
+            info.setRequiredWidth(savedWidth);
+            infos.add(info);
+        }
+        ImagesSpliceController.open(infos);
+    }
+
+    protected void saveAsVideo() {
+        if (imageInfos == null || imageInfos.isEmpty()) {
+            return;
+        }
+        List<ImageInformation> infos = new ArrayList<>();
+        for (int i = 0; i < imageInfos.size(); ++i) {
+            ImageInformation info = imageInfos.get(i).cloneAttributes();
+            info.setRequiredWidth(savedWidth);
+            infos.add(info);
+        }
+        FFmpegMergeImagesController.open(infos);
     }
 
     protected void saveAsPdf() {
         synchronized (this) {
-            if (targetFile == null || images == null || images.isEmpty()) {
+            if (targetFile == null || imageInfos == null || imageInfos.isEmpty()) {
                 return;
             }
             if (task != null && !task.isQuit()) {
                 task.cancel();
                 loading = null;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 @Override
                 protected boolean handle() {
@@ -558,7 +601,7 @@ public class ControlImagesSave extends BaseController {
                         document.setVersion(1.0f);
 
                         int count = 0;
-                        for (int i = 0; i < images.size(); ++i) {
+                        for (int i = 0; i < imageInfos.size(); ++i) {
                             if (task == null || task.isCancelled()) {
                                 return false;
                             }
@@ -566,12 +609,12 @@ public class ControlImagesSave extends BaseController {
                             if (task == null || task.isCancelled()) {
                                 return false;
                             }
-                            String sourceFormat = images.get(i).getImageFormat();
-                            PdfTools.writePage(document, sourceFormat, bufferedImage, ++count, images.size(), pdfOptionsController);
+                            String sourceFormat = imageInfos.get(i).getImageFormat();
+                            PdfTools.writePage(document, sourceFormat, bufferedImage, ++count, imageInfos.size(), pdfOptionsController);
                             if (task == null || task.isCancelled()) {
                                 return false;
                             }
-                            String msg = MessageFormat.format(message("NumberPageWritten"), (i + 1) + "/" + images.size());
+                            String msg = MessageFormat.format(message("NumberPageWritten"), (i + 1) + "/" + imageInfos.size());
                             updateLabel(msg, i + 1);
                         }
 
@@ -602,23 +645,20 @@ public class ControlImagesSave extends BaseController {
                 }
 
             };
-            loading = parentController.handling(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            loading = parentController.start(task);
         }
     }
 
     protected void saveAsTiff() {
         synchronized (this) {
-            if (targetFile == null || images == null || images.isEmpty()) {
+            if (targetFile == null || imageInfos == null || imageInfos.isEmpty()) {
                 return;
             }
             if (task != null && !task.isQuit()) {
                 task.cancel();
                 loading = null;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 @Override
                 protected boolean handle() {
@@ -629,7 +669,7 @@ public class ControlImagesSave extends BaseController {
                         writer.setOutput(out);
                         writer.prepareWriteSequence(null);
                         ImageWriteParam param = ImageTiffFile.getPara(null, writer);
-                        for (int i = 0; i < images.size(); ++i) {
+                        for (int i = 0; i < imageInfos.size(); ++i) {
                             if (task == null || task.isCancelled()) {
                                 return false;
                             }
@@ -642,7 +682,7 @@ public class ControlImagesSave extends BaseController {
                             if (task == null || task.isCancelled()) {
                                 return false;
                             }
-                            String msg = MessageFormat.format(message("NumberImageWritten"), (i + 1) + "/" + images.size());
+                            String msg = MessageFormat.format(message("NumberImageWritten"), (i + 1) + "/" + imageInfos.size());
                             updateLabel(msg, i + 1);
                         }
                         writer.endWriteSequence();
@@ -662,27 +702,24 @@ public class ControlImagesSave extends BaseController {
                     recordFileWritten(targetFile);
                     ImageViewerController controller = (ImageViewerController) openStage(Fxmls.ImageViewerFxml);
                     controller.selectSourceFile(targetFile);
-                    controller.toFront();
+                    controller.requestMouse();
                 }
 
             };
-            loading = parentController.handling(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            loading = parentController.start(task);
         }
     }
 
     protected void saveAsGif() {
         synchronized (this) {
-            if (targetFile == null || images == null || images.isEmpty()) {
+            if (targetFile == null || imageInfos == null || imageInfos.isEmpty()) {
                 return;
             }
             if (task != null && !task.isQuit()) {
                 task.cancel();
                 loading = null;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 @Override
                 protected boolean handle() {
@@ -695,7 +732,7 @@ public class ControlImagesSave extends BaseController {
                                 ImageTypeSpecifier.createFromBufferedImageType(BufferedImage.TYPE_INT_RGB), param);
                         gifWriter.setOutput(out);
                         gifWriter.prepareWriteSequence(null);
-                        for (int i = 0; i < images.size(); ++i) {
+                        for (int i = 0; i < imageInfos.size(); ++i) {
                             if (task == null || task.isCancelled()) {
                                 return false;
                             }
@@ -706,12 +743,12 @@ public class ControlImagesSave extends BaseController {
                             if (!gifKeepSize) {
                                 bufferedImage = ScaleTools.scaleImageWidthKeep(bufferedImage, gifWidth);
                             }
-                            ImageGifFile.getParaMeta(images.get(i).getDuration(), gifLoopCheck.isSelected(), param, metaData);
+                            ImageGifFile.getParaMeta(imageInfos.get(i).getDuration(), gifLoopCheck.isSelected(), param, metaData);
                             gifWriter.writeToSequence(new IIOImage(bufferedImage, null, metaData), param);
                             if (task == null || task.isCancelled()) {
                                 return false;
                             }
-                            String msg = MessageFormat.format(message("NumberImageWritten"), (i + 1) + "/" + images.size());
+                            String msg = MessageFormat.format(message("NumberImageWritten"), (i + 1) + "/" + imageInfos.size());
                             updateLabel(msg, i + 1);
                         }
                         gifWriter.endWriteSequence();
@@ -731,39 +768,36 @@ public class ControlImagesSave extends BaseController {
                     recordFileWritten(targetFile);
                     ImageViewerController controller = (ImageViewerController) openStage(Fxmls.ImageViewerFxml);
                     controller.selectSourceFile(targetFile);
-                    controller.toFront();
+                    controller.requestMouse();
                 }
 
             };
-            loading = parentController.handling(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            loading = parentController.start(task);
         }
     }
 
     protected void saveAsPPT() {
         synchronized (this) {
-            if (targetFile == null || images == null || images.isEmpty()) {
+            if (targetFile == null || imageInfos == null || imageInfos.isEmpty()) {
                 return;
             }
             if (task != null && !task.isQuit()) {
                 task.cancel();
                 loading = null;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 @Override
                 protected boolean handle() {
                     System.gc();
                     File tmpFile = TmpFileTools.getTempFile();
                     try ( HSLFSlideShow ppt = new HSLFSlideShow()) {
-                        for (int i = 0; i < images.size(); ++i) {
+                        for (int i = 0; i < imageInfos.size(); ++i) {
                             if (task == null || task.isCancelled()) {
                                 return false;
                             }
                             ppt.setPageSize(new java.awt.Dimension(pptWidth, pptHeight));
-                            BufferedImage image = ImageConvertTools.convertToPNG(image(i));;
+                            BufferedImage image = ImageConvertTools.convertToPNG(image(i));
                             if (task == null || task.isCancelled()) {
                                 return false;
                             }
@@ -774,7 +808,7 @@ public class ControlImagesSave extends BaseController {
                             if (task == null || task.isCancelled()) {
                                 return false;
                             }
-                            String msg = MessageFormat.format(message("NumberImageWritten"), (i + 1) + "/" + images.size());
+                            String msg = MessageFormat.format(message("NumberImageWritten"), (i + 1) + "/" + imageInfos.size());
                             updateLabel(msg, i + 1);
                         }
                         ppt.write(tmpFile);
@@ -791,15 +825,18 @@ public class ControlImagesSave extends BaseController {
                     recordFileWritten(targetFile);
                     PptViewController controller = (PptViewController) openStage(Fxmls.PptViewFxml);
                     controller.sourceFileChanged(targetFile);
-                    controller.toFront();
+                    controller.requestMouse();
                 }
 
             };
-            loading = parentController.handling(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            loading = parentController.start(task);
         }
+    }
+
+    @FXML
+    public void editFrames() {
+        ImagesEditorController controller = (ImagesEditorController) openStage(Fxmls.ImagesEditorFxml);
+        controller.loadImages(imageInfos);
     }
 
 }

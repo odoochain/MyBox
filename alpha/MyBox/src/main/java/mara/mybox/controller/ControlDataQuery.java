@@ -21,17 +21,15 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.scene.text.Text;
 import javafx.scene.web.WebView;
+import mara.mybox.db.data.ColumnDefinition;
 import mara.mybox.db.data.QueryCondition;
 import mara.mybox.db.data.QueryCondition.DataOperation;
-import mara.mybox.db.table.ColumnDefinition;
 import mara.mybox.db.table.TableQueryCondition;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fxml.LocateTools;
-import mara.mybox.fxml.NodeStyleTools;
-import mara.mybox.fxml.NodeTools;
-import static mara.mybox.fxml.NodeStyleTools.badStyle;
-import static mara.mybox.value.Languages.message;
+import mara.mybox.fxml.style.NodeStyleTools;
 import mara.mybox.value.Languages;
+import mara.mybox.value.UserConfig;
 
 /**
  * @Author Mara
@@ -90,7 +88,7 @@ public class ControlDataQuery extends BaseController {
                 titleInput.textProperty().addListener(
                         (ObservableValue<? extends String> observable, String oldValue, String newValue) -> {
                             if (newValue == null || newValue.isBlank()) {
-                                titleInput.setStyle(NodeStyleTools.badStyle);
+                                titleInput.setStyle(UserConfig.badStyle());
                             } else {
                                 titleInput.setStyle(null);
                             }
@@ -101,7 +99,7 @@ public class ControlDataQuery extends BaseController {
                 prefixInput.textProperty().addListener(
                         (ObservableValue<? extends String> observable, String oldValue, String newValue) -> {
                             if (newValue == null || newValue.isBlank()) {
-                                prefixInput.setStyle(NodeStyleTools.badStyle);
+                                prefixInput.setStyle(UserConfig.badStyle());
                             } else {
                                 prefixInput.setStyle(null);
                             }
@@ -200,14 +198,14 @@ public class ControlDataQuery extends BaseController {
         }
         String title = titleInput.getText() == null ? null : titleInput.getText().trim();
         if (title == null || title.isEmpty()) {
-            titleInput.setStyle(NodeStyleTools.badStyle);
+            titleInput.setStyle(UserConfig.badStyle());
             return null;
         }
         titleInput.setStyle(null);
 
         String prefix = prefixInput.getText() == null ? null : prefixInput.getText().trim();
         if (prefix == null || prefix.isEmpty()) {
-            prefixInput.setStyle(NodeStyleTools.badStyle);
+            prefixInput.setStyle(UserConfig.badStyle());
             return null;
         }
         prefixInput.setStyle(null);
@@ -217,7 +215,7 @@ public class ControlDataQuery extends BaseController {
             try {
                 top = Integer.parseInt(topInput.getText().trim());
             } catch (Exception e) {
-                topInput.setStyle(NodeStyleTools.badStyle);
+                topInput.setStyle(UserConfig.badStyle());
                 return null;
             }
         }
@@ -282,7 +280,7 @@ public class ControlDataQuery extends BaseController {
             List<Node> buttons = new ArrayList<>();
             List<ColumnDefinition> columns = dataController.viewDefinition.getColumns();
             for (ColumnDefinition column : columns) {
-                String name = column.getName();
+                String name = column.getColumnName();
                 Button button = new Button(name);
                 button.setOnAction(new EventHandler<ActionEvent>() {
                     @Override
@@ -295,7 +293,6 @@ public class ControlDataQuery extends BaseController {
 
             MenuController controller = MenuController.open(this, textArea, mouseEvent.getScreenX(), mouseEvent.getScreenY());
             controller.addFlowPane(buttons);
-
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
         }

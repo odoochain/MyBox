@@ -4,7 +4,6 @@ import com.recognition.software.jdeskew.ImageDeskew;
 import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.InputStreamReader;
 import java.nio.charset.Charset;
 import java.text.MessageFormat;
 import java.util.ArrayList;
@@ -25,12 +24,7 @@ import javafx.scene.control.ToggleGroup;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
-import mara.mybox.db.data.ConvolutionKernel;
-import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.NodeTools;
-import static mara.mybox.fxml.NodeStyleTools.badStyle;
 import mara.mybox.bufferedimage.AlphaTools;
-import mara.mybox.bufferedimage.BufferedImageTools;
 import mara.mybox.bufferedimage.ImageBinary;
 import mara.mybox.bufferedimage.ImageContrast;
 import mara.mybox.bufferedimage.ImageConvolution;
@@ -38,17 +32,17 @@ import mara.mybox.bufferedimage.PixelsOperation;
 import mara.mybox.bufferedimage.PixelsOperationFactory;
 import mara.mybox.bufferedimage.ScaleTools;
 import mara.mybox.bufferedimage.TransformTools;
-import mara.mybox.fxml.NodeStyleTools;
+import mara.mybox.db.data.ConvolutionKernel;
+import mara.mybox.db.data.VisitHistory;
+import mara.mybox.dev.MyBoxLog;
+import mara.mybox.fxml.style.NodeStyleTools;
 import mara.mybox.imagefile.ImageFileWriters;
 import mara.mybox.tools.DateTools;
 import mara.mybox.tools.FileDeleteTools;
 import mara.mybox.tools.FileNameTools;
-import mara.mybox.tools.FileTools;
 import mara.mybox.tools.OCRTools;
 import mara.mybox.tools.TextFileTools;
 import mara.mybox.tools.TmpFileTools;
-import mara.mybox.value.AppVariables;
-import static mara.mybox.value.Languages.message;
 import mara.mybox.value.Languages;
 import mara.mybox.value.UserConfig;
 import net.sourceforge.tess4j.ITesseract;
@@ -108,6 +102,11 @@ public class PdfOcrBatchController extends BaseBatchPdfController {
     }
 
     @Override
+    public void setFileType() {
+        setFileType(VisitHistory.FileType.PDF, VisitHistory.FileType.Text);
+    }
+
+    @Override
     public void setControlsStyle() {
         try {
             super.setControlsStyle();
@@ -155,10 +154,10 @@ public class PdfOcrBatchController extends BaseBatchPdfController {
                             scale = f;
                             scaleSelector.getEditor().setStyle(null);
                         } else {
-                            scaleSelector.getEditor().setStyle(NodeStyleTools.badStyle);
+                            scaleSelector.getEditor().setStyle(UserConfig.badStyle());
                         }
                     } catch (Exception e) {
-                        scaleSelector.getEditor().setStyle(NodeStyleTools.badStyle);
+                        scaleSelector.getEditor().setStyle(UserConfig.badStyle());
                     }
                 }
             });
@@ -181,10 +180,10 @@ public class PdfOcrBatchController extends BaseBatchPdfController {
                             threshold = i;
                             binarySelector.getEditor().setStyle(null);
                         } else {
-                            binarySelector.getEditor().setStyle(NodeStyleTools.badStyle);
+                            binarySelector.getEditor().setStyle(UserConfig.badStyle());
                         }
                     } catch (Exception e) {
-                        binarySelector.getEditor().setStyle(NodeStyleTools.badStyle);
+                        binarySelector.getEditor().setStyle(UserConfig.badStyle());
                     }
                 }
             });
@@ -298,16 +297,16 @@ public class PdfOcrBatchController extends BaseBatchPdfController {
                 }
             } else {
                 tesseractVersion = ocrOptionsController.tesseractVersion();
-                File tesseract = ocrOptionsController.tesseractPathController.file;
+                File tesseract = ocrOptionsController.tesseractPathController.file();
                 if (!tesseract.exists()) {
                     popError(Languages.message("InvalidParameters"));
-                    ocrOptionsController.tesseractPathController.fileInput.setStyle(NodeStyleTools.badStyle);
+                    ocrOptionsController.tesseractPathController.fileInput.setStyle(UserConfig.badStyle());
                     return false;
                 }
-                File dataPath = ocrOptionsController.dataPathController.file;
+                File dataPath = ocrOptionsController.dataPathController.file();
                 if (!dataPath.exists()) {
                     popError(Languages.message("InvalidParameters"));
-                    ocrOptionsController.dataPathController.fileInput.setStyle(NodeStyleTools.badStyle);
+                    ocrOptionsController.dataPathController.fileInput.setStyle(UserConfig.badStyle());
                     return false;
                 }
                 configFile = TmpFileTools.getTempFile();
@@ -566,9 +565,9 @@ public class PdfOcrBatchController extends BaseBatchPdfController {
             String fileBase = TmpFileTools.getTempFile().getAbsolutePath();
             List<String> parameters = new ArrayList<>();
             parameters.addAll(Arrays.asList(
-                    ocrOptionsController.tesseractPathController.file.getAbsolutePath(),
+                    ocrOptionsController.tesseractPathController.file().getAbsolutePath(),
                     imageFile, fileBase,
-                    "--tessdata-dir", ocrOptionsController.dataPathController.file.getAbsolutePath(),
+                    "--tessdata-dir", ocrOptionsController.dataPathController.file().getAbsolutePath(),
                     tesseractVersion > 3 ? "--psm" : "-psm", ocrOptionsController.psm + ""
             ));
             if (ocrOptionsController.selectedLanguages != null) {
@@ -578,7 +577,7 @@ public class PdfOcrBatchController extends BaseBatchPdfController {
             ProcessBuilder pb = new ProcessBuilder(parameters).redirectErrorStream(true);
             process = pb.start();
             String outputs = "", line;
-            try ( BufferedReader inReader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            try ( BufferedReader inReader = process.inputReader(Charset.defaultCharset())) {
                 while ((line = inReader.readLine()) != null) {
                     outputs += line + "\n";
                 }
@@ -603,7 +602,7 @@ public class PdfOcrBatchController extends BaseBatchPdfController {
     @Override
     public void postHandlePages() {
         try {
-            File tFile = makeTargetFile(FileNameTools.getFilePrefix(currentParameters.currentSourceFile.getName()),
+            File tFile = makeTargetFile(FileNameTools.prefix(currentParameters.currentSourceFile.getName()),
                     ".txt", currentParameters.currentTargetPath);
             currentTargetFile = tFile.getAbsolutePath();
             if (TextFileTools.writeFile(tFile, ocrTexts) != null) {

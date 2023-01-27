@@ -10,7 +10,6 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ListView;
 import javafx.scene.control.RadioButton;
 import javafx.scene.control.Tab;
-import javafx.scene.control.TabPane;
 import javafx.scene.control.TextField;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.image.Image;
@@ -21,8 +20,7 @@ import mara.mybox.bufferedimage.PixelsOperation;
 import mara.mybox.bufferedimage.PixelsOperationFactory;
 import mara.mybox.db.table.TableColor;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.WindowTools;
-import mara.mybox.value.Fxmls;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.value.UserConfig;
 
 /**
@@ -30,7 +28,7 @@ import mara.mybox.value.UserConfig;
  * @CreateDate 2021-8-13
  * @License Apache License Version 2.0
  */
-public class ImageManufactureScopeController_Base extends ImageViewerController {
+public abstract class ImageManufactureScopeController_Base extends ImageViewerController {
 
     protected TableColor tableColor;
     protected ImageManufactureController imageController;
@@ -43,9 +41,7 @@ public class ImageManufactureScopeController_Base extends ImageViewerController 
     @FXML
     protected ToggleGroup scopeTypeGroup, matchGroup;
     @FXML
-    protected TabPane tabPane;
-    @FXML
-    protected Tab areaTab, pointsTab, colorsTab, matchTab, pixTab, saveTab;
+    protected Tab areaTab, pointsTab, colorsTab, matchTab, pixTab, optionsTab, saveTab;
     @FXML
     protected VBox setBox, areaBox, rectangleBox, circleBox;
     @FXML
@@ -77,55 +73,46 @@ public class ImageManufactureScopeController_Base extends ImageViewerController 
     @FXML
     protected Label scopeTips, scopePointsLabel, scopeColorsLabel, pointsSizeLabel, colorsSizeLabel, rectangleLabel;
 
-    protected void indicateScope() {
-        if (isSettingValues || imageView == null || !scopeView.isVisible()) {
+    protected synchronized void indicateScope() {
+        if (isSettingValues || imageView == null || !scopeView.isVisible() || scope == null) {
             return;
         }
-        synchronized (this) {
-            if (task != null && !task.isQuit()) {
-                return;
-            }
-            task = new SingletonTask<Void>() {
-                private Image scopedImage;
+        if (task != null && !task.isQuit()) {
+            return;
+        }
+        task = new SingletonTask<Void>(this) {
+            private Image scopedImage;
 
-                @Override
-                protected boolean handle() {
-                    try {
-                        PixelsOperation pixelsOperation = PixelsOperationFactory.create(imageView.getImage(),
-                                scope, PixelsOperation.OperationType.ShowScope);
-                        if (!ignoreTransparentCheck.isSelected()) {
-                            pixelsOperation.setSkipTransparent(false);
-                        }
-                        scopedImage = pixelsOperation.operateFxImage();
-                        if (task == null || isCancelled()) {
-                            return false;
-                        }
-                        return scopedImage != null;
-                    } catch (Exception e) {
-                        MyBoxLog.error(e.toString());
+            @Override
+            protected boolean handle() {
+                try {
+                    PixelsOperation pixelsOperation = PixelsOperationFactory.create(imageView.getImage(),
+                            scope, PixelsOperation.OperationType.ShowScope);
+                    if (!ignoreTransparentCheck.isSelected()) {
+                        pixelsOperation.setSkipTransparent(false);
+                    }
+                    scopedImage = pixelsOperation.operateFxImage();
+                    if (task == null || isCancelled()) {
                         return false;
                     }
+                    return scopedImage != null;
+                } catch (Exception e) {
+                    MyBoxLog.error(e.toString());
+                    return false;
                 }
+            }
 
-                @Override
-                protected void whenSucceeded() {
-                    if (scope == null) {
-                        return;
-                    }
-                    scopeView.setImage(scopedImage);
-                    scopeView.setFitWidth(imageView.getFitWidth());
-                    scopeView.setFitHeight(imageView.getFitHeight());
-                    scopeView.setLayoutX(imageView.getLayoutX());
-                    scopeView.setLayoutY(imageView.getLayoutY());
-                }
+            @Override
+            protected void whenSucceeded() {
+                scopeView.setImage(scopedImage);
+                scopeView.setFitWidth(imageView.getFitWidth());
+                scopeView.setFitHeight(imageView.getFitHeight());
+                scopeView.setLayoutX(imageView.getLayoutX());
+                scopeView.setLayoutY(imageView.getLayoutY());
+            }
 
-            };
-//            parentController.handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
-        }
+        };
+        parentController.start(task);
     }
 
     @Override
@@ -137,61 +124,23 @@ public class ImageManufactureScopeController_Base extends ImageViewerController 
         MenuImageScopeController.open((ImageManufactureScopeController) this, x, y);
     }
 
-    public void popMenu() {
-        try {
-            Point2D localToScreen = scrollPane.localToScreen(scrollPane.getWidth() - 80, 80);
-            MenuImageScopeController.open((ImageManufactureScopeController) this, localToScreen.getX(), localToScreen.getY());
-        } catch (Exception e) {
-            MyBoxLog.debug(e.toString());
-        }
-    }
-
-    public void popScope() {
-        synchronized (this) {
-            SingletonTask popTask = new SingletonTask<Void>() {
-
-                private Image newImage;
-
-                @Override
-                protected boolean handle() {
-                    try {
-                        PixelsOperation pixelsOperation = PixelsOperationFactory.create(imageView.getImage(),
-                                scope, PixelsOperation.OperationType.PreOpacity, PixelsOperation.ColorActionType.Set);
-                        pixelsOperation.setSkipTransparent(ignoreTransparentCheck.isSelected());
-                        pixelsOperation.setIntPara1(255 - (int) (opacity * 255));
-                        pixelsOperation.setExcludeScope(true);
-                        newImage = pixelsOperation.operateFxImage();
-                        return true;
-                    } catch (Exception e) {
-                        error = e.toString();
-                        return false;
-                    }
-                }
-
-                @Override
-                protected void whenSucceeded() {
-                    ImagePopController controller = (ImagePopController) WindowTools.openChildStage(getMyWindow(), Fxmls.ImagePopFxml, false);
-                    controller.loadImage(newImage);
-                }
-            };
-            popTask.setSelf(popTask);
-            Thread thread = new Thread(popTask);
-            thread.setDaemon(false);
-            thread.start();
-        }
-    }
-
     @FXML
     @Override
     public boolean menuAction() {
-        imageController.menuAction();
-        return true;
+        try {
+            Point2D localToScreen = scrollPane.localToScreen(scrollPane.getWidth() - 80, 80);
+            MenuImageScopeController.open((ImageManufactureScopeController) this, localToScreen.getX(), localToScreen.getY());
+            return true;
+        } catch (Exception e) {
+            MyBoxLog.debug(e.toString());
+            return false;
+        }
     }
 
     @FXML
     @Override
     public boolean popAction() {
-        imageController.popAction();
+        ImageScopePopController.open((ImageManufactureScopeController) this);
         return true;
     }
 

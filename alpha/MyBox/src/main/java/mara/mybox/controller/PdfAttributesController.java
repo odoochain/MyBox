@@ -14,23 +14,19 @@ import javafx.scene.control.TextInputDialog;
 import javafx.scene.control.Toggle;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.layout.VBox;
-import javafx.stage.Modality;
 import javafx.stage.Stage;
 import mara.mybox.data.PdfInformation;
 import mara.mybox.db.data.VisitHistory;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.NodeStyleTools;
-import mara.mybox.fxml.NodeTools;
-import static mara.mybox.fxml.NodeStyleTools.badStyle;
 import mara.mybox.fxml.PopTools;
+import mara.mybox.fxml.SingletonTask;
+import mara.mybox.fxml.style.NodeStyleTools;
 import mara.mybox.tools.DateTools;
 import mara.mybox.tools.FileCopyTools;
 import mara.mybox.tools.FileTools;
 import mara.mybox.tools.PdfTools;
 import mara.mybox.tools.TmpFileTools;
 import mara.mybox.value.AppVariables;
-import static mara.mybox.value.Languages.message;
-
 import mara.mybox.value.Fxmls;
 import mara.mybox.value.Languages;
 import mara.mybox.value.UserConfig;
@@ -88,10 +84,10 @@ public class PdfAttributesController extends BaseController {
                         versionInput.setStyle(null);
                         version = f;
                     } else {
-                        versionInput.setStyle(NodeStyleTools.badStyle);
+                        versionInput.setStyle(UserConfig.badStyle());
                     }
                 } catch (Exception e) {
-                    versionInput.setStyle(NodeStyleTools.badStyle);
+                    versionInput.setStyle(UserConfig.badStyle());
                 }
             }
         });
@@ -105,15 +101,15 @@ public class PdfAttributesController extends BaseController {
                     return;
                 }
                 try {
-                    Date d = DateTools.stringToDatetime(newValue);
+                    Date d = DateTools.encodeDate(newValue, -1);
                     if (d != null) {
                         createTimeInput.setStyle(null);
                         createTime = d;
                     } else {
-                        createTimeInput.setStyle(NodeStyleTools.badStyle);
+                        createTimeInput.setStyle(UserConfig.badStyle());
                     }
                 } catch (Exception e) {
-                    createTimeInput.setStyle(NodeStyleTools.badStyle);
+                    createTimeInput.setStyle(UserConfig.badStyle());
                 }
             }
         });
@@ -127,15 +123,15 @@ public class PdfAttributesController extends BaseController {
                     return;
                 }
                 try {
-                    Date d = DateTools.stringToDatetime(newValue);
+                    Date d = DateTools.encodeDate(newValue, -1);
                     if (d != null) {
                         modifyTimeInput.setStyle(null);
                         modifyTime = d;
                     } else {
-                        modifyTimeInput.setStyle(NodeStyleTools.badStyle);
+                        modifyTimeInput.setStyle(UserConfig.badStyle());
                     }
                 } catch (Exception e) {
-                    modifyTimeInput.setStyle(NodeStyleTools.badStyle);
+                    modifyTimeInput.setStyle(UserConfig.badStyle());
                 }
             }
         });
@@ -190,12 +186,12 @@ public class PdfAttributesController extends BaseController {
         authorInput.setText(UserConfig.getString("AuthorKey", System.getProperty("user.name")));
 
         saveButton.disableProperty().bind(
-                sourceFileInput.styleProperty().isEqualTo(NodeStyleTools.badStyle)
-                        .or(versionInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
-                        .or(createTimeInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
-                        .or(modifyTimeInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
-                        .or(userPasswordInput2.styleProperty().isEqualTo(NodeStyleTools.badStyle))
-                        .or(ownerPasswordInput2.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                sourceFileInput.styleProperty().isEqualTo(UserConfig.badStyle())
+                        .or(versionInput.styleProperty().isEqualTo(UserConfig.badStyle()))
+                        .or(createTimeInput.styleProperty().isEqualTo(UserConfig.badStyle()))
+                        .or(modifyTimeInput.styleProperty().isEqualTo(UserConfig.badStyle()))
+                        .or(userPasswordInput2.styleProperty().isEqualTo(UserConfig.badStyle()))
+                        .or(ownerPasswordInput2.styleProperty().isEqualTo(UserConfig.badStyle()))
         );
 
     }
@@ -213,7 +209,7 @@ public class PdfAttributesController extends BaseController {
 
     @Override
     public void sourceFileChanged(final File file) {
-        sourceFileInput.setStyle(NodeStyleTools.badStyle);
+        sourceFileInput.setStyle(UserConfig.badStyle());
         if (!PdfTools.isPDF(file.getAbsolutePath())) {
             return;
         }
@@ -234,7 +230,7 @@ public class PdfAttributesController extends BaseController {
             userPasswordInput.setStyle(null);
             userPasswordInput2.setStyle(null);
         } else {
-            userPasswordInput2.setStyle(NodeStyleTools.badStyle);
+            userPasswordInput2.setStyle(UserConfig.badStyle());
         }
     }
 
@@ -251,7 +247,7 @@ public class PdfAttributesController extends BaseController {
             ownerPasswordInput.setStyle(null);
             ownerPasswordInput2.setStyle(null);
         } else {
-            ownerPasswordInput2.setStyle(NodeStyleTools.badStyle);
+            ownerPasswordInput2.setStyle(UserConfig.badStyle());
         }
     }
 
@@ -269,7 +265,7 @@ public class PdfAttributesController extends BaseController {
                 return;
             }
             pdfInfo = new PdfInformation(sourceFile);
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 private boolean pop;
 
@@ -277,13 +273,11 @@ public class PdfAttributesController extends BaseController {
                 protected boolean handle() {
                     ok = false;
                     pop = false;
-                    try {
-                        try ( PDDocument doc = PDDocument.load(sourceFile, password, AppVariables.pdfMemUsage)) {
-                            pdfInfo.setUserPassword(password);
-                            pdfInfo.readInfo(doc);
-                            doc.close();
-                            ok = true;
-                        }
+                    try ( PDDocument doc = PDDocument.load(sourceFile, password, AppVariables.pdfMemUsage)) {
+                        pdfInfo.setUserPassword(password);
+                        pdfInfo.readInfo(doc);
+                        doc.close();
+                        ok = true;
                     } catch (InvalidPasswordException e) {
                         pop = true;
                         return false;
@@ -322,11 +316,7 @@ public class PdfAttributesController extends BaseController {
                     }
                 }
             };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
     }
 
@@ -411,11 +401,11 @@ public class PdfAttributesController extends BaseController {
         ownerPassword = ownerPassword == null || ownerPassword.isBlank() ? null : ownerPassword;
         if (changeProtectionRadio.isSelected()) {
             if (userPassword != null || ownerPassword != null) {
-                if (!PopTools.askSure(myStage.getTitle(), Languages.message("SureSetPasswords"))) {
+                if (!PopTools.askSure(this, myStage.getTitle(), Languages.message("SureSetPasswords"))) {
                     return;
                 }
             } else {
-                if (!PopTools.askSure(myStage.getTitle(), Languages.message("SureUnsetPasswords"))) {
+                if (!PopTools.askSure(this, myStage.getTitle(), Languages.message("SureUnsetPasswords"))) {
                     return;
                 }
             }
@@ -455,7 +445,7 @@ public class PdfAttributesController extends BaseController {
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 @Override
                 protected boolean handle() {
@@ -469,11 +459,7 @@ public class PdfAttributesController extends BaseController {
                 }
 
             };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
     }
 

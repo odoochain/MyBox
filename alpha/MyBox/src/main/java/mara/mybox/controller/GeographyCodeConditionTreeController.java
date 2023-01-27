@@ -8,7 +8,6 @@ import java.util.List;
 import javafx.beans.value.ObservableValue;
 import javafx.scene.control.CheckBoxTreeItem;
 import javafx.scene.control.TreeItem;
-import javafx.stage.Modality;
 import mara.mybox.db.DerbyBase;
 import mara.mybox.db.data.GeographyCode;
 import mara.mybox.db.data.GeographyCodeLevel;
@@ -16,7 +15,7 @@ import mara.mybox.db.data.GeographyCodeTools;
 import mara.mybox.db.table.TableGeographyCode;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fxml.ConditionNode;
-import static mara.mybox.value.Languages.message;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.value.Languages;
 
 /**
@@ -52,7 +51,7 @@ public class GeographyCodeConditionTreeController extends ControlConditionTree {
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
                 private GeographyCode earch;
                 private List<GeographyCode> continents, others;
                 private List<Long> haveChildren;
@@ -77,9 +76,9 @@ public class GeographyCodeConditionTreeController extends ControlConditionTree {
                         }
                         continents = new ArrayList<>();
                         others = new ArrayList<>();
-                        List<GeographyCode> nodes = TableGeographyCode.queryChildren(conn, earch.getId());
+                        List<GeographyCode> nodes = TableGeographyCode.queryChildren(conn, earch.getGcid());
                         nodes.forEach((node) -> {
-                            if (node.getLevel() == 2 && node.getId() >= 2 && node.getId() <= 8) {
+                            if (node.getLevel() == 2 && node.getGcid() >= 2 && node.getGcid() <= 8) {
                                 continents.add(node);
                             } else if (node.getLevel() > 1) {
                                 others.add(node);
@@ -139,15 +138,7 @@ public class GeographyCodeConditionTreeController extends ControlConditionTree {
                     treeView.setSelection();
                 }
             };
-            if (parentController != null) {
-                loading = parentController.handling(task);
-            } else {
-                loading = handling(task);
-            }
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            loading = start(task);
         }
     }
 
@@ -167,15 +158,15 @@ public class GeographyCodeConditionTreeController extends ControlConditionTree {
             CheckBoxTreeItem<ConditionNode> valueItem = new CheckBoxTreeItem(
                     ConditionNode.create(Languages.message("Self"))
                             .setTitle((prefix.isBlank() ? Languages.message("Earth") + " - " : prefix) + Languages.message("Self"))
-                            .setCondition("Geography_Code.gcid=" + parantCode.getId())
+                            .setCondition("Geography_Code.gcid=" + parantCode.getGcid())
             );
             parent.getChildren().add(valueItem);
 
             CheckBoxTreeItem<ConditionNode> predefinedItem = new CheckBoxTreeItem(
                     ConditionNode.create(Languages.message("PredefinedData"))
                             .setTitle(prefix + Languages.message("PredefinedData"))
-                            .setCondition((parantCode.getId() == 1 ? ""
-                                    : parentLevel.getKey() + "=" + parantCode.getId() + " AND ")
+                            .setCondition((parantCode.getGcid() == 1 ? ""
+                                    : parentLevel.getKey() + "=" + parantCode.getGcid() + " AND ")
                                     + " gcsource=2")
             );
             parent.getChildren().add(predefinedItem);
@@ -183,8 +174,8 @@ public class GeographyCodeConditionTreeController extends ControlConditionTree {
             CheckBoxTreeItem<ConditionNode> inputtedItem = new CheckBoxTreeItem(
                     ConditionNode.create(Languages.message("InputtedData"))
                             .setTitle(prefix + Languages.message("InputtedData"))
-                            .setCondition((parantCode.getId() == 1 ? ""
-                                    : parentLevel.getKey() + "=" + parantCode.getId() + " AND ")
+                            .setCondition((parantCode.getGcid() == 1 ? ""
+                                    : parentLevel.getKey() + "=" + parantCode.getGcid() + " AND ")
                                     + " gcsource<>2")
             );
             parent.getChildren().add(inputtedItem);
@@ -196,8 +187,8 @@ public class GeographyCodeConditionTreeController extends ControlConditionTree {
                             ConditionNode.create(level.getName())
                                     .setTitle(prefix + level.getName())
                                     .setCondition("level=" + levelValue
-                                            + (parantCode.getId() == 1 ? ""
-                                            : " AND " + parentLevel.getKey() + "=" + parantCode.getId()))
+                                            + (parantCode.getGcid() == 1 ? ""
+                                            : " AND " + parentLevel.getKey() + "=" + parantCode.getGcid()))
                     );
                     parent.getChildren().add(levelItem);
                 }
@@ -205,7 +196,7 @@ public class GeographyCodeConditionTreeController extends ControlConditionTree {
         }
 
         for (GeographyCode code : codes) {
-            long codeid = code.getId();
+            long codeid = code.getGcid();
             GeographyCodeLevel codeLevel = code.getLevelCode();
 
             CheckBoxTreeItem<ConditionNode> codeItem = new CheckBoxTreeItem(
@@ -246,7 +237,7 @@ public class GeographyCodeConditionTreeController extends ControlConditionTree {
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
                 private List<GeographyCode> nodes;
                 private List<Long> haveChildren;
                 private List<Short> haveLevels;
@@ -264,7 +255,7 @@ public class GeographyCodeConditionTreeController extends ControlConditionTree {
                             loading.setInfo(Languages.message("Loading") + " " + level.getName()
                                     + " " + code.getName());
                         }
-                        nodes = TableGeographyCode.queryChildren(conn, code.getId());
+                        nodes = TableGeographyCode.queryChildren(conn, code.getGcid());
                         if (nodes == null || nodes.isEmpty()) {
                             return false;
                         }
@@ -281,7 +272,7 @@ public class GeographyCodeConditionTreeController extends ControlConditionTree {
                         for (int i = codeLevel + 1; i <= 9; i++) {
                             String sql = "SELECT gcid FROM Geography_Code WHERE "
                                     + " level=" + i + " AND "
-                                    + level.getKey() + "=" + code.getId()
+                                    + level.getKey() + "=" + code.getGcid()
                                     + " OFFSET 0 ROWS FETCH NEXT 1 ROWS ONLY";
                             try ( ResultSet results = conn.createStatement().executeQuery(sql)) {
                                 if (results.next()) {
@@ -301,15 +292,7 @@ public class GeographyCodeConditionTreeController extends ControlConditionTree {
                     addNodes(parent, nodes, haveChildren, haveLevels);
                 }
             };
-            if (parentController != null) {
-                loading = parentController.handling(task);
-            } else {
-                loading = handling(task);
-            }
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            loading = start(task);
         }
     }
 

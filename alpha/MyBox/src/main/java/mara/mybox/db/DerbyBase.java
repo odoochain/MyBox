@@ -11,52 +11,46 @@ import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import mara.mybox.controller.MyBoxLoadingController;
 import mara.mybox.db.data.GeographyCodeTools;
 import mara.mybox.db.table.TableAlarmClock;
+import mara.mybox.db.table.TableBlobValue;
 import mara.mybox.db.table.TableColor;
 import mara.mybox.db.table.TableColorPalette;
 import mara.mybox.db.table.TableColorPaletteName;
 import mara.mybox.db.table.TableConvolutionKernel;
-import mara.mybox.db.table.TableDataColumn;
-import mara.mybox.db.table.TableDataDefinition;
-import mara.mybox.db.table.TableDataset;
-import mara.mybox.db.table.TableEpidemicReport;
+import mara.mybox.db.table.TableData2DCell;
+import mara.mybox.db.table.TableData2DColumn;
+import mara.mybox.db.table.TableData2DDefinition;
+import mara.mybox.db.table.TableData2DStyle;
 import mara.mybox.db.table.TableFileBackup;
 import mara.mybox.db.table.TableFloatMatrix;
 import mara.mybox.db.table.TableGeographyCode;
 import mara.mybox.db.table.TableImageClipboard;
 import mara.mybox.db.table.TableImageEditHistory;
 import mara.mybox.db.table.TableImageScope;
-import mara.mybox.db.table.TableLocationData;
-import mara.mybox.db.table.TableMatrix;
-import mara.mybox.db.table.TableMatrixCell;
 import mara.mybox.db.table.TableMedia;
 import mara.mybox.db.table.TableMediaList;
 import mara.mybox.db.table.TableMyBoxLog;
-import mara.mybox.db.table.TableNote;
-import mara.mybox.db.table.TableNoteTag;
-import mara.mybox.db.table.TableNotebook;
+import mara.mybox.db.table.TableNamedValues;
 import mara.mybox.db.table.TableQueryCondition;
 import mara.mybox.db.table.TableStringValue;
 import mara.mybox.db.table.TableStringValues;
 import mara.mybox.db.table.TableSystemConf;
 import mara.mybox.db.table.TableTag;
 import mara.mybox.db.table.TableTextClipboard;
-import mara.mybox.db.table.TableTree;
+import mara.mybox.db.table.TableTreeNode;
+import mara.mybox.db.table.TableTreeNodeTag;
 import mara.mybox.db.table.TableUserConf;
 import mara.mybox.db.table.TableVisitHistory;
-import mara.mybox.db.table.TableWebFavorite;
 import mara.mybox.db.table.TableWebHistory;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.tools.ConfigTools;
 import mara.mybox.tools.FileDeleteTools;
-import mara.mybox.tools.FileTools;
 import mara.mybox.tools.NetworkTools;
 import mara.mybox.value.AppValues;
 import mara.mybox.value.AppVariables;
 import static mara.mybox.value.Languages.message;
-
-import mara.mybox.value.Languages;
 import org.apache.derby.drda.NetworkServerControl;
 
 /**
@@ -78,93 +72,11 @@ public class DerbyBase {
             + AppValues.AppDerbyPassword + ";create=false";
     public static DerbyStatus status;
     public static long lastRetry = 0;
-    public static long BatchSize = 500;
 
     public enum DerbyStatus {
         Embedded, Nerwork, Starting, NotConnected, EmbeddedFailed, NerworkFailed
     }
 
-    protected String Table_Name, Create_Table_Statement;
-    protected List<String> Keys;
-
-    public boolean init() {
-        try ( Connection conn = DerbyBase.getConnection();
-                 Statement Statement = conn.createStatement()) {
-            Statement.executeUpdate(Create_Table_Statement);
-            return true;
-        } catch (Exception e) {
-            MyBoxLog.error(e, Create_Table_Statement);
-            return false;
-        }
-    }
-
-    public boolean init(Connection conn) {
-        if (conn == null) {
-            return false;
-        }
-        try ( Statement Statement = conn.createStatement()) {
-            Statement.executeUpdate(Create_Table_Statement);
-            return true;
-        } catch (Exception e) {
-            MyBoxLog.error(e, Create_Table_Statement);
-            return false;
-        }
-    }
-
-    public boolean drop(Connection conn) {
-        if (conn == null) {
-            return false;
-        }
-        String sql = "DROP TABLE " + Table_Name;
-        try ( Statement Statement = conn.createStatement()) {
-            Statement.executeUpdate(sql);
-            return true;
-        } catch (Exception e) {
-            MyBoxLog.error(e, sql);
-            return false;
-        }
-    }
-
-    public boolean drop() {
-        String sql = "DROP TABLE " + Table_Name;
-        try ( Connection conn = DerbyBase.getConnection();
-                 Statement Statement = conn.createStatement()) {
-            Statement.executeUpdate(sql);
-            return true;
-        } catch (Exception e) {
-            MyBoxLog.error(e, sql);
-            return false;
-        }
-    }
-
-    public int clear(Connection conn) {
-        if (conn == null) {
-            return -1;
-        }
-        String sql = "DELETE FROM " + Table_Name;
-        try ( Statement Statement = conn.createStatement()) {
-            return Statement.executeUpdate(sql);
-        } catch (Exception e) {
-            MyBoxLog.error(e, sql);
-            return -1;
-        }
-    }
-
-    public int clear() {
-        String sql = "DELETE FROM " + Table_Name;
-        try ( Connection conn = DerbyBase.getConnection();
-                 Statement Statement = conn.createStatement()) {
-            return Statement.executeUpdate(sql);
-        } catch (Exception e) {
-            MyBoxLog.error(e, sql);
-            return -1;
-        }
-    }
-
-
-    /*
-        Static methods
-     */
     public static Connection getConnection() {
         try {
             return DriverManager.getConnection(protocol + dbHome() + login);
@@ -192,8 +104,6 @@ public class DerbyBase {
 
     public static String startDerby() {
         try {
-            Class.forName(embeddedDriver).getDeclaredConstructors()[0].newInstance();
-            Class.forName(ClientDriver).getDeclaredConstructors()[0].newInstance();
             if ("client".equals(readMode())) {
                 return networkMode();
             } else {
@@ -207,13 +117,16 @@ public class DerbyBase {
 
     public static String embeddedMode() {
         try {
-            String lang = Locale.getDefault().getLanguage().toLowerCase();
-            if (!canEmbeded()) {
-                status = DerbyStatus.NotConnected;
-                return MessageFormat.format(Languages.message(lang, "DerbyNotAvalibale"), AppVariables.MyBoxDerbyPath);
-            }
             if (isServerStarted(port)) {
                 shutdownDerbyServer();
+            } else {
+//                shutdownEmbeddedDerby();
+            }
+            Class.forName(embeddedDriver).getDeclaredConstructors()[0].newInstance();
+            String lang = Locale.getDefault().getLanguage().toLowerCase();
+            if (!startEmbededDriver()) {
+                status = DerbyStatus.NotConnected;
+                return MessageFormat.format(message(lang, "DerbyNotAvalibale"), AppVariables.MyBoxDerbyPath);
             }
             driver = embeddedDriver;
             protocol = "jdbc:derby:";
@@ -221,7 +134,7 @@ public class DerbyBase {
             mode = "embedded";
             ConfigTools.writeConfigValue("DerbyMode", mode);
             status = DerbyStatus.Embedded;
-            return Languages.message(lang, "DerbyEmbeddedMode");
+            return message(lang, "DerbyEmbeddedMode");
         } catch (Exception e) {
             status = DerbyStatus.EmbeddedFailed;
             MyBoxLog.error(e);
@@ -229,10 +142,22 @@ public class DerbyBase {
         }
     }
 
-    public static void shutdownEmbeddedDerby() {
-        try {
-            DriverManager.getConnection("jdbc:derby:;shutdown=true");
+    public static boolean startEmbededDriver() {
+        try ( Connection conn = DriverManager.getConnection("jdbc:derby:" + dbHome() + create)) {
+            return true;
         } catch (Exception e) {
+            status = DerbyStatus.EmbeddedFailed;
+            MyBoxLog.console(e);
+            return false;
+        }
+    }
+
+    // https://db.apache.org/derby/docs/10.4/devguide/rdevcsecure26537.html
+    public static void shutdownEmbeddedDerby() {
+        try ( Connection conn = DriverManager.getConnection("jdbc:derby:;shutdown=true")) {
+        } catch (Exception e) {
+            status = DerbyStatus.NotConnected;
+//            MyBoxLog.console(e);
         }
     }
 
@@ -242,8 +167,9 @@ public class DerbyBase {
         try {
             if (status == DerbyStatus.Starting) {
                 String lang = Locale.getDefault().getLanguage().toLowerCase();
-                return Languages.message(lang, "BeingStartingDerby");
+                return message(lang, "BeingStartingDerby");
             }
+            Class.forName(ClientDriver).getDeclaredConstructors()[0].newInstance();
             String lang = Locale.getDefault().getLanguage().toLowerCase();
             if (startDerbyServer()) {
                 driver = ClientDriver;
@@ -252,14 +178,14 @@ public class DerbyBase {
                 status = DerbyStatus.Nerwork;
                 ConfigTools.writeConfigValue("DerbyMode", mode);
                 MyBoxLog.console("Driver: " + driver);
-                return MessageFormat.format(Languages.message(lang, "DerbyServerListening"), port + "");
+                return MessageFormat.format(message(lang, "DerbyServerListening"), port + "");
 
-            } else if (canEmbeded() && status != DerbyStatus.EmbeddedFailed) {
+            } else if (startEmbededDriver() && status != DerbyStatus.EmbeddedFailed) {
                 return embeddedMode();
 
             } else {
                 status = DerbyStatus.NotConnected;
-                return MessageFormat.format(Languages.message(lang, "DerbyNotAvalibale"), AppVariables.MyBoxDerbyPath);
+                return MessageFormat.format(message(lang, "DerbyNotAvalibale"), AppVariables.MyBoxDerbyPath);
             }
         } catch (Exception e) {
             status = DerbyStatus.NerworkFailed;
@@ -326,17 +252,7 @@ public class DerbyBase {
             status = DerbyStatus.Nerwork;
             return true;
         } catch (Exception e) {
-
-            return false;
-        }
-    }
-
-    public static boolean canEmbeded() {
-        try ( Connection conn = DriverManager.getConnection("jdbc:derby:" + dbHome() + create)) {
-            return true;
-        } catch (Exception e) {
-            status = DerbyStatus.EmbeddedFailed;
-//            MyBoxLog.error(e);
+//            MyBoxLog.console(e);
             return false;
         }
     }
@@ -362,107 +278,125 @@ public class DerbyBase {
     }
 
     // Upper case
-    public static List<String> tables(Connection conn) {
-        List<String> tables = new ArrayList<>();
-        String sql = "SELECT TABLENAME FROM SYS.SYSTABLES WHERE TABLETYPE='T'";
-        try ( Statement statement = conn.createStatement();
-                 ResultSet resultSet = statement.executeQuery(sql)) {
-            while (resultSet.next()) {
-                tables.add(resultSet.getString("TABLENAME"));
+    public static List<String> allTables(Connection conn) {
+        try {
+            List<String> tables = new ArrayList<>();
+            String sql = "SELECT TABLENAME FROM SYS.SYSTABLES WHERE TABLETYPE='T'";
+            conn.setAutoCommit(true);
+            try ( Statement statement = conn.createStatement();
+                     ResultSet resultSet = statement.executeQuery(sql)) {
+                while (resultSet.next()) {
+                    String savedName = resultSet.getString("TABLENAME");
+                    String referredName = fixedIdentifier(savedName);
+                    tables.add(referredName);
+                }
+            } catch (Exception e) {
+                MyBoxLog.error(e, sql);
             }
+            return tables;
         } catch (Exception e) {
-            MyBoxLog.error(e, sql);
+            MyBoxLog.error(e);
+            return null;
         }
-        return tables;
     }
 
     public static List<String> columns(Connection conn, String tablename) {
-        List<String> columns = new ArrayList<>();
-        String sql = "SELECT columnname, columndatatype FROM SYS.SYSTABLES t, SYS.SYSCOLUMNS c "
-                + " where t.TABLEID=c.REFERENCEID AND tablename='" + tablename.toUpperCase() + "'"
-                + " order by columnnumber";
-        try ( Statement statement = conn.createStatement();
-                 ResultSet resultSet = statement.executeQuery(sql)) {
-            while (resultSet.next()) {
-                columns.add(resultSet.getString("columnname").toLowerCase()
-                        + ", " + resultSet.getString("columndatatype"));
+        try {
+            List<String> columns = new ArrayList<>();
+            String sql = "SELECT columnname, columndatatype FROM SYS.SYSTABLES t, SYS.SYSCOLUMNS c "
+                    + " where t.TABLEID=c.REFERENCEID AND tablename='" + tablename.toUpperCase() + "'"
+                    + " order by columnnumber";
+            conn.setAutoCommit(true);
+            try ( Statement statement = conn.createStatement();
+                     ResultSet resultSet = statement.executeQuery(sql)) {
+                while (resultSet.next()) {
+                    String savedName = resultSet.getString("columnname");
+                    String referredName = fixedIdentifier(savedName);
+                    columns.add(referredName + ", " + resultSet.getString("columndatatype"));
+                }
+            } catch (Exception e) {
+                MyBoxLog.error(e, sql);
             }
+            return columns;
         } catch (Exception e) {
-            MyBoxLog.error(e, sql);
+            MyBoxLog.error(e);
+            return null;
         }
-        return columns;
     }
 
     // lower case
     public static List<String> columnNames(Connection conn, String tablename) {
-        List<String> columns = new ArrayList<>();
-        String sql = "SELECT columnname  FROM SYS.SYSTABLES t, SYS.SYSCOLUMNS c "
-                + " where t.TABLEID=c.REFERENCEID AND tablename='" + tablename.toUpperCase() + "'"
-                + " order by columnnumber";
-        try ( Statement statement = conn.createStatement();
-                 ResultSet resultSet = statement.executeQuery(sql)) {
-            while (resultSet.next()) {
-                columns.add(resultSet.getString("columnname").toLowerCase());
+        try {
+            List<String> columns = new ArrayList<>();
+            String sql = "SELECT columnname  FROM SYS.SYSTABLES t, SYS.SYSCOLUMNS c "
+                    + " where t.TABLEID=c.REFERENCEID AND tablename='" + tablename.toUpperCase() + "'"
+                    + " order by columnnumber";
+            conn.setAutoCommit(true);
+            try ( Statement statement = conn.createStatement();
+                     ResultSet resultSet = statement.executeQuery(sql)) {
+                while (resultSet.next()) {
+                    String savedName = resultSet.getString("columnname");
+                    String referredName = fixedIdentifier(savedName);
+                    columns.add(referredName);
+                }
+            } catch (Exception e) {
+                MyBoxLog.error(e, sql);
             }
+            return columns;
         } catch (Exception e) {
-            MyBoxLog.error(e, sql);
-        }
-        return columns;
-    }
-
-    public static String tableDefinition(Connection conn, String tablename) {
-        String s = "";
-        for (String column : columns(conn, tablename)) {
-            s += column + "\n";
-        }
-        return s;
-    }
-
-    public static String tableDefinition(String tablename) {
-        try ( Connection conn = DerbyBase.getConnection()) {
-            String s = "";
-            for (String column : columns(conn, tablename)) {
-                s += column + "\n";
-            }
-            return s;
-        } catch (Exception e) {
-            MyBoxLog.console(e, tablename);
+            MyBoxLog.error(e);
             return null;
         }
     }
 
     public static List<String> indexes(Connection conn) {
-        List<String> indexes = new ArrayList<>();
-        String sql = "SELECT CONGLOMERATENAME FROM SYS.SYSCONGLOMERATES";
-        try ( Statement statement = conn.createStatement();
-                 ResultSet resultSet = statement.executeQuery(sql)) {
-            while (resultSet.next()) {
-                indexes.add(resultSet.getString("CONGLOMERATENAME"));
+        try {
+            List<String> indexes = new ArrayList<>();
+            String sql = "SELECT CONGLOMERATENAME FROM SYS.SYSCONGLOMERATES";
+            conn.setAutoCommit(true);
+            try ( Statement statement = conn.createStatement();
+                     ResultSet resultSet = statement.executeQuery(sql)) {
+                while (resultSet.next()) {
+                    String savedName = resultSet.getString("CONGLOMERATENAME");
+                    String referredName = fixedIdentifier(savedName);
+                    indexes.add(referredName);
+                }
+            } catch (Exception e) {
+                MyBoxLog.console(e, sql);
             }
+            return indexes;
         } catch (Exception e) {
-            MyBoxLog.console(e, sql);
+            MyBoxLog.error(e);
+            return null;
         }
-        return indexes;
     }
 
     public static List<String> views(Connection conn) {
-        List<String> tables = new ArrayList<>();
-        String sql = "SELECT TABLENAME FROM SYS.SYSTABLES WHERE TABLETYPE='V'";
-        try ( Statement statement = conn.createStatement();
-                 ResultSet resultSet = statement.executeQuery(sql)) {
-            while (resultSet.next()) {
-                tables.add(resultSet.getString("TABLENAME"));
+        try {
+            List<String> tables = new ArrayList<>();
+            String sql = "SELECT TABLENAME FROM SYS.SYSTABLES WHERE TABLETYPE='V'";
+            conn.setAutoCommit(true);
+            try ( Statement statement = conn.createStatement();
+                     ResultSet resultSet = statement.executeQuery(sql)) {
+                while (resultSet.next()) {
+                    String savedName = resultSet.getString("TABLENAME");
+                    String referredName = fixedIdentifier(savedName);
+                    tables.add(referredName);
+                }
+            } catch (Exception e) {
+                MyBoxLog.console(e, sql);
             }
+            return tables;
         } catch (Exception e) {
-            MyBoxLog.console(e, sql);
+            MyBoxLog.error(e);
+            return null;
         }
-        return tables;
     }
 
-    public static boolean initTables() {
+    public static boolean initTables(MyBoxLoadingController loadingController) {
         MyBoxLog.console("Protocol: " + protocol + dbHome());
         try ( Connection conn = DriverManager.getConnection(protocol + dbHome() + create)) {
-            initTables(conn);
+            initTables(loadingController, conn);
             initIndexs(conn);
             initViews(conn);
             return true;
@@ -472,115 +406,135 @@ public class DerbyBase {
         }
     }
 
-    public static boolean initTables(Connection conn) {
+    public static boolean initTables(MyBoxLoadingController loadingController, Connection conn) {
         try {
-            List<String> tables = tables(conn);
+            List<String> tables = allTables(conn);
             MyBoxLog.console("Tables: " + tables.size());
 
-            if (!tables.contains("String_Values".toUpperCase())) {
-                new TableStringValues().init(conn);
-            }
-            if (!tables.contains("image_scope".toUpperCase())) {
-                new TableImageScope().init(conn);
-            }
-            if (!tables.contains("System_Conf".toUpperCase())) {
-                new TableSystemConf().init(conn);
-            }
-            if (!tables.contains("User_Conf".toUpperCase())) {
-                new TableUserConf().init(conn);
-            }
-            if (!tables.contains("Alarm_Clock".toUpperCase())) {
-                new TableAlarmClock().init(conn);
-            }
-            if (!tables.contains("Convolution_Kernel".toUpperCase())) {
-                new TableConvolutionKernel().init(conn);
-            }
-            if (!tables.contains("Float_Matrix".toUpperCase())) {
-                new TableFloatMatrix().init(conn);
-            }
-            if (!tables.contains("visit_history".toUpperCase())) {
-                new TableVisitHistory().init(conn);
-            }
-            if (!tables.contains("media_list".toUpperCase())) {
-                new TableMediaList().init(conn);
-            }
-            if (!tables.contains("media".toUpperCase())) {
-                new TableMedia().init(conn);
-            }
-            if (!tables.contains("Web_History".toUpperCase())) {
-                new TableWebHistory().createTable(conn);
-            }
-            if (!tables.contains("Geography_Code".toUpperCase())) {
-                new TableGeographyCode().createTable(conn);
-            }
-            if (!tables.contains("Dataset".toUpperCase())) {
-                new TableDataset().createTable(conn);
-            }
-            if (!tables.contains("Location_Data".toUpperCase())) {
-                new TableLocationData().createTable(conn);
-            }
-            if (!tables.contains("Epidemic_Report".toUpperCase())) {
-                new TableEpidemicReport().createTable(conn);
-            }
-            if (!tables.contains("Query_Condition".toUpperCase())) {
-                new TableQueryCondition().init(conn);
-            }
-            if (!tables.contains("String_Value".toUpperCase())) {
-                new TableStringValue().init(conn);
-            }
-            if (!tables.contains("MyBox_Log".toUpperCase())) {
+            if (!tables.contains("MyBox_Log".toLowerCase())) {
                 new TableMyBoxLog().createTable(conn);
+                loadingController.info("MyBox_Log");
             }
-            if (!tables.contains("Matrix".toUpperCase())) {
-                new TableMatrix().createTable(conn);
+            if (!tables.contains("System_Conf".toLowerCase())) {
+                new TableSystemConf().init(conn);
+                loadingController.info("System_Conf");
             }
-            if (!tables.contains("Matrix_Cell".toUpperCase())) {
-                new TableMatrixCell().createTable(conn);
+            if (!tables.contains("User_Conf".toLowerCase())) {
+                new TableUserConf().init(conn);
+                loadingController.info("User_Conf");
             }
-            if (!tables.contains("Data_Definition".toUpperCase())) {
-                new TableDataDefinition().createTable(conn);
+            if (!tables.contains("Data2D_Definition".toLowerCase())) {
+                new TableData2DDefinition().createTable(conn);
+                loadingController.info("Data2D_Definition");
             }
-            if (!tables.contains("Data_Column".toUpperCase())) {
-                new TableDataColumn().createTable(conn);
+            if (!tables.contains("Data2D_Column".toLowerCase())) {
+                new TableData2DColumn().createTable(conn);
+                loadingController.info("Data2D_Column");
             }
-            if (!tables.contains("Image_Edit_History".toUpperCase())) {
+            if (!tables.contains("String_Values".toLowerCase())) {
+                new TableStringValues().createTable(conn);
+                loadingController.info("String_Values");
+            }
+            if (!tables.contains("image_scope".toLowerCase())) {
+                new TableImageScope().createTable(conn);
+                loadingController.info("image_scope");
+            }
+            if (!tables.contains("Alarm_Clock".toLowerCase())) {
+                new TableAlarmClock().createTable(conn);
+                loadingController.info("Alarm_Clock");
+            }
+            if (!tables.contains("Convolution_Kernel".toLowerCase())) {
+                new TableConvolutionKernel().createTable(conn);
+                loadingController.info("Convolution_Kernel");
+            }
+            if (!tables.contains("Float_Matrix".toLowerCase())) {
+                new TableFloatMatrix().createTable(conn);
+                loadingController.info("Float_Matrix");
+            }
+            if (!tables.contains("visit_history".toLowerCase())) {
+                new TableVisitHistory().createTable(conn);
+                loadingController.info("visit_history");
+            }
+            if (!tables.contains("media_list".toLowerCase())) {
+                new TableMediaList().createTable(conn);
+                loadingController.info("media_list");
+            }
+            if (!tables.contains("media".toLowerCase())) {
+                new TableMedia().createTable(conn);
+                loadingController.info("media");
+            }
+            if (!tables.contains("Web_History".toLowerCase())) {
+                new TableWebHistory().createTable(conn);
+                loadingController.info("Web_History");
+            }
+            if (!tables.contains("Geography_Code".toLowerCase())) {
+                new TableGeographyCode().createTable(conn);
+                loadingController.info("Geography_Code");
+            }
+            if (!tables.contains("Query_Condition".toLowerCase())) {
+                new TableQueryCondition().createTable(conn);
+                loadingController.info("Query_Condition");
+            }
+            if (!tables.contains("String_Value".toLowerCase())) {
+                new TableStringValue().createTable(conn);
+                loadingController.info("String_Value");
+            }
+
+            if (!tables.contains("Image_Edit_History".toLowerCase())) {
                 new TableImageEditHistory().createTable(conn);
+                loadingController.info("Image_Edit_History");
             }
-            if (!tables.contains("File_Backup".toUpperCase())) {
+            if (!tables.contains("File_Backup".toLowerCase())) {
                 new TableFileBackup().createTable(conn);
+                loadingController.info("File_Backup");
             }
-            if (!tables.contains("Notebook".toUpperCase())) {
-                new TableNotebook().createTable(conn);
-            }
-            if (!tables.contains("Note".toUpperCase())) {
-                new TableNote().createTable(conn);
-            }
-            if (!tables.contains("Tag".toUpperCase())) {
+            if (!tables.contains("Tag".toLowerCase())) {
                 new TableTag().createTable(conn);
+                loadingController.info("Tag");
             }
-            if (!tables.contains("Note_Tag".toUpperCase())) {
-                new TableNoteTag().createTable(conn);
-            }
-            if (!tables.contains("Color".toUpperCase())) {
+            if (!tables.contains("Color".toLowerCase())) {
                 new TableColor().createTable(conn);
+                loadingController.info("Color");
             }
-            if (!tables.contains("Color_Palette_Name".toUpperCase())) {
+            if (!tables.contains("Color_Palette_Name".toLowerCase())) {
                 new TableColorPaletteName().createTable(conn);
+                loadingController.info("Color_Palette_Name");
             }
-            if (!tables.contains("Color_Palette".toUpperCase())) {
+            if (!tables.contains("Color_Palette".toLowerCase())) {
                 new TableColorPalette().createTable(conn);
+                loadingController.info("Color_Palette");
             }
-            if (!tables.contains("Tree".toUpperCase())) {
-                new TableTree().createTable(conn);
-            }
-            if (!tables.contains("Web_Favorite".toUpperCase())) {
-                new TableWebFavorite().createTable(conn);
-            }
-            if (!tables.contains("Image_Clipboard".toUpperCase())) {
+            if (!tables.contains("Image_Clipboard".toLowerCase())) {
                 new TableImageClipboard().createTable(conn);
+                loadingController.info("Image_Clipboard");
             }
-            if (!tables.contains("Text_Clipboard".toUpperCase())) {
+            if (!tables.contains("Text_Clipboard".toLowerCase())) {
                 new TableTextClipboard().createTable(conn);
+                loadingController.info("Text_Clipboard");
+            }
+            if (!tables.contains("Data2D_Cell".toLowerCase())) {
+                new TableData2DCell().createTable(conn);
+                loadingController.info("Data2D_Cell");
+            }
+            if (!tables.contains("Blob_Value".toLowerCase())) {
+                new TableBlobValue().createTable(conn);
+                loadingController.info("Blob_Value");
+            }
+            if (!tables.contains("Named_Values".toLowerCase())) {
+                new TableNamedValues().createTable(conn);
+                loadingController.info("Named_Values");
+            }
+            if (!tables.contains("Tree_Node".toLowerCase())) {
+                new TableTreeNode().createTable(conn);
+                loadingController.info("Tree_Node");
+            }
+            if (!tables.contains("Tree_Node_Tag".toLowerCase())) {
+                new TableTreeNodeTag().createTable(conn);
+                loadingController.info("Tree_Node_Tag");
+            }
+            if (!tables.contains("Data2D_Style".toLowerCase())) {
+                new TableData2DStyle().createTable(conn);
+                loadingController.info("Data2D_Style");
             }
             return true;
         } catch (Exception e) {
@@ -593,156 +547,93 @@ public class DerbyBase {
         try {
             List<String> indexes = indexes(conn);
             MyBoxLog.debug("Indexes: " + indexes.size());
-            if (!indexes.contains("Geography_Code_level_index".toUpperCase())) {
+            if (!indexes.contains("Geography_Code_level_index".toLowerCase())) {
                 try ( Statement statement = conn.createStatement()) {
                     statement.executeUpdate(TableGeographyCode.Create_Index_levelIndex);
                 } catch (Exception e) {
 //                    MyBoxLog.error(e);
                 }
             }
-            if (!indexes.contains("Geography_Code_code_index".toUpperCase())) {
+            if (!indexes.contains("Geography_Code_code_index".toLowerCase())) {
                 try ( Statement statement = conn.createStatement()) {
                     statement.executeUpdate(TableGeographyCode.Create_Index_codeIndex);
                 } catch (Exception e) {
 //                    MyBoxLog.error(e);
                 }
             }
-            if (!indexes.contains("Geography_Code_gcid_index".toUpperCase())) {
+            if (!indexes.contains("Geography_Code_gcid_index".toLowerCase())) {
                 try ( Statement statement = conn.createStatement()) {
                     statement.executeUpdate(TableGeographyCode.Create_Index_gcidIndex);
                 } catch (Exception e) {
 //                    MyBoxLog.error(e);
                 }
             }
-            if (!indexes.contains("Epidemic_Report_DatasetTimeDesc_index".toUpperCase())) {
-                try ( Statement statement = conn.createStatement()) {
-                    statement.executeUpdate(TableEpidemicReport.Create_Index_DatasetTimeDesc);
-                } catch (Exception e) {
-//                    MyBoxLog.error(e);
-                }
-            }
-            if (!indexes.contains("Epidemic_Report_DatasetTimeAsc_index".toUpperCase())) {
-                try ( Statement statement = conn.createStatement()) {
-                    statement.executeUpdate(TableEpidemicReport.Create_Index_DatasetTimeAsc);
-                } catch (Exception e) {
-//                    MyBoxLog.error(e);
-                }
-            }
-            if (!indexes.contains("Epidemic_Report_timeAsc_index".toUpperCase())) {
-                try ( Statement statement = conn.createStatement()) {
-                    statement.executeUpdate(TableEpidemicReport.Create_Index_TimeAsc);
-                } catch (Exception e) {
-//                    MyBoxLog.error(e);
-                }
-            }
-            if (!indexes.contains("Dataset_unique_index".toUpperCase())) {
-                try ( Statement statement = conn.createStatement()) {
-                    statement.executeUpdate(TableDataset.Create_Index_unique);
-                } catch (Exception e) {
-//                    MyBoxLog.error(e);
-                }
-            }
-            if (!indexes.contains("MyBox_Log_index".toUpperCase())) {
+            if (!indexes.contains("MyBox_Log_index".toLowerCase())) {
                 try ( Statement statement = conn.createStatement()) {
                     statement.executeUpdate(TableMyBoxLog.Create_Index);
                 } catch (Exception e) {
 //                    MyBoxLog.error(e);
                 }
             }
-            if (!indexes.contains("Data_Definition_unique_index".toUpperCase())) {
-                try ( Statement statement = conn.createStatement()) {
-                    statement.executeUpdate(TableDataDefinition.Create_Index_unique);
-                } catch (Exception e) {
-                    MyBoxLog.error(e);
-                }
-            }
-            if (!indexes.contains("Data_Column_unique_index".toUpperCase())) {
-                try ( Statement statement = conn.createStatement()) {
-                    statement.executeUpdate(TableDataColumn.Create_Index_unique);
-                } catch (Exception e) {
-                    MyBoxLog.error(e);
-                }
-            }
-            if (!indexes.contains("File_Backup_index".toUpperCase())) {
+            if (!indexes.contains("File_Backup_index".toLowerCase())) {
                 try ( Statement statement = conn.createStatement()) {
                     statement.executeUpdate(TableFileBackup.Create_Index);
                 } catch (Exception e) {
                     MyBoxLog.error(e);
                 }
             }
-            if (!indexes.contains("Note_time_index".toUpperCase())) {
-                try ( Statement statement = conn.createStatement()) {
-                    statement.executeUpdate(TableNote.Create_Time_Index);
-                } catch (Exception e) {
-                    MyBoxLog.error(e);
-                }
-            }
-            if (!indexes.contains("Notebook_owner_index".toUpperCase())) {
-                try ( Statement statement = conn.createStatement()) {
-                    statement.executeUpdate(TableNotebook.Create_Owner_Index);
-                } catch (Exception e) {
-                    MyBoxLog.error(e);
-                }
-            }
-            if (!indexes.contains("Tag_unique_index".toUpperCase())) {
+            if (!indexes.contains("Tag_unique_index".toLowerCase())) {
                 try ( Statement statement = conn.createStatement()) {
                     statement.executeUpdate(TableTag.Create_Unique_Index);
                 } catch (Exception e) {
                     MyBoxLog.error(e);
                 }
             }
-            if (!indexes.contains("Note_Tag_unique_index".toUpperCase())) {
-                try ( Statement statement = conn.createStatement()) {
-                    statement.executeUpdate(TableNoteTag.Create_Unique_Index);
-                } catch (Exception e) {
-                    MyBoxLog.error(e);
-                }
-            }
-            if (!indexes.contains("Color_rgba_unique_index".toUpperCase())) {
+            if (!indexes.contains("Color_rgba_unique_index".toLowerCase())) {
                 try ( Statement statement = conn.createStatement()) {
                     statement.executeUpdate(TableColor.Create_RGBA_Unique_Index);
                 } catch (Exception e) {
                     MyBoxLog.error(e);
                 }
             }
-            if (!indexes.contains("Color_Palette_Name_unique_index".toUpperCase())) {
+            if (!indexes.contains("Color_Palette_Name_unique_index".toLowerCase())) {
                 try ( Statement statement = conn.createStatement()) {
                     statement.executeUpdate(TableColorPaletteName.Create_Unique_Index);
                 } catch (Exception e) {
                     MyBoxLog.error(e);
                 }
             }
-            if (!indexes.contains("Color_Palette_unique_index".toUpperCase())) {
+            if (!indexes.contains("Color_Palette_unique_index".toLowerCase())) {
                 try ( Statement statement = conn.createStatement()) {
                     statement.executeUpdate(TableColorPalette.Create_Unique_Index);
                 } catch (Exception e) {
                     MyBoxLog.error(e);
                 }
             }
-            if (!indexes.contains("Tree_parent_index".toUpperCase())) {
-                try ( Statement statement = conn.createStatement()) {
-                    statement.executeUpdate(TableTree.Create_Parent_Index);
-                } catch (Exception e) {
-                    MyBoxLog.error(e);
-                }
-            }
-            if (!indexes.contains("Tree_title_index".toUpperCase())) {
-                try ( Statement statement = conn.createStatement()) {
-                    statement.executeUpdate(TableTree.Create_Title_Index);
-                } catch (Exception e) {
-                    MyBoxLog.error(e);
-                }
-            }
-            if (!indexes.contains("Web_Favorite_owner_index".toUpperCase())) {
-                try ( Statement statement = conn.createStatement()) {
-                    statement.executeUpdate(TableWebFavorite.Create_Owner_Index);
-                } catch (Exception e) {
-                    MyBoxLog.error(e);
-                }
-            }
-            if (!indexes.contains("Web_History_time_index".toUpperCase())) {
+            if (!indexes.contains("Web_History_time_index".toLowerCase())) {
                 try ( Statement statement = conn.createStatement()) {
                     statement.executeUpdate(TableWebHistory.Create_Time_Index);
+                } catch (Exception e) {
+                    MyBoxLog.error(e);
+                }
+            }
+            if (!indexes.contains("Tree_Node_parent_index".toLowerCase())) {
+                try ( Statement statement = conn.createStatement()) {
+                    statement.executeUpdate(TableTreeNode.Create_Parent_Index);
+                } catch (Exception e) {
+                    MyBoxLog.error(e);
+                }
+            }
+            if (!indexes.contains("Tree_Node_title_index".toLowerCase())) {
+                try ( Statement statement = conn.createStatement()) {
+                    statement.executeUpdate(TableTreeNode.Create_Title_Index);
+                } catch (Exception e) {
+                    MyBoxLog.error(e);
+                }
+            }
+            if (!indexes.contains("Tree_Node_Tag_unique_index".toLowerCase())) {
+                try ( Statement statement = conn.createStatement()) {
+                    statement.executeUpdate(TableTreeNodeTag.Create_Unique_Index);
                 } catch (Exception e) {
                     MyBoxLog.error(e);
                 }
@@ -758,28 +649,14 @@ public class DerbyBase {
         try {
             List<String> views = views(conn);
             MyBoxLog.debug("Views: " + views.size());
-            if (!views.contains("Epidemic_Report_Statistic_View".toUpperCase())) {
+            if (!views.contains("Data2D_Column_View".toLowerCase())) {
                 try ( Statement statement = conn.createStatement()) {
-                    statement.executeUpdate(TableEpidemicReport.CreateStatisticView);
+                    statement.executeUpdate(TableData2DColumn.CreateView);
                 } catch (Exception e) {
 //                    MyBoxLog.error(e);
                 }
             }
-            if (!views.contains("Location_Data_View".toUpperCase())) {
-                try ( Statement statement = conn.createStatement()) {
-                    statement.executeUpdate(TableLocationData.CreateView);
-                } catch (Exception e) {
-//                    MyBoxLog.error(e);
-                }
-            }
-            if (!views.contains("Data_Column_View".toUpperCase())) {
-                try ( Statement statement = conn.createStatement()) {
-                    statement.executeUpdate(TableDataColumn.CreateView);
-                } catch (Exception e) {
-//                    MyBoxLog.error(e);
-                }
-            }
-            if (!views.contains("Color_Palette_View".toUpperCase())) {
+            if (!views.contains("Color_Palette_View".toLowerCase())) {
                 try ( Statement statement = conn.createStatement()) {
                     statement.executeUpdate(TableColorPalette.CreateView);
                 } catch (Exception e) {
@@ -817,15 +694,50 @@ public class DerbyBase {
 
     public static int size(Connection conn, String sql) {
         int size = 0;
-        try ( ResultSet results = conn.createStatement().executeQuery(sql)) {
-            if (results.next()) {
-                size = results.getInt(1);
+        try {
+            boolean ac = conn.getAutoCommit();
+            conn.setAutoCommit(true);
+            try ( ResultSet results = conn.createStatement().executeQuery(sql)) {
+                if (results != null && results.next()) {
+                    size = results.getInt(1);
+                }
+            } catch (Exception e) {
+                MyBoxLog.error(e, sql);
             }
+            conn.setAutoCommit(ac);
         } catch (Exception e) {
             MyBoxLog.error(e, sql);
+            return 0;
         }
         return size;
 
+    }
+
+    public static boolean isTableEmpty(String tableName) {
+        try ( Connection conn = DerbyBase.getConnection()) {
+            String sql = "SELECT * FROM " + tableName + " FETCH FIRST ROW ONLY";
+            conn.setReadOnly(true);
+            return isEmpty(conn, sql);
+        } catch (Exception e) {
+            MyBoxLog.error(e, tableName);
+            return false;
+        }
+    }
+
+    public static boolean isEmpty(Connection conn, String sql) {
+        try {
+            boolean isEmpty = true;
+            conn.setAutoCommit(true);
+            try ( ResultSet results = conn.createStatement().executeQuery(sql)) {
+                isEmpty = results == null || !results.next();
+            } catch (Exception e) {
+                MyBoxLog.error(e, sql);
+            }
+            return isEmpty;
+        } catch (Exception e) {
+            MyBoxLog.error(e, sql);
+            return false;
+        }
     }
 
     public static ResultSet query(String sql) {
@@ -840,6 +752,7 @@ public class DerbyBase {
 
     public static ResultSet query(Connection conn, String sql) {
         try ( Statement statement = conn.createStatement()) {
+            conn.setAutoCommit(true);
             return statement.executeQuery(sql);
         } catch (Exception e) {
             MyBoxLog.error(e, sql);
@@ -862,6 +775,23 @@ public class DerbyBase {
         } catch (Exception e) {
             MyBoxLog.error(e, sql);
             return 0;
+        }
+    }
+
+    public static int exist(Connection conn, String referredName) {
+        if (conn == null || referredName == null) {
+            return -1;
+        }
+        try ( ResultSet resultSet = conn.getMetaData().getColumns(null, "MARA",
+                DerbyBase.savedName(referredName), "%")) {
+            if (resultSet.next()) {
+                return 1;
+            } else {
+                return 0;
+            }
+        } catch (Exception e) {
+            MyBoxLog.debug(e, referredName);
+            return -2;
         }
     }
 
@@ -919,32 +849,65 @@ public class DerbyBase {
         }
     }
 
-
-    /*
-        get/set
-     */
-    public String getTable_Name() {
-        return Table_Name;
+    // https://db.apache.org/derby/docs/10.15/ref/crefsqlj1003454.html#crefsqlj1003454
+    // https://db.apache.org/derby/docs/10.15/ref/rrefkeywords29722.html
+    public static String fixedIdentifier(String name) {
+        if (name == null) {
+            return null;
+        }
+        if (name.startsWith("\"") && name.endsWith("\"")) {
+            return name;
+        }
+        String sname = name.toLowerCase().replaceAll("（", "(").replaceAll("）", ")");
+        boolean needQuote = false;
+        for (int i = 0; i < sname.length(); i++) {
+            char c = sname.charAt(i);
+            if (c != '_' && !Character.isLetterOrDigit(c)) {
+                needQuote = true;
+                break;
+            }
+            if (i == 0 && Character.isDigit(c)) {
+                needQuote = true;
+                break;
+            }
+        }
+        return needQuote ? "\"" + sname + "\"" : sname;
     }
 
-    public void setTable_Name(String Table_Name) {
-        this.Table_Name = Table_Name;
+    public static String appendIdentifier(String name, String suffix) {
+        if (name == null || suffix == null || suffix.isBlank()) {
+            return null;
+        }
+        return fixedIdentifier((name + suffix).replaceAll("\"", ""));
     }
 
-    public String getCreate_Table_Statement() {
-        return Create_Table_Statement;
+    public static String checkIdentifier(List<String> names, String name, boolean add) {
+        if (name == null) {
+            return null;
+        }
+        if (names == null) {
+            names = new ArrayList<>();
+        }
+        String tname = name;
+        int index = 1;
+        while (names.contains(tname) || names.contains(tname.toUpperCase())) {
+            tname = DerbyBase.appendIdentifier(name, ++index + "");
+        }
+        if (add) {
+            names.add(tname);
+        }
+        return tname;
     }
 
-    public void setCreate_Table_Statement(String Create_Table_Statement) {
-        this.Create_Table_Statement = Create_Table_Statement;
-    }
-
-    public List<String> getKeys() {
-        return Keys;
-    }
-
-    public void setKeys(List<String> Keys) {
-        this.Keys = Keys;
+    public static String savedName(String referedName) {
+        if (referedName == null) {
+            return null;
+        }
+        if (referedName.startsWith("\"") && referedName.endsWith("\"")) {
+            return referedName.substring(1, referedName.length() - 1);
+        } else {
+            return referedName.toUpperCase();
+        }
     }
 
 }

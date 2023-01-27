@@ -5,9 +5,8 @@ import javafx.concurrent.Task;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.control.Label;
-import javax.sound.sampled.Clip;
+import javafx.scene.media.AudioClip;
 import mara.mybox.db.data.AlarmClock;
-import static mara.mybox.db.data.AlarmClock.getTypeString;
 import mara.mybox.fxml.FxFileTools;
 import mara.mybox.fxml.SoundTools;
 import mara.mybox.value.Languages;
@@ -21,7 +20,7 @@ import mara.mybox.value.Languages;
 public class AlarmClockRunController extends BaseController {
 
     private AlarmClock alarm;
-    private Clip player;
+    private AudioClip player;
     private Task playTask;
 
     @FXML
@@ -39,25 +38,23 @@ public class AlarmClockRunController extends BaseController {
     }
 
     public void inactive(ActionEvent event) {
-        alarm.setIsActive(false);
-        alarm.setStatus(Languages.message("Inactive"));
-        alarm.setNextTime(-1);
-        alarm.setNext("");
-        AlarmClock.scheduleAlarmClock(alarm);
-        AlarmClock.writeAlarmClock(alarm);
-        knowAction(event);
-        AlarmClockController controller = AlarmClockController.oneOpen();
-        if (controller != null) {
-            controller.alertClockTableController.refreshAction();
-        }
+//        alarm.setIsActive(false);
+//        alarm.setStatus(Languages.message("Inactive"));
+//        alarm.setNextTime(-1);
+//        alarm.setNext("");
+//        AlarmClock.scheduleAlarmClock(alarm);
+//        AlarmClock.writeAlarmClock(alarm);
+//        knowAction(event);
+//        AlarmClockController controller = AlarmClockController.oneOpen();
+//        if (controller != null) {
+//            controller.alertClockTableController.refreshAction();
+//        }
     }
 
     @FXML
     public void knowAction(ActionEvent event) {
         if (player != null) {
             player.stop();
-            player.drain();
-            player.close();
             player = null;
         }
         closeStage();
@@ -75,12 +72,12 @@ public class AlarmClockRunController extends BaseController {
                 soundString += Languages.message("LoopTimes") + " " + alarm.getSoundLoopTimes();
             }
         }
-        soundLabel.setText(soundString);
-        String typeString = getTypeString(alarm);
-        if (alarm.getNext() != null) {
-            typeString += "     " + Languages.message("NextTime") + " " + alarm.getNext();
-        }
-        timeLabel.setText(typeString);
+//        soundLabel.setText(soundString);
+//        String typeString = getTypeString(alarm);
+//        if (alarm.getNext() != null) {
+//            typeString += "     " + Languages.message("NextTime") + " " + alarm.getNext();
+//        }
+//        timeLabel.setText(typeString);
         playTask = new Task<Void>() {
             @Override
             protected Void call() {
@@ -90,24 +87,21 @@ public class AlarmClockRunController extends BaseController {
                         File miao = FxFileTools.getInternalFile("/sound/miao4.mp3", "sound", "miao4.mp3");
                         sound = miao.getAbsolutePath();
                     }
-                    player = SoundTools.playback(sound, alarm.getVolume());
-                    if (alarm.isIsSoundLoop()) {
-                        if (alarm.isIsSoundContinully()) {
-                            player.loop(Clip.LOOP_CONTINUOUSLY);
-                        } else {
-                            player.loop(alarm.getSoundLoopTimes() - 1);
-                        }
-                    }
-                    player.start();
+                    player = SoundTools.clip(new File(sound), alarm.getVolume());
+//                    if (alarm.isIsSoundLoop()) {
+//                        if (alarm.isIsSoundContinully()) {
+//                            player.loop(Clip.LOOP_CONTINUOUSLY);
+//                        } else {
+//                            player.loop(alarm.getSoundLoopTimes() - 1);
+//                        }
+//                    }
+//                    player.start();
                 } catch (Exception e) {
                 }
                 return null;
             }
         };
-        Thread thread = new Thread(playTask);
-        thread.setDaemon(false);
-        thread.start();
-
+        start(playTask, false, null);
     }
 
     public AlarmClock getAlarm() {

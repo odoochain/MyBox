@@ -24,16 +24,12 @@ import mara.mybox.controller.PptViewController;
 import mara.mybox.controller.TextEditorController;
 import mara.mybox.controller.WebBrowserController;
 import mara.mybox.controller.WordViewController;
-import mara.mybox.data.StringTable;
 import mara.mybox.dev.MyBoxLog;
 import static mara.mybox.fxml.WindowTools.openScene;
 import mara.mybox.tools.CompressTools;
 import mara.mybox.tools.FileNameTools;
-import mara.mybox.tools.HtmlWriteTools;
-import mara.mybox.value.AppValues;
 import mara.mybox.value.FileExtensions;
 import mara.mybox.value.Fxmls;
-import mara.mybox.value.Languages;
 
 /**
  * @Author Mara
@@ -63,10 +59,10 @@ public class ControllerTools {
             return controller;
         }
         if (file.isDirectory()) {
-            PopTools.browseURI(file.toURI());
+            PopTools.browseURI(controller, file.toURI());
             return controller;
         }
-        String suffix = FileNameTools.getFileSuffix(file.getAbsolutePath()).toLowerCase();
+        String suffix = FileNameTools.suffix(file.getName()).toLowerCase();
         if (FileExtensions.SupportedImages.contains(suffix)) {
             controller = openImageViewer(stage, file);
         } else if ("html".equals(suffix) || "htm".equals(suffix)) {
@@ -99,7 +95,7 @@ public class ControllerTools {
         try {
             final ImageManufactureController controller = (ImageManufactureController) openScene(stage, Fxmls.ImageManufactureFxml);
             controller.loadImageFile(file);
-            controller.toFront();
+            controller.requestMouse();
             return controller;
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
@@ -111,7 +107,7 @@ public class ControllerTools {
         try {
             final ImageManufactureController controller = (ImageManufactureController) openScene(stage, Fxmls.ImageManufactureFxml);
             controller.loadImage(file, imageInfo);
-            controller.toFront();
+            controller.requestMouse();
             return controller;
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
@@ -123,7 +119,7 @@ public class ControllerTools {
         try {
             final ImageManufactureController controller = (ImageManufactureController) openScene(stage, Fxmls.ImageManufactureFxml);
             controller.loadImageInfo(imageInfo);
-            controller.toFront();
+            controller.requestMouse();
             return controller;
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
@@ -135,7 +131,7 @@ public class ControllerTools {
         try {
             final ImageManufactureController controller = (ImageManufactureController) openScene(stage, Fxmls.ImageManufactureFxml);
             controller.loadImage(image);
-            controller.toFront();
+            controller.requestMouse();
             return controller;
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
@@ -143,14 +139,14 @@ public class ControllerTools {
         }
     }
 
-    public static void openImageManufacture(String filename) {
-        ControllerTools.openImageManufacture(null, new File(filename));
+    public static ImageManufactureController openImageManufacture(File file) {
+        return openImageManufacture(null, file);
     }
 
     public static ImageViewerController openImageViewer(Stage stage) {
         try {
             final ImageViewerController controller = (ImageViewerController) openScene(stage, Fxmls.ImageViewerFxml);
-            controller.toFront();
+            controller.requestMouse();
             return controller;
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
@@ -163,7 +159,7 @@ public class ControllerTools {
             final ImageViewerController controller = openImageViewer(stage);
             if (controller != null && file != null) {
                 controller.loadImageFile(file);
-                controller.toFront();
+                controller.requestMouse();
             }
             return controller;
         } catch (Exception e) {
@@ -173,7 +169,7 @@ public class ControllerTools {
     }
 
     public static ImageViewerController openImageViewer(File file) {
-        return ControllerTools.openImageViewer(null, file);
+        return openImageViewer(null, file);
     }
 
     public static ImageViewerController openImageViewer(String file) {
@@ -207,7 +203,7 @@ public class ControllerTools {
     public static ImagesBrowserController openImagesBrowser(Stage stage) {
         try {
             final ImagesBrowserController controller = (ImagesBrowserController) openScene(stage, Fxmls.ImagesBrowserFxml);
-            controller.toFront();
+            controller.requestMouse();
             return controller;
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
@@ -219,7 +215,7 @@ public class ControllerTools {
         try {
             final ImageMetaDataController controller = (ImageMetaDataController) openScene(stage, Fxmls.ImageMetaDataFxml);
             controller.loadImageFileMeta(info);
-            controller.toFront();
+            controller.requestMouse();
             return controller;
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
@@ -248,7 +244,7 @@ public class ControllerTools {
             }
             final ImageInformationController controller = (ImageInformationController) openScene(stage, Fxmls.ImageInformationFxml);
             controller.loadImageFileInformation(info);
-            controller.toFront();
+            controller.requestMouse();
             return controller;
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
@@ -260,7 +256,7 @@ public class ControllerTools {
         try {
             final TextEditorController controller = (TextEditorController) openScene(stage, Fxmls.TextEditorFxml);
             controller.openFile(file);
-            controller.toFront();
+            controller.requestMouse();
             return controller;
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
@@ -272,7 +268,7 @@ public class ControllerTools {
         try {
             final MarkdownEditorController controller = (MarkdownEditorController) openScene(stage, Fxmls.MarkdownEditorFxml);
             controller.openFile(file);
-            controller.toFront();
+            controller.requestMouse();
             return controller;
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
@@ -284,7 +280,7 @@ public class ControllerTools {
         try {
             final MediaPlayerController controller = (MediaPlayerController) openScene(stage, Fxmls.MediaPlayerFxml);
             controller.loadFile(file);
-            controller.toFront();
+            controller.requestMouse();
             return controller;
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
@@ -296,7 +292,7 @@ public class ControllerTools {
         try {
             final BytesEditorController controller = (BytesEditorController) openScene(stage, Fxmls.BytesEditorFxml);
             controller.openFile(file);
-            controller.toFront();
+            controller.requestMouse();
             return controller;
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
@@ -306,9 +302,12 @@ public class ControllerTools {
 
     public static HtmlTableController openHtmlTable(Stage stage, String body) {
         try {
+            if (body == null) {
+                return null;
+            }
             final HtmlTableController controller = (HtmlTableController) openScene(stage, Fxmls.HtmlTableFxml);
             controller.loadBody(body);
-            controller.toFront();
+            controller.requestMouse();
             return controller;
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
@@ -320,7 +319,7 @@ public class ControllerTools {
         try {
             final HtmlEditorController controller = (HtmlEditorController) openScene(stage, Fxmls.HtmlEditorFxml);
             controller.loadAddress(link);
-            controller.toFront();
+            controller.requestMouse();
             return controller;
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
@@ -332,7 +331,7 @@ public class ControllerTools {
         try {
             final HtmlEditorController controller = (HtmlEditorController) openScene(stage, Fxmls.HtmlEditorFxml);
             controller.sourceFileChanged(file);
-            controller.toFront();
+            controller.requestMouse();
             return controller;
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
@@ -343,7 +342,7 @@ public class ControllerTools {
     public static WebBrowserController openWebBrowser(Stage stage, File file) {
         try {
             WebBrowserController controller = WebBrowserController.oneOpen(file);
-            controller.toFront();
+            controller.requestMouse();
             return controller;
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
@@ -355,7 +354,7 @@ public class ControllerTools {
         try {
             final PdfViewController controller = (PdfViewController) openScene(stage, Fxmls.PdfViewFxml);
             controller.sourceFileChanged(file);
-            controller.toFront();
+            controller.requestMouse();
             return controller;
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
@@ -367,7 +366,7 @@ public class ControllerTools {
         try {
             DataFileCSVController controller = (DataFileCSVController) openScene(stage, Fxmls.DataFileCSVFxml);
             controller.sourceFileChanged(file);
-            controller.toFront();
+            controller.requestMouse();
             return controller;
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
@@ -379,7 +378,7 @@ public class ControllerTools {
         try {
             final PptViewController controller = (PptViewController) openScene(stage, Fxmls.PptViewFxml);
             controller.sourceFileChanged(file);
-            controller.toFront();
+            controller.requestMouse();
             return controller;
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
@@ -391,7 +390,7 @@ public class ControllerTools {
         try {
             final WordViewController controller = (WordViewController) openScene(stage, Fxmls.WordViewFxml);
             controller.sourceFileChanged(file);
-            controller.toFront();
+            controller.requestMouse();
             return controller;
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
@@ -403,7 +402,7 @@ public class ControllerTools {
         try {
             final DataFileExcelController controller = (DataFileExcelController) openScene(stage, Fxmls.DataFileExcelFxml);
             controller.sourceFileChanged(file);
-            controller.toFront();
+            controller.requestMouse();
             return controller;
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
@@ -415,38 +414,11 @@ public class ControllerTools {
         try {
             final FileDecompressUnarchiveController controller = (FileDecompressUnarchiveController) openScene(stage, Fxmls.FileDecompressUnarchiveFxml);
             controller.sourceFileChanged(file);
-            controller.toFront();
+            controller.requestMouse();
             return controller;
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
             return null;
-        }
-    }
-
-    public static void about() {
-        try {
-            StringTable table = new StringTable(null, "MyBox");
-            table.newNameValueRow("Author", "Mara");
-            table.newNameValueRow("Version", AppValues.AppVersion);
-            table.newNameValueRow("Date", AppValues.AppVersionDate);
-            table.newNameValueRow("License", Languages.message("FreeOpenSource"));
-            table.newLinkRow("", "http://www.apache.org/licenses/LICENSE-2.0");
-            table.newLinkRow("MainPage", "https://github.com/Mararsh/MyBox");
-            table.newLinkRow("Mirror", "https://sourceforge.net/projects/mara-mybox/files/");
-            table.newLinkRow("LatestRelease", "https://github.com/Mararsh/MyBox/releases");
-            table.newLinkRow("KnownIssues", "https://github.com/Mararsh/MyBox/issues");
-            table.newNameValueRow("", Languages.message("WelcomePR"));
-            table.newLinkRow("UserGuide", "https://mararsh.github.io/MyBox/MyBox-UserGuide.pdf");
-            table.newLinkRow("CloudStorage", "https://pan.baidu.com/s/1fWMRzym_jh075OCX0D8y8A#list/path=%2F");
-            table.newLinkRow("MyBoxInternetDataPath", "https://github.com/Mararsh/MyBox_data");
-            File htmFile = HtmlWriteTools.writeHtml(table.html());
-            if (htmFile == null || !htmFile.exists()) {
-                return;
-            }
-            SoundTools.miao5();
-            WebBrowserController.oneOpen(htmFile);
-        } catch (Exception e) {
-            MyBoxLog.error(e.toString());
         }
     }
 

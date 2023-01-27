@@ -12,7 +12,6 @@ import javafx.scene.control.TextField;
 import javafx.scene.control.Toggle;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.image.Image;
-import javafx.scene.image.ImageView;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
@@ -23,9 +22,8 @@ import mara.mybox.data.DoublePoint;
 import mara.mybox.data.DoubleRectangle;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fximage.MarginTools;
-import mara.mybox.fxml.NodeStyleTools;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.fxml.ValidationTools;
-import mara.mybox.value.FileExtensions;
 import mara.mybox.value.Languages;
 import mara.mybox.value.UserConfig;
 
@@ -44,18 +42,15 @@ public class ImageManufactureMarginsController extends ImageManufactureOperation
     @FXML
     protected ComboBox<String> marginWidthBox;
     @FXML
-    protected CheckBox marginsTopCheck, marginsBottomCheck, marginsLeftCheck, marginsRightCheck,
-            preAlphaCheck;
+    protected CheckBox marginsTopCheck, marginsBottomCheck, marginsLeftCheck, marginsRightCheck;
     @FXML
-    protected FlowPane colorBox, distanceBox, marginsBox, alphaBox;
+    protected FlowPane colorBox, distanceBox, marginsBox;
     @FXML
     protected HBox widthBox;
     @FXML
     protected TextField distanceInput;
     @FXML
     protected RadioButton dragRadio, addRadio, blurRadio, cutColorRadio, cutWidthRadio;
-    @FXML
-    protected ImageView preAlphaTipsView;
     @FXML
     protected VBox setBox;
     @FXML
@@ -74,21 +69,14 @@ public class ImageManufactureMarginsController extends ImageManufactureOperation
     @Override
     public void initPane() {
         try {
+            super.initPane();
+
             opGroup.selectedToggleProperty().addListener(new ChangeListener<Toggle>() {
                 @Override
                 public void changed(ObservableValue<? extends Toggle> ov, Toggle old_toggle, Toggle new_toggle) {
                     checkOperationType();
                 }
             });
-
-            if (imageController.imageInformation != null
-                    && FileExtensions.NoAlphaImages.contains(imageController.imageInformation.getImageFormat())) {
-                preAlphaCheck.setSelected(true);
-                preAlphaCheck.setDisable(true);
-            } else {
-                preAlphaCheck.setSelected(false);
-                preAlphaCheck.setDisable(false);
-            }
 
             colorSetController.init(this, baseName + "Color");
 
@@ -120,8 +108,8 @@ public class ImageManufactureMarginsController extends ImageManufactureOperation
             });
 
             okButton.disableProperty().bind(
-                    marginWidthBox.getEditor().styleProperty().isEqualTo(NodeStyleTools.badStyle)
-                            .or(distanceInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                    marginWidthBox.getEditor().styleProperty().isEqualTo(UserConfig.badStyle())
+                            .or(distanceInput.styleProperty().isEqualTo(UserConfig.badStyle()))
             );
 
         } catch (Exception e) {
@@ -171,7 +159,7 @@ public class ImageManufactureMarginsController extends ImageManufactureOperation
 
         } else if (blurRadio.isSelected()) {
             opType = OperationType.BlurMargins;
-            setBox.getChildren().addAll(alphaBox, widthBox, marginsBox);
+            setBox.getChildren().addAll(widthBox, marginsBox);
             checkMarginWidth();
 
         }
@@ -183,8 +171,8 @@ public class ImageManufactureMarginsController extends ImageManufactureOperation
         try {
             imageController.setMaskRectangleLineVisible(true);
             imageController.maskRectangleData = new DoubleRectangle(0, 0,
-                    imageView.getImage().getWidth(),
-                    imageView.getImage().getHeight());
+                    imageView.getImage().getWidth() - 1,
+                    imageView.getImage().getHeight() - 1);
             imageController.drawMaskRectangleLineAsData();
             commentsLabel.setText(Languages.message("DragMarginsComments"));
         } catch (Exception e) {
@@ -216,10 +204,10 @@ public class ImageManufactureMarginsController extends ImageManufactureOperation
                 distanceInput.setStyle(null);
                 UserConfig.setInt("ImageMarginsColorDistance", v);
             } else {
-                distanceInput.setStyle(NodeStyleTools.badStyle);
+                distanceInput.setStyle(UserConfig.badStyle());
             }
         } catch (Exception e) {
-            distanceInput.setStyle(NodeStyleTools.badStyle);
+            distanceInput.setStyle(UserConfig.badStyle());
         }
     }
 
@@ -255,7 +243,7 @@ public class ImageManufactureMarginsController extends ImageManufactureOperation
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 private Image newImage;
                 private String value = null;
@@ -288,15 +276,9 @@ public class ImageManufactureMarginsController extends ImageManufactureOperation
                             value = addedWidth + "";
                             break;
                         case BlurMargins:
-                            if (preAlphaCheck.isSelected()) {
-                                newImage = MarginTools.blurMarginsNoAlpha(imageView.getImage(), addedWidth,
-                                        marginsTopCheck.isSelected(), marginsBottomCheck.isSelected(),
-                                        marginsLeftCheck.isSelected(), marginsRightCheck.isSelected());
-                            } else {
-                                newImage = MarginTools.blurMarginsAlpha(imageView.getImage(), addedWidth,
-                                        marginsTopCheck.isSelected(), marginsBottomCheck.isSelected(),
-                                        marginsLeftCheck.isSelected(), marginsRightCheck.isSelected());
-                            }
+                            newImage = MarginTools.blurMarginsAlpha(imageView.getImage(), addedWidth,
+                                    marginsTopCheck.isSelected(), marginsBottomCheck.isSelected(),
+                                    marginsLeftCheck.isSelected(), marginsRightCheck.isSelected());
                             value = addedWidth + "";
                             break;
                         default:
@@ -324,11 +306,7 @@ public class ImageManufactureMarginsController extends ImageManufactureOperation
 
                 }
             };
-            imageController.handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            imageController.start(task);
         }
     }
 

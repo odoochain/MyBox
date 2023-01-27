@@ -1,21 +1,20 @@
 package mara.mybox.controller;
 
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.List;
 import javafx.beans.binding.Bindings;
 import javafx.fxml.FXML;
+import mara.mybox.bufferedimage.ImageConvertTools;
 import mara.mybox.db.data.VisitHistory;
 import mara.mybox.dev.MyBoxLog;
-import static mara.mybox.fxml.NodeStyleTools.badStyle;
-import mara.mybox.bufferedimage.ImageConvertTools;
-import mara.mybox.fxml.NodeStyleTools;
 import mara.mybox.imagefile.ImageFileWriters;
 import mara.mybox.tools.FileNameTools;
-import mara.mybox.tools.FileTools;
 import mara.mybox.value.AppVariables;
-import static mara.mybox.value.Languages.message;
 import mara.mybox.value.Languages;
+import static mara.mybox.value.Languages.message;
+import mara.mybox.value.UserConfig;
 import org.apache.poi.sl.usermodel.Slide;
 import org.apache.poi.sl.usermodel.SlideShow;
 import org.apache.poi.sl.usermodel.SlideShowFactory;
@@ -48,12 +47,11 @@ public class PptToImagesController extends BaseBatchFileController {
 
             startButton.disableProperty().unbind();
             startButton.disableProperty().bind(Bindings.isEmpty(tableView.getItems())
-                            .or(Bindings.isEmpty(targetPathInput.textProperty()))
-                            .or(targetPathInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
-                            .or(formatController.qualitySelector.getEditor().styleProperty().isEqualTo(NodeStyleTools.badStyle))
-                            .or(formatController.dpiSelector.getEditor().styleProperty().isEqualTo(NodeStyleTools.badStyle))
-                            .or(formatController.profileInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
-                            .or(formatController.thresholdInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                    .or(targetPathController.valid.not())
+                    .or(formatController.qualitySelector.getEditor().styleProperty().isEqualTo(UserConfig.badStyle()))
+                    .or(formatController.dpiSelector.getEditor().styleProperty().isEqualTo(UserConfig.badStyle()))
+                    .or(formatController.profileInput.styleProperty().isEqualTo(UserConfig.badStyle()))
+                    .or(formatController.binaryController.thresholdInput.styleProperty().isEqualTo(UserConfig.badStyle()))
             );
 
         } catch (Exception e) {
@@ -69,9 +67,19 @@ public class PptToImagesController extends BaseBatchFileController {
             int height = ppt.getPageSize().height;
             int index = 0;
             for (Slide slide : slides) {
+                if (task == null || task.isCancelled()) {
+                    return message("Cancelled");
+                }
                 BufferedImage slideImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-                slide.draw(slideImage.createGraphics());
+                Graphics2D g = slideImage.createGraphics();
+                if (AppVariables.imageRenderHints != null) {
+                    g.addRenderingHints(AppVariables.imageRenderHints);
+                }
+                slide.draw(g);
                 BufferedImage targetImage = ImageConvertTools.convertColorSpace(slideImage, formatController.attributes);
+                if (task == null || task.isCancelled()) {
+                    return message("Cancelled");
+                }
                 if (targetImage != null) {
                     targetFile = makeTargetFile(srcFile, ++index, targetPath);
                     if (ImageFileWriters.writeImageFile(targetImage, formatController.attributes, targetFile.getAbsolutePath())) {
@@ -89,7 +97,7 @@ public class PptToImagesController extends BaseBatchFileController {
 
     public File makeTargetFile(File srcFile, int index, File targetPath) {
         try {
-            String filePrefix = FileNameTools.getFilePrefix(srcFile);
+            String filePrefix = FileNameTools.prefix(srcFile.getName());
             String slidePrefix = filePrefix + "_slide" + index;
             String slideSuffix = "." + formatController.attributes.getImageFormat();
 

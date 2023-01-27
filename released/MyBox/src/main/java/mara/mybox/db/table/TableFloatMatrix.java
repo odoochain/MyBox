@@ -1,42 +1,41 @@
 package mara.mybox.db.table;
 
-import mara.mybox.db.DerbyBase;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.util.ArrayList;
 import java.util.List;
+import mara.mybox.db.DerbyBase;
+import mara.mybox.db.data.BaseData;
+import mara.mybox.db.data.ColumnDefinition;
 import mara.mybox.db.data.ConvolutionKernel;
-import static mara.mybox.db.DerbyBase.protocol;
+import static mara.mybox.db.table.BaseTable.StringMaxLength;
 import mara.mybox.dev.MyBoxLog;
 
 /**
  * @Author Mara
  * @CreateDate 2018-11-7
- * @Version 1.0
- * @Description
  * @License Apache License Version 2.0
  */
-public class TableFloatMatrix extends DerbyBase {
+public class TableFloatMatrix extends BaseTable<BaseData> {
 
     public TableFloatMatrix() {
-        Table_Name = "Float_Matrix";
-        Keys = new ArrayList<>() {
-            {
-                add("name");
-                add("row");
-                add("col");
-            }
-        };
-        Create_Table_Statement
-                = " CREATE TABLE Float_Matrix ( "
-                + "  name  VARCHAR(1024) NOT NULL, "
-                + "  row  INT  NOT NULL,  "
-                + "  col INT  NOT NULL,  "
-                + "  value FLOAT  NOT NULL, "
-                + "  PRIMARY KEY (name, row, col)"
-                + " )";
+        tableName = "Float_Matrix";
+        defineColumns();
+    }
+
+    public TableFloatMatrix(boolean defineColumns) {
+        tableName = "Float_Matrix";
+        if (defineColumns) {
+            defineColumns();
+        }
+    }
+
+    public final TableFloatMatrix defineColumns() {
+        addColumn(new ColumnDefinition("name", ColumnDefinition.ColumnType.String, true, true).setLength(StringMaxLength));
+        addColumn(new ColumnDefinition("row", ColumnDefinition.ColumnType.Integer, true, true));
+        addColumn(new ColumnDefinition("col", ColumnDefinition.ColumnType.Integer, true, true));
+        addColumn(new ColumnDefinition("value", ColumnDefinition.ColumnType.Float, true));
+        return this;
     }
 
     public static float[][] read(String name, int width, int height) {

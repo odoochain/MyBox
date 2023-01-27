@@ -58,17 +58,18 @@ public class FileTools {
         if (file == null || !file.isFile()) {
             return false;
         }
-        String suffix = FileNameTools.getFileSuffix(file.getName()).toLowerCase();
+        String suffix = FileNameTools.suffix(file.getName()).toLowerCase();
         return FileExtensions.SupportedImages.contains(suffix);
     }
 
     public static boolean rename(File sourceFile, File targetFile) {
-        return rename(sourceFile, targetFile, true);
+        return rename(sourceFile, targetFile, false);
     }
 
     public static boolean rename(File sourceFile, File targetFile, boolean noEmpty) {
         try {
-            if (sourceFile == null || !sourceFile.exists() || targetFile == null) {
+            if (sourceFile == null || !sourceFile.exists() || !sourceFile.isFile()
+                    || targetFile == null || sourceFile.equals(targetFile)) {
                 return false;
             }
             if (noEmpty && sourceFile.length() == 0) {
@@ -83,7 +84,7 @@ public class FileTools {
 //                    StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             return true;
         } catch (Exception e) {
-            MyBoxLog.error(e);
+            MyBoxLog.error(e, sourceFile + "    " + targetFile);
             return false;
         }
     }
@@ -154,36 +155,49 @@ public class FileTools {
         return min > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) min;
     }
 
+    public static boolean hasData(File file) {
+        return file != null && file.exists() && file.isFile() && file.length() > 0;
+    }
+
     public static File removeBOM(File file) {
-        try {
-            String setName = null;
-            try ( BufferedInputStream inputStream = new BufferedInputStream(new FileInputStream(file))) {
-                byte[] header = new byte[4];
-                int readLen;
-                if ((readLen = inputStream.read(header, 0, 4)) > 0) {
-                    header = ByteTools.subBytes(header, 0, readLen);
-                    setName = TextTools.checkCharsetByBom(header);
-                    if (setName == null) {
-                        return file;
-                    }
+        if (!hasData(file)) {
+            return file;
+        }
+        String bom = null;
+        try ( BufferedInputStream inputStream = new BufferedInputStream(new FileInputStream(file))) {
+            byte[] header = new byte[4];
+            int readLen;
+            if ((readLen = inputStream.read(header, 0, 4)) > 0) {
+                header = ByteTools.subBytes(header, 0, readLen);
+                bom = TextTools.checkCharsetByBom(header);
+                if (bom == null) {
+                    return file;
                 }
             }
-            File tmpFile = TmpFileTools.getTempFile();
-            try ( BufferedInputStream inputStream = new BufferedInputStream(new FileInputStream(file));
-                     BufferedOutputStream outputStream = new BufferedOutputStream(new FileOutputStream(tmpFile))) {
-                int bomSize = TextTools.bomSize(setName);
-                inputStream.skip(bomSize);
-                int readLen;
-                byte[] buf = new byte[bufSize(file, 16)];
-                while ((readLen = inputStream.read(buf)) > 0) {
-                    outputStream.write(buf, 0, readLen);
-                }
-            }
-            return tmpFile;
         } catch (Exception e) {
             MyBoxLog.debug(e.toString());
             return null;
         }
+        File tmpFile = TmpFileTools.getTempFile();
+        try ( BufferedInputStream inputStream = new BufferedInputStream(new FileInputStream(file));
+                 BufferedOutputStream outputStream = new BufferedOutputStream(new FileOutputStream(tmpFile))) {
+            int bomSize = TextTools.bomSize(bom);
+            inputStream.skip(bomSize);
+            int readLen;
+            byte[] buf = new byte[bufSize(file, 16)];
+            while ((readLen = inputStream.read(buf)) > 0) {
+                outputStream.write(buf, 0, readLen);
+            }
+            outputStream.flush();
+        } catch (Exception e) {
+            MyBoxLog.debug(e.toString());
+            return null;
+        }
+        return tmpFile;
+    }
+
+    public static File javaIOTmpPath() {
+        return new File(System.getProperty("java.io.tmpdir"));
     }
 
 }

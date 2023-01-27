@@ -1,9 +1,12 @@
 package mara.mybox.controller;
 
+import java.util.Timer;
+import java.util.TimerTask;
+import javafx.application.Platform;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.fxml.FXML;
+import javafx.scene.control.Button;
 import javafx.scene.control.Tab;
-import javafx.scene.control.TabPane;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TitledPane;
 import javafx.scene.image.Image;
@@ -14,6 +17,8 @@ import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.VBox;
 import mara.mybox.data.DoublePoint;
 import mara.mybox.dev.MyBoxLog;
+import mara.mybox.tools.DateTools;
+import static mara.mybox.value.Languages.message;
 
 /**
  * @Author Mara
@@ -25,6 +30,7 @@ public abstract class ImageManufactureController_Image extends ImageViewerContro
     protected SimpleBooleanProperty imageLoaded;
     protected int newWidth, newHeight;
     protected ImageOperation operation;
+    protected ImagePopController imagePopController;
 
     public static enum ImageOperation {
         Load, History, Saved, Recover, Clipboard, Paste, Arc, Color, Crop, Copy,
@@ -36,8 +42,6 @@ public abstract class ImageManufactureController_Image extends ImageViewerContro
     protected TitledPane createPane;
     @FXML
     protected VBox mainBox;
-    @FXML
-    protected TabPane tabPane;
     @FXML
     protected Tab imageTab, scopeTab, hisTab, backupTab;
     @FXML
@@ -53,12 +57,11 @@ public abstract class ImageManufactureController_Image extends ImageViewerContro
     @FXML
     protected ImageManufactureScopesSavedController scopeSavedController;
     @FXML
+    protected ImageManufactureHistory hisController;
+    @FXML
     protected ColorSet colorSetController;
-
-    @Override
-    public Image imageToSave() {
-        return imageView.getImage();
-    }
+    @FXML
+    protected Button viewImageButton;
 
     @Override
     public void refinePane() {
@@ -87,6 +90,26 @@ public abstract class ImageManufactureController_Image extends ImageViewerContro
 
     public void scopeTab() {
         tabPane.getSelectionModel().select(scopeTab);
+    }
+
+    public boolean isImageTabSelected() {
+        return tabPane.getSelectionModel().getSelectedItem() == imageTab;
+    }
+
+    public boolean isScopeTabSelected() {
+        return tabPane.getSelectionModel().getSelectedItem() == scopeTab;
+    }
+
+    public void adjustRightPane() {
+        new Timer().schedule(new TimerTask() {
+            @Override
+            public void run() {
+                Platform.runLater(() -> {
+                    rightPane.setHvalue(0);
+                    rightPane.setVvalue(0);
+                });
+            }
+        }, 500);
     }
 
     @Override
@@ -235,6 +258,74 @@ public abstract class ImageManufactureController_Image extends ImageViewerContro
     public void mouseReleased(MouseEvent event) {
         scrollPane.setPannable(true);
         operationsController.mouseReleased(event);
+    }
+
+    public void updateImage(ImageManufactureController_Image.ImageOperation operation, Image newImage) {
+        updateImage(operation, null, null, newImage, -1);
+    }
+
+    public void updateImage(ImageManufactureController_Image.ImageOperation operation, Image newImage, long cost) {
+        updateImage(operation, null, null, newImage, cost);
+    }
+
+    public void updateImage(ImageManufactureController_Image.ImageOperation operation, String objectType, String opType, Image newImage, long cost) {
+        try {
+            hisController.recordImageHistory(operation, objectType, opType, newImage);
+            String info = operation == null ? "" : message(operation.name());
+            if (objectType != null) {
+                info += "  " + message(objectType);
+            }
+            if (opType != null) {
+                info += "  " + message(opType);
+            }
+            if (cost > 0) {
+                info += "  " + message("Cost") + ": " + DateTools.datetimeMsDuration(cost);
+            }
+            updateImage(newImage, info);
+        } catch (Exception e) {
+            MyBoxLog.debug(e.toString());
+        }
+    }
+
+    public void updateImage(Image newImage, String info) {
+        try {
+            updateImage(newImage);
+            scopeController.updateImage(newImage);
+            resetImagePane();
+            operationsController.resetOperationPanes();
+            popInformation(info);
+            updateLabelString(info);
+        } catch (Exception e) {
+            MyBoxLog.debug(e.toString());
+        }
+    }
+
+    // Only update image and not reset image pane
+    public void setImage(ImageManufactureController_Image.ImageOperation operation, Image newImage) {
+        try {
+            updateImage(newImage);
+            scopeController.updateImage(newImage);
+            hisController.recordImageHistory(operation, null, null, newImage);
+            updateLabelsTitle();
+            updateLabel(operation);
+        } catch (Exception e) {
+            MyBoxLog.debug(e.toString());
+        }
+    }
+
+    public void updateLabel(ImageManufactureController_Image.ImageOperation operation) {
+        updateLabelString(operation != null ? message(operation.name()) : null);
+    }
+
+    public void updateLabelString(String info) {
+        try {
+            if (imageLabel == null) {
+                return;
+            }
+            imageLabel.setText(info);
+        } catch (Exception e) {
+            MyBoxLog.debug(e.toString());
+        }
     }
 
 }

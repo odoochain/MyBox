@@ -24,17 +24,16 @@ import javafx.scene.control.ToggleGroup;
 import javafx.scene.layout.VBox;
 import mara.mybox.data.FileSynchronizeAttributes;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.NodeStyleTools;
-import mara.mybox.fxml.NodeTools;
-import static mara.mybox.fxml.NodeStyleTools.badStyle;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.fxml.SoundTools;
-import mara.mybox.fxml.StyleTools;
-import mara.mybox.fxml.ValidationTools;
+import mara.mybox.fxml.style.StyleTools;
 import mara.mybox.tools.DateTools;
 import mara.mybox.tools.DoubleTools;
 import mara.mybox.tools.FileDeleteTools;
 import mara.mybox.tools.FileTools;
 import mara.mybox.value.Languages;
+import static mara.mybox.value.Languages.message;
+import mara.mybox.value.UserConfig;
 
 /**
  * @Author Mara
@@ -50,6 +49,8 @@ public class DirectorySynchronizeController extends BaseBatchFileController {
     protected String strFailedCopy, strCreatedSuccessfully, strCopySuccessfully, strFailedDelete;
     protected String strDeleteSuccessfully, strFileDeleteSuccessfully, strDirectoryDeleteSuccessfully;
 
+    @FXML
+    protected ControlPathInput targetPathInputController;
     @FXML
     protected VBox dirsBox, conditionsBox, condBox, logsBox;
     @FXML
@@ -97,8 +98,6 @@ public class DirectorySynchronizeController extends BaseBatchFileController {
                 }
             });
 
-            ValidationTools.setNonnegativeValidation(maxLinesinput);
-
             checkIsConditional();
             copyGroup.selectedToggleProperty().addListener(new ChangeListener<Toggle>() {
                 @Override
@@ -108,11 +107,12 @@ public class DirectorySynchronizeController extends BaseBatchFileController {
                 }
             });
 
+            targetPathInputController.baseName(baseName).init();
+
             startButton.disableProperty().bind(
                     Bindings.isEmpty(sourcePathInput.textProperty())
-                            .or(Bindings.isEmpty(targetPathInput.textProperty()))
-                            .or(sourcePathInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
-                            .or(targetPathInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                            .or(sourcePathInput.styleProperty().isEqualTo(UserConfig.badStyle()))
+                            .or(targetPathInputController.valid.not())
             );
 
             operationBarController.openTargetButton.disableProperty().bind(
@@ -128,7 +128,24 @@ public class DirectorySynchronizeController extends BaseBatchFileController {
     protected boolean initAttributes() {
         try {
             sourcePath = new File(sourcePathInput.getText());
+            targetPath = targetPathInputController.file();
+            if (targetPath == null) {
+                popError(message("Invlid") + ": " + message("TargetPath"));
+                return false;
+            }
+            if (targetPath.getAbsolutePath().startsWith(sourcePath.getAbsolutePath())) {
+                popError(message("TargetPathShouldNotSourceSub"));
+                return false;
+            }
+
             if (!paused || lastFileName == null) {
+                if (!targetPath.exists()) {
+                    targetPath.mkdirs();
+                    updateLogs(strCreatedSuccessfully + targetPath.getAbsolutePath(), true);
+                }
+                targetPath.setWritable(true);
+                targetPath.setExecutable(true);
+
                 copyAttr = new FileSynchronizeAttributes();
                 copyAttr.setContinueWhenError(continueCheck.isSelected());
                 copyAttr.setCopyAttrinutes(copyAttrCheck.isSelected());
@@ -149,7 +166,7 @@ public class DirectorySynchronizeController extends BaseBatchFileController {
                 copyAttr.setOnlyCopyModified(copyModifiedCheck.isSelected());
                 copyAttr.setModifyAfter(0);
                 if (copyAttr.isOnlyCopyModified() && modifyAfterInput.getValue() != null) {
-                    copyAttr.setModifyAfter(DateTools.localDate2Date(modifyAfterInput.getValue()).getTime());
+                    copyAttr.setModifyAfter(DateTools.localDateToDate(modifyAfterInput.getValue()).getTime());
                 }
                 copyAttr.setDeleteNotExisteds(deleteNonExistedCheck.isSelected());
 
@@ -168,9 +185,10 @@ public class DirectorySynchronizeController extends BaseBatchFileController {
                         }
                     }
                 }
+
                 initLogs();
                 logsTextArea.setText(Languages.message("SourcePath") + ": " + sourcePathInput.getText() + "\n");
-                logsTextArea.appendText(Languages.message("TargetPath") + ": " + targetPathInput.getText() + "\n");
+                logsTextArea.appendText(Languages.message("TargetPath") + ": " + targetPath.getAbsolutePath() + "\n");
 
                 strFailedCopy = Languages.message("FailedCopy") + ": ";
                 strCreatedSuccessfully = Languages.message("CreatedSuccessfully") + ": ";
@@ -180,13 +198,6 @@ public class DirectorySynchronizeController extends BaseBatchFileController {
                 strFileDeleteSuccessfully = Languages.message("FileDeletedSuccessfully") + ": ";
                 strDirectoryDeleteSuccessfully = Languages.message("DirectoryDeletedSuccessfully") + ": ";
 
-                targetPath = new File(targetPathInput.getText());
-                if (!targetPath.exists()) {
-                    targetPath.mkdirs();
-                    updateLogs(strCreatedSuccessfully + targetPath.getAbsolutePath(), true);
-                }
-                targetPath.setWritable(true);
-                targetPath.setExecutable(true);
                 startHandle = true;
                 lastFileName = null;
 
@@ -217,7 +228,7 @@ public class DirectorySynchronizeController extends BaseBatchFileController {
                 if (task != null && !task.isQuit()) {
                     return;
                 }
-                task = new SingletonTask<Void>() {
+                task = new SingletonTask<Void>(this) {
 
                     @Override
                     protected boolean handle() {
@@ -265,10 +276,7 @@ public class DirectorySynchronizeController extends BaseBatchFileController {
                         updateInterface("Failed");
                     }
                 };
-                task.setSelf(task);
-                Thread thread = new Thread(task);
-                thread.setDaemon(false);
-                thread.start();
+                start(task, false);
             }
 
         } catch (Exception e) {
@@ -420,7 +428,7 @@ public class DirectorySynchronizeController extends BaseBatchFileController {
     @Override
     public void openTarget(ActionEvent event) {
         try {
-            browseURI(new File(targetPathInput.getText()).toURI());
+            browseURI(targetPathInputController.file().toURI());
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
         }
@@ -449,6 +457,10 @@ public class DirectorySynchronizeController extends BaseBatchFileController {
     protected boolean conditionalCopy(File sourcePath, File targetPath) {
         try {
             if (sourcePath == null || !sourcePath.exists() || !sourcePath.isDirectory()) {
+                return false;
+            }
+            if (targetPath.getAbsolutePath().startsWith(sourcePath.getAbsolutePath())) {
+                updateLogs(message("TargetPathShouldNotSourceSub") + ": " + targetPath);
                 return false;
             }
             if (copyAttr.isDeleteNotExisteds()
@@ -577,6 +589,10 @@ public class DirectorySynchronizeController extends BaseBatchFileController {
     protected boolean copyWholeDirectory(File sourcePath, File targetPath) {
         try {
             if (sourcePath == null || !sourcePath.exists() || !sourcePath.isDirectory()) {
+                return false;
+            }
+            if (targetPath.getAbsolutePath().startsWith(sourcePath.getAbsolutePath())) {
+                updateLogs(message("TargetPathShouldNotSourceSub") + ": " + targetPath);
                 return false;
             }
             File[] files = sourcePath.listFiles();

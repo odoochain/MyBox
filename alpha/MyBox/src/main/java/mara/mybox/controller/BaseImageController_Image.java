@@ -5,7 +5,8 @@ import javafx.scene.image.Image;
 import mara.mybox.bufferedimage.ImageInformation;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fximage.ScaleTools;
-import mara.mybox.fxml.NodeStyleTools;
+import mara.mybox.fxml.SingletonTask;
+import mara.mybox.fxml.style.NodeStyleTools;
 import mara.mybox.imagefile.ImageFileReaders;
 import mara.mybox.value.Fxmls;
 import static mara.mybox.value.Languages.message;
@@ -57,45 +58,42 @@ public abstract class BaseImageController_Image extends BaseImageController_Mous
             if (loadTask != null && !loadTask.isQuit()) {
                 return;
             }
-            loadTask = new SingletonTask<Void>() {
-                private ImageInformation targetInfo;
+            loadTask = new SingletonTask<Void>(this) {
+                private ImageInformation loadedInfo;
 
                 @Override
                 protected boolean handle() {
-                    targetInfo = null;
-                    Object ret = ImageFileReaders.readFrame(file, onlyInformation, index, width, imageInformation);
-                    if (ret == null) {
-                        return false;
-                    } else if (ret instanceof ImageInformation) {
-                        targetInfo = (ImageInformation) ret;
-                        return targetInfo != null;
-                    } else if (ret instanceof Exception) {
-                        error = ((Exception) ret).toString();
-                        return false;
-                    } else {
+                    loadedInfo = new ImageInformation(file);
+                    loadedInfo.setIndex(index);
+                    loadedInfo.setRequiredWidth(width);
+                    loadedInfo.setTask(loadTask);
+                    loadedInfo = ImageFileReaders.makeInfo(loadedInfo, onlyInformation);
+                    if (loadedInfo == null) {
                         return false;
                     }
+                    error = loadedInfo.getError();
+                    return true;
                 }
 
                 @Override
                 protected void whenSucceeded() {
                     recordFileOpened(file);
-                    if (targetInfo.isNeedSample()) {
-                        askSample(targetInfo);
+                    if (loadedInfo.isNeedSample()) {
+                        askSample(loadedInfo);
                     } else {
                         sourceFile = file;
-                        imageInformation = targetInfo;
-                        image = targetInfo.getThumbnail();
+                        imageInformation = loadedInfo;
+                        image = loadedInfo.getThumbnail();
                         afterInfoLoaded();
                         afterImageLoaded();
+                    }
+                    if (error != null && !error.isBlank()) {
+                        popError(error);
                     }
                 }
 
             };
-            handling(loadTask);
-            Thread thread = new Thread(loadTask);
-            thread.setDaemon(false);
-            thread.start();
+            start(loadTask);
         }
     }
 
@@ -104,46 +102,81 @@ public abstract class BaseImageController_Image extends BaseImageController_Mous
         controller.setParameters((BaseImageController) this, imageInfo);
     }
 
-    public void loadImage(File sourceFile, ImageInformation imageInformation) {
-        if (imageInformation == null) {
-            loadImageFile(sourceFile);
+    public void loadImage(File file, ImageInformation info) {
+        if (info == null) {
+            loadImageFile(file);
             return;
         }
-        boolean exist = this.sourceFile != null || image != null;
-        this.sourceFile = sourceFile;
-        this.imageInformation = imageInformation;
+        boolean exist = (info.getRegion() == null) && (sourceFile != null || image != null);
         synchronized (this) {
             if (loadTask != null && !loadTask.isQuit()) {
                 return;
             }
-            loadTask = new SingletonTask<Void>() {
+            loadTask = new SingletonTask<Void>(this) {
+
+                private Image thumbLoaded;
 
                 @Override
                 protected boolean handle() {
-                    image = imageInformation.loadThumbnail(loadWidth);
-                    return image != null;
+                    thumbLoaded = info.loadThumbnail(loadWidth);
+                    return thumbLoaded != null;
                 }
 
                 @Override
                 protected void whenSucceeded() {
+                    image = thumbLoaded;
+                    sourceFile = file;
+                    imageInformation = info;
                     afterImageLoaded();
                     setImageChanged(exist);
                 }
 
             };
-            loadingController = handling(loadTask);
-            Thread thread = new Thread(loadTask);
-            thread.setDaemon(false);
-            thread.start();
+            loadingController = start(loadTask);
         }
     }
 
-    public void loadImageInfo(ImageInformation imageInformation) {
-        if (imageInformation == null) {
+    public void loadImageInfo(ImageInformation info) {
+        if (info == null) {
             loadImageFile(sourceFile);
             return;
         }
-        loadImage(imageInformation.getFile(), imageInformation);
+        if (info.getRegion() != null) {
+            loadRegion(info);
+            return;
+        }
+        loadImage(info.getFile(), info);
+    }
+
+    public void loadRegion(ImageInformation info) {
+        if (info == null) {
+            loadImageFile(sourceFile);
+            return;
+        }
+        if (info.getRegion() == null) {
+            loadImageInfo(info);
+            return;
+        }
+        synchronized (this) {
+            if (loadTask != null && !loadTask.isQuit()) {
+                return;
+            }
+            loadTask = new SingletonTask<Void>(this) {
+
+                @Override
+                protected boolean handle() {
+                    image = info.loadThumbnail(loadWidth);
+                    return image != null;
+                }
+
+                @Override
+                protected void whenSucceeded() {
+                    loadImage(image);
+                }
+
+            };
+            loadingController = start(loadTask);
+        }
     }
 
     public void loadImage(Image inImage) {
@@ -151,10 +184,10 @@ public abstract class BaseImageController_Image extends BaseImageController_Mous
         imageInformation = null;
         image = inImage;
         afterImageLoaded();
-        setImageChanged(true);
     }
 
-    public void loadImage(File sourceFile, ImageInformation imageInformation, Image image, boolean changed) {
+    public void loadImage(File sourceFile, ImageInformation imageInformation,
+            Image image, boolean changed) {
         this.sourceFile = sourceFile;
         this.imageInformation = imageInformation;
         this.image = image;
@@ -168,7 +201,6 @@ public abstract class BaseImageController_Image extends BaseImageController_Mous
         image = ScaleTools.scaleImage(inImage, maxWidth);
         loadWidth = maxWidth;
         afterImageLoaded();
-        setImageChanged(true);
     }
 
     public void loadFrame(int index) {
@@ -252,6 +284,7 @@ public abstract class BaseImageController_Image extends BaseImageController_Mous
             checkPickingColor();
             checkSelect();
 
+            notifyLoad();
             return true;
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
@@ -274,6 +307,7 @@ public abstract class BaseImageController_Image extends BaseImageController_Mous
     public void updateImage(Image image) {
         try {
             imageView.setImage(image);
+            refinePane();
 //            fitSize();
             drawMaskControls();
             setImageChanged(true);
@@ -282,10 +316,16 @@ public abstract class BaseImageController_Image extends BaseImageController_Mous
         }
     }
 
+    protected void setLoadWidth(int width) {
+        loadWidth = width;
+        setLoadWidth();
+    }
+
     protected void setLoadWidth() {
         if (isSettingValues) {
             return;
         }
+        UserConfig.setInt(baseName + "LoadWidth", loadWidth);
         if (imageFile() != null) {
             loadImageFile(imageFile(), loadWidth);
         } else if (imageView.getImage() != null) {

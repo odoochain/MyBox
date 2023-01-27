@@ -4,11 +4,10 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
-import mara.mybox.dev.MyBoxLog;
 import mara.mybox.bufferedimage.ImageAttributes;
+import mara.mybox.dev.MyBoxLog;
 import mara.mybox.imagefile.ImageFileReaders;
 import mara.mybox.imagefile.ImageFileWriters;
-import mara.mybox.value.AppVariables;
 import mara.mybox.value.Languages;
 
 /**
@@ -35,7 +34,9 @@ public abstract class BaseImageManufactureBatchController extends BaseBatchImage
         if (formatController != null) {
             formatController.setParameters(this, false);
         }
-        browseButton.setDisable(true);
+        if (browseButton != null) {
+            browseButton.setDisable(true);
+        }
     }
 
     @Override
@@ -50,7 +51,9 @@ public abstract class BaseImageManufactureBatchController extends BaseBatchImage
     @Override
     public String handleFile(File srcFile, File targetPath) {
         try {
-            browseButton.setDisable(targetFiles == null || targetFiles.isEmpty());
+            if (browseButton != null) {
+                browseButton.setDisable(targetFiles == null || targetFiles.isEmpty());
+            }
 
             File target = makeTargetFile(srcFile, targetPath);
             if (target == null) {
@@ -68,7 +71,9 @@ public abstract class BaseImageManufactureBatchController extends BaseBatchImage
             ImageFileWriters.writeImageFile(targetImage, attributes, target.getAbsolutePath());
 
             targetFileGenerated(target);
-            browseButton.setDisable(false);
+            if (browseButton != null) {
+                browseButton.setDisable(false);
+            }
             return Languages.message("Successful");
         } catch (Exception e) {
             MyBoxLog.error(e.toString());

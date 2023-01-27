@@ -18,11 +18,11 @@ import javafx.scene.SnapshotParameters;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.image.Image;
-import javafx.scene.image.WritableImage;
 import javafx.scene.paint.Color;
 import javafx.stage.Screen;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fximage.CropTools;
+import mara.mybox.fxml.NodeTools;
 import mara.mybox.fxml.ValidationTools;
 import mara.mybox.imagefile.ImageFileWriters;
 import mara.mybox.tools.TmpFileTools;
@@ -34,7 +34,7 @@ import mara.mybox.value.UserConfig;
  * @CreateDate 2020-10-20
  * @License Apache License Version 2.0
  */
-public class HtmlSnapController extends BaseWebViewController {
+public class HtmlSnapController extends WebAddressController {
 
     protected int delay, orginalStageWidth, orginalStageHeight, orginalStageX, orginalStageY;
     protected int lastHtmlLen, lastCodesLen;
@@ -72,7 +72,7 @@ public class HtmlSnapController extends BaseWebViewController {
         try {
             super.initControls();
 
-            delay = UserConfig.getInt(baseName + "Delay", 2000);
+            delay = UserConfig.getInt(baseName + "Delay", 2);
             if (delay <= 0) {
                 delay = 2000;
             }
@@ -150,13 +150,8 @@ public class HtmlSnapController extends BaseWebViewController {
                     Platform.runLater(() -> {
                         try {
                             newHeight = (Integer) webEngine.executeScript("document.body.scrollHeight");
-                            loadingController.setInfo(message("CurrentPageHeight") + ": " + newHeight);
-                            if (newHeight == lastHeight) {
-                                loadingController.setInfo(message("ExpandingPage"));
-                                startSnap();
-                            } else {
-                                webEngine.executeScript("window.scrollTo(0," + newHeight + ");");
-                            }
+                            loadingController.setInfo(message("Height") + ": " + newHeight);
+                            startSnap();
 
                         } catch (Exception e) {
                             MyBoxLog.error(e.toString());
@@ -180,13 +175,14 @@ public class HtmlSnapController extends BaseWebViewController {
             }
             webEngine.executeScript("window.scrollTo(0,0 );");
             snapTotalHeight = (Integer) webEngine.executeScript("document.body.scrollHeight");
-            snapStep = (Integer) webEngine.executeScript("document.documentElement.clientHeight < document.body.clientHeight ? document.documentElement.clientHeight : document.body.clientHeight");
+            snapStep = (Integer) webEngine.executeScript("document.documentElement.clientHeight < document.body.clientHeight ? "
+                    + "document.documentElement.clientHeight : document.body.clientHeight");
             snapHeight = 0;
-            webViewLabel.setText(message("SnapingImage..."));
+            setWebViewLabel(message("SnapingImage..."));
 
             // http://news.kynosarges.org/2017/02/01/javafx-snapshot-scaling/
             final Bounds bounds = webView.getLayoutBounds();
-            snapScale = dpi / Screen.getPrimary().getDpi();
+            snapScale = NodeTools.dpiScale(dpi);
             snapScale = snapScale > 1 ? snapScale : 1;
             snapImageWidth = (int) Math.round(bounds.getWidth() * snapScale);
             snapImageHeight = (int) Math.round(bounds.getHeight() * snapScale);
@@ -222,8 +218,7 @@ public class HtmlSnapController extends BaseWebViewController {
             if (isCanceled()) {
                 return;
             }
-            WritableImage snapshot = new WritableImage(snapImageWidth, snapImageHeight);
-            snapshot = webView.snapshot(snapParameters, snapshot);
+            Image snapshot = webView.snapshot(snapParameters, null);
             Image cropped;
             if (snapTotalHeight < snapHeight + snapStep) { // last snap
                 cropped = CropTools.cropOutsideFx(snapshot, 0,
@@ -267,11 +262,7 @@ public class HtmlSnapController extends BaseWebViewController {
                 if (isCanceled()) {
                     return;
                 }
-                if (snaps != null && !snaps.isEmpty()) {
-                    ImagesEditorController.open(snaps);
-                }
                 stopSnap();
-
             }
 
         } catch (Exception e) {
@@ -283,7 +274,7 @@ public class HtmlSnapController extends BaseWebViewController {
     }
 
     protected boolean isCanceled() {
-        if (loadingController == null || loadingController.isIsCanceled()) {
+        if (loadingController == null || loadingController.canceled()) {
             stopSnap();
             return true;
         } else {
@@ -292,22 +283,34 @@ public class HtmlSnapController extends BaseWebViewController {
     }
 
     protected void stopSnap() {
-        if (timer != null) {
-            timer.cancel();
-            timer = null;
-        }
-        if (loadingController != null) {
-            loadingController.closeStage();
-            loadingController = null;
-        }
-        snaps = null;
-        webEngine.getLoadWorker().cancel();
-        webEngine.executeScript("window.scrollTo(0,0 );");
-        webViewLabel.setText("");
-        myStage.setX(orginalStageX);
-        myStage.setY(orginalStageY);
-        myStage.setWidth(orginalStageWidth);
-        myStage.setHeight(orginalStageHeight);
+        Platform.runLater(() -> {
+            try {
+                if (timer != null) {
+                    timer.cancel();
+                    timer = null;
+                }
+                if (loadingController != null) {
+                    loadingController.closeStage();
+                    loadingController = null;
+                }
+                if (snaps != null && !snaps.isEmpty()) {
+                    ImagesEditorController.open(snaps);
+                }
+                if (webEngine != null) {
+                    webEngine.getLoadWorker().cancel();
+                    webEngine.executeScript("window.scrollTo(0,0 );");
+                    setWebViewLabel("");
+                }
+                if (getMyStage() != null) {
+                    myStage.setX(orginalStageX);
+                    myStage.setY(orginalStageY);
+                    myStage.setWidth(orginalStageWidth);
+                    myStage.setHeight(orginalStageHeight);
+                }
+            } catch (Exception e) {
+                MyBoxLog.error(e.toString());
+            }
+        });
     }
 
     @Override

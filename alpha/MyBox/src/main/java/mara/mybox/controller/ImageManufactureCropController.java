@@ -13,6 +13,7 @@ import mara.mybox.controller.ImageManufactureController_Image.ImageOperation;
 import mara.mybox.db.data.ImageClipboard;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fximage.ScopeTools;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.value.Languages;
 import mara.mybox.value.UserConfig;
 
@@ -37,6 +38,8 @@ public class ImageManufactureCropController extends ImageManufactureOperationCon
     @Override
     public void initPane() {
         try {
+            super.initPane();
+
             colorSetController.init(this, baseName + "CropColor");
 
             clipboardCheck.setSelected(UserConfig.getBoolean(baseName + "CropPutClipboard", false));
@@ -65,8 +68,6 @@ public class ImageManufactureCropController extends ImageManufactureOperationCon
 
             clipMarginsCheck.disableProperty().bind(clipboardCheck.selectedProperty().not());
 
-            okButton.disableProperty().bind(imageController.cropButton.disableProperty());
-
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
         }
@@ -77,18 +78,16 @@ public class ImageManufactureCropController extends ImageManufactureOperationCon
         imageController.showRightPane();
         imageController.resetImagePane();
         imageController.scopeTab();
-        if (scopeController.scope == null
-                || scopeController.scope.getScopeType() == ImageScope.ScopeType.All
+        if (scopeController.scopeWhole()
                 || scopeController.scope.getScopeType() == ImageScope.ScopeType.Operate) {
-            scopeController.scopeRectangleRadio.fire();
+            scopeController.scopeRectangleRadio.setSelected(true);
         }
     }
 
     @FXML
     @Override
     public void okAction() {
-        if (scopeController.scope == null
-                || scopeController.scope.getScopeType() == ImageScope.ScopeType.All
+        if (scopeController.scopeWhole()
                 || scopeController.scope.getScopeType() == ImageScope.ScopeType.Operate) {
             popError(Languages.message("InvalidScope"));
             return;
@@ -97,7 +96,7 @@ public class ImageManufactureCropController extends ImageManufactureOperationCon
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 private Image newImage, cuttedClip;
 
@@ -136,7 +135,7 @@ public class ImageManufactureCropController extends ImageManufactureOperationCon
                 protected void whenSucceeded() {
                     imageController.popSuccessful();
                     if (excludeRadio.isSelected() && imageMarginsCheck.isSelected()) {
-                        scopeController.scopeAllRadio.fire();
+                        scopeController.scopeAllRadio.setSelected(true);
                     }
                     imageController.updateImage(ImageOperation.Crop, newImage, cost);
                     if (cuttedClip != null) {
@@ -147,11 +146,7 @@ public class ImageManufactureCropController extends ImageManufactureOperationCon
                     }
                 }
             };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
     }
 

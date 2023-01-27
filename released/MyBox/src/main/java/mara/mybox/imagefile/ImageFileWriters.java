@@ -72,7 +72,7 @@ public class ImageFileWriters {
 
     public static boolean writeImageFile(BufferedImage image, String targetFile) {
         try {
-            return writeImageFile(image, FileNameTools.getFileSuffix(targetFile), targetFile);
+            return writeImageFile(image, FileNameTools.suffix(targetFile), targetFile);
         } catch (Exception e) {
             MyBoxLog.debug(e.toString());
             return false;
@@ -85,7 +85,7 @@ public class ImageFileWriters {
         }
         try {
             if (format == null || !FileExtensions.SupportedImages.contains(format)) {
-                format = FileNameTools.getFileSuffix(targetFile);
+                format = FileNameTools.suffix(targetFile);
             }
             format = format.toLowerCase();
             ImageAttributes attributes = new ImageAttributes(image, format);
@@ -95,7 +95,7 @@ public class ImageFileWriters {
                 case "jpeg 2000":
                 case "jp2":
                 case "jpm":
-                    return ImageIO.write(image, "JPEG2000", new File(targetFile));
+                    return ImageIO.write(AlphaTools.removeAlpha(image), "JPEG2000", new File(targetFile));
                 case "wbmp":
                     image = ImageBinary.byteBinary(image);
                     break;
@@ -144,19 +144,19 @@ public class ImageFileWriters {
     }
 
     // Not convert color space
-    public static boolean writeImageFile(BufferedImage image, ImageAttributes attributes, String targetFile) {
-        if (image == null || targetFile == null) {
+    public static boolean writeImageFile(BufferedImage srcImage, ImageAttributes attributes, String targetFile) {
+        if (srcImage == null || targetFile == null) {
             return false;
         }
         if (attributes == null) {
-            return writeImageFile(image, targetFile);
+            return writeImageFile(srcImage, targetFile);
         }
         try {
             String targetFormat = attributes.getImageFormat().toLowerCase();
             if ("ico".equals(targetFormat) || "icon".equals(targetFormat)) {
-                return writeIcon(image, attributes.getWidth(), new File(targetFile));
+                return writeIcon(srcImage, attributes.getWidth(), new File(targetFile));
             }
-            BufferedImage targetImage = AlphaTools.checkAlpha(image, targetFormat);
+            BufferedImage targetImage = AlphaTools.checkAlpha(srcImage, targetFormat);
             ImageWriter writer = getWriter(targetFormat);
             ImageWriteParam param = getWriterParam(attributes, writer);
             IIOMetadata metaData = ImageFileWriters.getWriterMetaData(targetFormat, attributes, targetImage, writer, param);
@@ -211,7 +211,7 @@ public class ImageFileWriters {
             String targetFormat;
             ImageAttributes targetAttributes = inAttributes;
             if (targetAttributes == null) {
-                targetFormat = FileNameTools.getFileSuffix(targetFile.getName()).toLowerCase();
+                targetFormat = FileNameTools.suffix(targetFile.getName()).toLowerCase();
                 targetAttributes = attributes(frameImage, targetFormat);
             } else {
                 targetFormat = inAttributes.getImageFormat().toLowerCase();
@@ -229,7 +229,7 @@ public class ImageFileWriters {
             }
             File tmpFile = TmpFileTools.getTempFile();
             try ( ImageInputStream iis = ImageIO.createImageInputStream(new BufferedInputStream(new FileInputStream(sourcefile)))) {
-                ImageReader reader = ImageFileReaders.getReader(iis, FileNameTools.getFileSuffix(sourcefile));
+                ImageReader reader = ImageFileReaders.getReader(iis, FileNameTools.suffix(sourcefile.getName()));
                 if (reader == null) {
                     return "InvalidData";
                 }
@@ -244,6 +244,7 @@ public class ImageFileWriters {
                     writer.setOutput(out);
                     ImageWriteParam param = getWriterParam(targetAttributes, writer);
                     writer.prepareWriteSequence(null);
+                    ImageInformation info = new ImageInformation(sourcefile);
                     while (readIndex < size) {
                         BufferedImage bufferedImage;
                         if (readIndex == frameIndex) {
@@ -255,7 +256,7 @@ public class ImageFileWriters {
                                 if (e.toString().contains("java.lang.IndexOutOfBoundsException")) {
                                     break;
                                 }
-                                bufferedImage = ImageFileReaders.readBrokenImage(e, sourcefile.getAbsolutePath(), readIndex, null, -1);
+                                bufferedImage = ImageFileReaders.readBrokenImage(e, info.setIndex(readIndex));
                             }
                         }
                         if (bufferedImage == null) {

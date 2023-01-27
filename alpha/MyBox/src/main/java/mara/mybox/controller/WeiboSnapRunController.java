@@ -34,7 +34,6 @@ import javafx.scene.SnapshotParameters;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonType;
 import javafx.scene.image.Image;
-import javafx.scene.image.WritableImage;
 import javafx.scene.layout.Region;
 import javafx.scene.paint.Color;
 import javafx.scene.web.WebEngine;
@@ -43,11 +42,12 @@ import javafx.scene.web.WebEvent;
 import javafx.scene.web.WebView;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
-import mara.mybox.data.BaseTask;
 import mara.mybox.data.WeiboSnapParameters;
 import mara.mybox.db.table.TableStringValues;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fximage.CropTools;
+import mara.mybox.fxml.BaseTask;
+import mara.mybox.fxml.NodeTools;
 import mara.mybox.fxml.PopTools;
 import mara.mybox.fxml.SoundTools;
 import mara.mybox.fxml.WindowTools;
@@ -60,7 +60,6 @@ import mara.mybox.tools.FloatTools;
 import mara.mybox.tools.PdfTools;
 import mara.mybox.value.AppValues;
 import mara.mybox.value.AppVariables;
-import static mara.mybox.value.AppVariables.HttpUserAgent;
 import mara.mybox.value.Fxmls;
 import mara.mybox.value.Languages;
 import static mara.mybox.value.Languages.message;
@@ -249,12 +248,9 @@ public class WeiboSnapRunController extends BaseController {
     public void initWebView() {
         try {
             webEngine = webView.getEngine();
-            if (HttpUserAgent == null) {
-                HttpUserAgent = webEngine.getUserAgent();
-            }
-
             webView.setCache(false);
             webEngine.setJavaScriptEnabled(true);
+            webEngine.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/610.2 (KHTML, like Gecko) JavaFX/17 Safari/610.2");
 
             webEngine.setOnAlert(new EventHandler<WebEvent<String>>() {
                 @Override
@@ -336,7 +332,7 @@ public class WeiboSnapRunController extends BaseController {
             setValues(parameters);
 //            MyBoxLog.debug(parameters.getWebAddress());
             if (parameters.getWebAddress() == null || parameters.getWebAddress().isEmpty() || parameters.getTargetPath() == null) {
-                PopTools.alertError(message("InvalidParameters"));
+                PopTools.alertError(this, message("InvalidParameters"));
                 closeStage();
                 return;
             }
@@ -487,7 +483,7 @@ public class WeiboSnapRunController extends BaseController {
                                             if (posfirst2 > 0) {
                                                 try {
                                                     s = s.substring(0, posfirst2);
-                                                    lastMonth = DateTools.parseMonth(s.substring(0, 4) + "-" + s.substring(4, 6));
+                                                    lastMonth = DateTools.encodeDate(s.substring(0, 4) + "-" + s.substring(4, 6));
 //                                                    MyBoxLog.debug(DateTools.datetimeToString(lastMonth));
                                                     int posLast1 = contents.lastIndexOf("&stat_date=");
                                                     if (posLast1 > 0) {
@@ -499,7 +495,7 @@ public class WeiboSnapRunController extends BaseController {
                                                         if (posLast2 > 0) {
                                                             try {
                                                                 s = s.substring(0, posLast2);
-                                                                firstMonth = DateTools.parseMonth(s.substring(0, 4) + "-" + s.substring(4, 6));
+                                                                firstMonth = DateTools.encodeDate(s.substring(0, 4) + "-" + s.substring(4, 6));
 //                                                                MyBoxLog.debug(DateTools.datetimeToString(firstMonth));
                                                                 loadCompleted = true;
                                                             } catch (Exception e) {
@@ -573,7 +569,6 @@ public class WeiboSnapRunController extends BaseController {
                 pageController.start(parameters);
                 closeStage();
             } else {
-
                 Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
                 alert.setTitle(baseTitle);
                 alert.setContentText(errorString);
@@ -587,6 +582,9 @@ public class WeiboSnapRunController extends BaseController {
                 stage.toFront();
 
                 Optional<ButtonType> result = alert.showAndWait();
+                if (result == null || !result.isPresent()) {
+                    return;
+                }
                 if (result.get() == buttonRetry) {
                     parameters.setRetried(mainRetried + 1);
                     WeiboSnapPostsController pageController = (WeiboSnapPostsController) openStage(Fxmls.WeiboSnapPostsFxml);
@@ -595,8 +593,8 @@ public class WeiboSnapRunController extends BaseController {
                 } else if (result.get() == buttonExample) {
                     WeiboSnapPostsController pageController = (WeiboSnapPostsController) openStage(Fxmls.WeiboSnapPostsFxml);
                     parameters.setWebAddress(WeiboSnapController.exmapleAddress);
-                    parameters.setStartMonth(DateTools.parseMonth("2014-09"));
-                    parameters.setEndMonth(DateTools.parseMonth("2014-10"));
+                    parameters.setStartMonth(DateTools.encodeDate("2014-09"));
+                    parameters.setEndMonth(DateTools.encodeDate("2014-10"));
                     pageController.start(parameters);
                     closeStage();
                 } else {
@@ -800,8 +798,8 @@ public class WeiboSnapRunController extends BaseController {
 //            int availableProcessors = r.availableProcessors();
 
         OperatingSystemMXBean osmxb = (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
-        long physicalFree = osmxb.getFreePhysicalMemorySize() / mb;
-        long physicalTotal = osmxb.getTotalPhysicalMemorySize() / mb;
+        long physicalFree = osmxb.getFreeMemorySize() / mb;
+        long physicalTotal = osmxb.getTotalMemorySize() / mb;
         long physicalUse = physicalTotal - physicalFree;
 
         String memInfo = "MyBox"
@@ -1129,7 +1127,7 @@ public class WeiboSnapRunController extends BaseController {
                         if (fname.isEmpty()) {
                             continue;
                         }
-                        suffix = FileNameTools.getFileSuffix(pix[i]);
+                        suffix = FileNameTools.suffix(pix[i]);
                         if (suffix.isEmpty()) {
                             suffix = "jpg";
                             fname += "." + suffix;
@@ -1239,7 +1237,7 @@ public class WeiboSnapRunController extends BaseController {
 
             // http://news.kynosarges.org/2017/02/01/javafx-snapshot-scaling/
             final Bounds bounds = webView.getLayoutBounds();
-            snapScale = dpi / Screen.getPrimary().getDpi();
+            snapScale = NodeTools.dpiScale(dpi);
             snapScale = snapScale > 1 ? snapScale : 1;
             snapImageWidth = (int) Math.round(bounds.getWidth() * snapScale);
             snapImageHeight = (int) Math.round(bounds.getHeight() * snapScale);
@@ -1279,8 +1277,7 @@ public class WeiboSnapRunController extends BaseController {
             showMemInfo();
             showDynamicInfo();
             snapStartTime = new Date().getTime();
-            WritableImage snapshot = new WritableImage(snapImageWidth, snapImageHeight);
-            snapshot = webView.snapshot(snapParameters, snapshot);
+            Image snapshot = webView.snapshot(snapParameters, null);
             loadingController.addLine(Languages.message("CurrentSnapshotNumber") + ": " + imageFiles.size());
             try {
                 // Save as png images temporarily. Quicker than jpg since no compression.

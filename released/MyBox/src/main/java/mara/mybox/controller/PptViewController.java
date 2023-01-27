@@ -1,26 +1,29 @@
 package mara.mybox.controller;
 
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.text.MessageFormat;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import javafx.beans.value.ChangeListener;
+import javafx.beans.value.ObservableValue;
 import javafx.embed.swing.SwingFXUtils;
 import javafx.fxml.FXML;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.SplitPane;
+import javafx.scene.control.TabPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
-import javafx.stage.Modality;
+import mara.mybox.bufferedimage.ScaleTools;
 import mara.mybox.db.data.VisitHistory;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.bufferedimage.BufferedImageTools;
-import mara.mybox.bufferedimage.ScaleTools;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.value.AppVariables;
 import static mara.mybox.value.Languages.message;
-import mara.mybox.value.Languages;
+import mara.mybox.value.UserConfig;
 import org.apache.poi.sl.extractor.SlideShowExtractor;
 import org.apache.poi.sl.usermodel.Slide;
 import org.apache.poi.sl.usermodel.SlideShow;
@@ -33,18 +36,73 @@ import org.apache.poi.sl.usermodel.SlideShowFactory;
  */
 public class PptViewController extends BaseFileImagesViewController {
 
+    protected ChangeListener<Number> textsDividerListener;
+
     @FXML
-    protected TextArea notesArea, slideArea;
+    protected TextArea slideArea, notesArea, masterArea, commentsArea;
     @FXML
-    protected Label notesLabel, slideLabel;
+    protected Label slideLabel, notesLabel, masterLabel, commentsLabel;
+    @FXML
+    protected CheckBox moreCheck;
+    @FXML
+    protected SplitPane textsPane;
+    @FXML
+    protected TabPane morePane;
 
     public PptViewController() {
-        baseTitle = Languages.message("PptView");
+        baseTitle = message("PptView");
     }
 
     @Override
     public void setFileType() {
         setFileType(VisitHistory.FileType.PPTS, VisitHistory.FileType.Image);
+    }
+
+    @Override
+    public void initControls() {
+        try {
+            super.initControls();
+
+            moreCheck.setSelected(UserConfig.getBoolean(baseName + "DisplayMore", true));
+            moreCheck.selectedProperty().addListener(new ChangeListener<Boolean>() {
+                @Override
+                public void changed(ObservableValue ov, Boolean oldValue, Boolean newValue) {
+                    UserConfig.setBoolean(baseName + "DisplayMore", moreCheck.isSelected());
+                    checkMore();
+                }
+            });
+
+            textsDividerListener = (ObservableValue<? extends Number> v, Number ov, Number nv) -> {
+                UserConfig.setString(baseName + "TextsPanePosition", nv.doubleValue() + "");
+            };
+
+            checkMore();
+
+        } catch (Exception e) {
+            MyBoxLog.error(e.toString());
+        }
+    }
+
+    public void checkMore() {
+        if (moreCheck.isSelected()) {
+            if (!textsPane.getItems().contains(morePane)) {
+                textsPane.getItems().add(morePane);
+            }
+            double defaultv = 0.5;
+            try {
+                String v = UserConfig.getString(baseName + "TextsPanePosition", defaultv + "");
+                textsPane.setDividerPosition(0, Double.parseDouble(v));
+            } catch (Exception e) {
+                textsPane.setDividerPosition(0, defaultv);
+            }
+            textsPane.getDividers().get(0).positionProperty().removeListener(textsDividerListener);
+            textsPane.getDividers().get(0).positionProperty().addListener(textsDividerListener);
+        } else {
+            if (textsPane.getItems().contains(morePane)) {
+                textsPane.getDividers().get(0).positionProperty().removeListener(textsDividerListener);
+                textsPane.getItems().remove(morePane);
+            }
+        }
     }
 
     @Override
@@ -58,6 +116,7 @@ public class PptViewController extends BaseFileImagesViewController {
     public void loadFile(File file, int page) {
         try {
             initPage(file, page);
+
             if (file == null) {
                 return;
             }
@@ -75,7 +134,7 @@ public class PptViewController extends BaseFileImagesViewController {
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
                 @Override
                 protected boolean handle() {
                     setTotalPages(0);
@@ -106,11 +165,7 @@ public class PptViewController extends BaseFileImagesViewController {
                 }
 
             };
-            handling(task, Modality.WINDOW_MODAL, Languages.message("LoadingFileInfo"));
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task, message("LoadingFileInfo"));
         }
     }
 
@@ -120,6 +175,10 @@ public class PptViewController extends BaseFileImagesViewController {
         notesLabel.setText("");
         slideArea.clear();
         slideLabel.setText("");
+        masterArea.clear();
+        masterLabel.setText("");
+        commentsArea.clear();
+        commentsLabel.setText("");
         initCurrentPage();
         if (sourceFile == null) {
             return;
@@ -128,8 +187,8 @@ public class PptViewController extends BaseFileImagesViewController {
             if (task != null && !task.isQuit()) {
                 task.cancel();
             }
-            task = new SingletonTask<Void>() {
-                private String slideTexts, notes;
+            task = new SingletonTask<Void>(this) {
+                private String slideTexts, notes, master, comments;
 
                 @Override
                 protected boolean handle() {
@@ -141,7 +200,11 @@ public class PptViewController extends BaseFileImagesViewController {
                         int width = ppt.getPageSize().width;
                         int height = ppt.getPageSize().height;
                         BufferedImage slideImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-                        slide.draw(slideImage.createGraphics());
+                        Graphics2D g = slideImage.createGraphics();
+                        if (AppVariables.imageRenderHints != null) {
+                            g.addRenderingHints(AppVariables.imageRenderHints);
+                        }
+                        slide.draw(g);
                         if (dpi != 72) {
                             slideImage = ScaleTools.scaleImageByScale(slideImage, dpi / 72f);
                         }
@@ -156,6 +219,12 @@ public class PptViewController extends BaseFileImagesViewController {
                         extractor.setSlidesByDefault(false);
                         extractor.setNotesByDefault(true);
                         notes = extractor.getText(slide);
+                        extractor.setNotesByDefault(false);
+                        extractor.setMasterByDefault(true);
+                        master = extractor.getText(slide);
+                        extractor.setMasterByDefault(false);
+                        extractor.setCommentsByDefault(true);
+                        comments = extractor.getText(slide);
                     } catch (Exception e) {
                         error = e.toString();
                         return false;
@@ -167,49 +236,63 @@ public class PptViewController extends BaseFileImagesViewController {
                 protected void whenSucceeded() {
                     setImage(image, percent);
                     notesArea.setText(notes);
-                    notesLabel.setText(Languages.message("Count") + ": " + notes.length());
+                    notesLabel.setText(message("CharactersNumber") + ": " + notes.length());
                     slideArea.setText(slideTexts);
-                    slideLabel.setText(Languages.message("Count") + ": " + slideTexts.length());
+                    slideLabel.setText(message("CharactersNumber") + ": " + slideTexts.length());
+                    masterArea.setText(master);
+                    masterLabel.setText(message("CharactersNumber") + ": " + master.length());
+                    commentsArea.setText(comments);
+                    commentsLabel.setText(message("CharactersNumber") + ": " + comments.length());
                 }
             };
-            handling(task, Modality.WINDOW_MODAL, MessageFormat.format(Languages.message("LoadingPageNumber"), (frameIndex + 1) + ""));
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task, MessageFormat.format(message("LoadingPageNumber"), (frameIndex + 1) + ""));
         }
     }
 
     @Override
-    protected Map<Integer, Image> readThumbs(int pos, int end) {
-        Map<Integer, Image> images = null;
+    protected boolean loadThumbs(List<Integer> missed) {
         try ( SlideShow ppt = SlideShowFactory.create(sourceFile)) {
-            images = new HashMap<>();
             List<Slide> slides = ppt.getSlides();
             int width = ppt.getPageSize().width;
             int height = ppt.getPageSize().height;
-            for (int i = pos; i < end; ++i) {
-                ImageView view = (ImageView) thumbBox.getChildren().get(2 * i);
+            for (Integer index : missed) {
+                if (thumbTask == null || thumbTask.isCancelled()) {
+                    break;
+                }
+                ImageView view = (ImageView) thumbBox.getChildren().get(2 * index);
                 if (view.getImage() != null) {
                     continue;
                 }
-                try {
-                    Slide slide = slides.get(i);
-                    BufferedImage slideImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-                    slide.draw(slideImage.createGraphics());
-                    if (slideImage.getWidth() > ThumbWidth) {
-                        slideImage = ScaleTools.scaleImageWidthKeep(slideImage, ThumbWidth);
-                    }
-                    Image thumb = SwingFXUtils.toFXImage(slideImage, null);
-                    images.put(i, thumb);
-                } catch (Exception e) {
-                    MyBoxLog.debug(e.toString());
+                Slide slide = slides.get(index);
+                BufferedImage slideImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+                Graphics2D g = slideImage.createGraphics();
+                if (AppVariables.imageRenderHints != null) {
+                    g.addRenderingHints(AppVariables.imageRenderHints);
                 }
+                slide.draw(g);
+                if (slideImage.getWidth() > ThumbWidth) {
+                    slideImage = ScaleTools.scaleImageWidthKeep(slideImage, ThumbWidth);
+                }
+                Image thumb = SwingFXUtils.toFXImage(slideImage, null);
+                view.setImage(thumb);
+                view.setFitHeight(view.getImage().getHeight());
             }
+            ppt.close();
         } catch (Exception e) {
-            MyBoxLog.error(e);
+            thumbTask.setError(e.toString());
+            MyBoxLog.debug(e);
+            return false;
         }
-        return images;
+        return true;
+    }
+
+    @Override
+    public void cleanPane() {
+        try {
+            textsDividerListener = null;
+        } catch (Exception e) {
+        }
+        super.cleanPane();
     }
 
 }

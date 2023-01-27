@@ -32,7 +32,6 @@ import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
-import javafx.concurrent.Task;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
@@ -45,7 +44,6 @@ import javafx.scene.control.MenuItem;
 import javafx.scene.control.SelectionMode;
 import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.Tab;
-import javafx.scene.control.TabPane;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
@@ -57,18 +55,17 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import javafx.util.Duration;
-import mara.mybox.data.DownloadTask;
 import mara.mybox.data.Link;
 import mara.mybox.data.Link.FilenameType;
-import mara.mybox.data.StringTable;
-import mara.mybox.db.data.VisitHistoryTools;
+import mara.mybox.db.table.TableStringValues;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.ControllerTools;
 import mara.mybox.fxml.LocateTools;
-import mara.mybox.fxml.NodeStyleTools;
 import mara.mybox.fxml.PopTools;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.fxml.SoundTools;
 import mara.mybox.fxml.TextClipboardTools;
+import mara.mybox.fxml.style.NodeStyleTools;
+import mara.mybox.fxml.style.StyleTools;
 import mara.mybox.tools.DateTools;
 import mara.mybox.tools.FileDeleteTools;
 import mara.mybox.tools.FileNameTools;
@@ -77,7 +74,7 @@ import mara.mybox.tools.HtmlReadTools;
 import mara.mybox.tools.HtmlWriteTools;
 import mara.mybox.tools.TextFileTools;
 import mara.mybox.value.Fxmls;
-import mara.mybox.value.Languages;
+import static mara.mybox.value.Languages.message;
 import mara.mybox.value.UserConfig;
 
 /**
@@ -85,9 +82,9 @@ import mara.mybox.value.UserConfig;
  * @CreateDate 2020-10-11
  * @License Apache License Version 2.0
  */
-public class DownloadFirstLevelLinksController extends BaseController {
+public class DownloadFirstLevelLinksController extends BaseTableViewController<Link> {
 
-    protected final ObservableList<Link> linksData, downloadingData, failedData;
+    protected final ObservableList<Link> downloadingData, failedData;
     protected int maxThreadsNumber, maxLogs, maxRetries;
     protected final List<DownloadThread> downloadThreads;
     protected final List<PathThread> pathThreads;
@@ -110,15 +107,13 @@ public class DownloadFirstLevelLinksController extends BaseController {
     protected String ttf;
 
     @FXML
-    protected TabPane tabPane;
-    @FXML
     protected Tab linksTab, optionsTab, downloadingTab, failedTab, logsTab;
     @FXML
-    protected ComboBox<String> urlSelector;
+    protected TextField addressInput;
     @FXML
     protected TextField maxLogsinput, webConnectTimeoutInput, webReadTimeoutInput;
     @FXML
-    protected TableView<Link> linksTableView, downloadingTableView, failedTableView;
+    protected TableView<Link> downloadingTableView, failedTableView;
     @FXML
     protected TableColumn<Link, String> addressPathColumn, addressFileColumn,
             filenameColumn, nameColumn, titleColumn, pathColumn, fileColumn,
@@ -126,9 +121,9 @@ public class DownloadFirstLevelLinksController extends BaseController {
     @FXML
     protected TableColumn<Link, Integer> indexColumn;
     @FXML
-    protected ControlFileSelecter targetPathController;
+    protected ControlPathInput targetPathInputController;
     @FXML
-    protected Button downloadButton, equalButton, linkButton, htmlButton,
+    protected Button equalButton, linkButton, htmlButton,
             clearDownloadingButton, deleteDownloadingButton, copyDownloadingButton,
             infoDownloadingButton, viewDownloadingButton, linkDownloadingButton,
             downloadFailedButton, linkFailedButton, clearFailedButton,
@@ -152,10 +147,10 @@ public class DownloadFirstLevelLinksController extends BaseController {
     protected TextArea cssArea;
 
     public DownloadFirstLevelLinksController() {
-        baseTitle = Languages.message("DownloadFirstLevelLinks");
+        baseTitle = message("DownloadHtmls");
         TipsLabelKey = "DownloadFirstLevelLinksComments";
 
-        linksData = FXCollections.observableArrayList();
+        tableData = FXCollections.observableArrayList();
         downloadingData = FXCollections.observableArrayList();
         failedData = FXCollections.observableArrayList();
         downloadThreads = new ArrayList<>();
@@ -190,9 +185,7 @@ public class DownloadFirstLevelLinksController extends BaseController {
             textParser = Parser.builder(textOptions).build();
             textCollectingVisitor = new TextCollectingVisitor();
 
-            targetPathController.label(Languages.message("TargetPath"))
-                    .name(baseName + "TargatPath", true)
-                    .isSource(false).isDirectory(true).mustExist(false);
+            targetPathInputController.baseName(baseName).init();
         } catch (Exception e) {
             MyBoxLog.console(e.toString());
         }
@@ -215,13 +208,7 @@ public class DownloadFirstLevelLinksController extends BaseController {
 
     public void initLinksTab() {
         try {
-            List<String> urls = VisitHistoryTools.recentDownloadAddress();
-            if (urls == null || urls.isEmpty()) {
-                urlSelector.getItems().add("https://www.kunnu.com/hongloumeng/");
-            } else {
-                urlSelector.getItems().addAll(urls);
-            }
-            urlSelector.getSelectionModel().select(0);
+            addressInput.setText("https://www.cnblogs.com/Imageshop/p/10664478.html");
 
             addressPathColumn.setCellValueFactory(new PropertyValueFactory<>("addressPath"));
             addressFileColumn.setCellValueFactory(new PropertyValueFactory<>("addressFile"));
@@ -232,33 +219,33 @@ public class DownloadFirstLevelLinksController extends BaseController {
             indexColumn.setCellValueFactory(new PropertyValueFactory<>("index"));
             fileColumn.setCellValueFactory(new PropertyValueFactory<>("file"));
 
-            linksTableView.setItems(linksData);
-            linksTableView.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
-
-            linksTableView.setOnMouseClicked((MouseEvent event) -> {
-                if (event.getClickCount() > 1) {
-                    openLink();
-                }
-            });
-
             goButton.disableProperty().bind(
-                    targetPathController.fileInput.styleProperty().isEqualTo(NodeStyleTools.badStyle)
-                            .or(urlSelector.getSelectionModel().selectedItemProperty().isNull())
+                    targetPathInputController.fileInput.styleProperty().isEqualTo(UserConfig.badStyle())
+                            .or(addressInput.textProperty().isNull())
             );
-            downloadButton.disableProperty().bind(
-                    targetPathController.fileInput.styleProperty().isEqualTo(NodeStyleTools.badStyle)
-                            .or(linksTableView.getSelectionModel().selectedItemProperty().isNull())
+            startButton.disableProperty().bind(
+                    targetPathInputController.fileInput.styleProperty().isEqualTo(UserConfig.badStyle())
+                            .or(tableView.getSelectionModel().selectedItemProperty().isNull())
             );
-            copyButton.disableProperty().bind(linksTableView.getSelectionModel().selectedItemProperty().isNull());
-            equalButton.disableProperty().bind(copyButton.disableProperty());
-            viewButton.disableProperty().bind(copyButton.disableProperty());
-            infoButton.disableProperty().bind(copyButton.disableProperty());
-            linkButton.disableProperty().bind(copyButton.disableProperty());
-            htmlButton.disableProperty().bind(linksTableView.itemsProperty().isNull());
 
         } catch (Exception e) {
             MyBoxLog.console(e.toString());
         }
+    }
+
+    @Override
+    protected void checkButtons() {
+        if (isSettingValues) {
+            return;
+        }
+        super.checkButtons();
+        boolean isEmpty = tableData == null || tableData.isEmpty();
+        boolean none = isEmpty || tableView.getSelectionModel().getSelectedItem() == null;
+        copyButton.setDisable(none);
+        equalButton.setDisable(none);
+        infoButton.setDisable(none);
+        linkButton.setDisable(none);
+        htmlButton.setDisable(none);
     }
 
     public void initDownloadingTab() {
@@ -382,10 +369,10 @@ public class DownloadFirstLevelLinksController extends BaseController {
                         threadsSelector.getEditor().setStyle(null);
                         checkThreads();
                     } else {
-                        threadsSelector.getEditor().setStyle(NodeStyleTools.badStyle);
+                        threadsSelector.getEditor().setStyle(UserConfig.badStyle());
                     }
                 } catch (Exception e) {
-                    threadsSelector.getEditor().setStyle(NodeStyleTools.badStyle);
+                    threadsSelector.getEditor().setStyle(UserConfig.badStyle());
                 }
             });
             threadsSelector.getSelectionModel().select(maxThreadsNumber + "");
@@ -403,10 +390,10 @@ public class DownloadFirstLevelLinksController extends BaseController {
                         UserConfig.setInt(baseName + "MaxRetries", v);
                         retriesSelector.getEditor().setStyle(null);
                     } else {
-                        retriesSelector.getEditor().setStyle(NodeStyleTools.badStyle);
+                        retriesSelector.getEditor().setStyle(UserConfig.badStyle());
                     }
                 } catch (Exception e) {
-                    retriesSelector.getEditor().setStyle(NodeStyleTools.badStyle);
+                    retriesSelector.getEditor().setStyle(UserConfig.badStyle());
                 }
             });
             retriesSelector.getSelectionModel().select(maxRetries + "");
@@ -458,10 +445,10 @@ public class DownloadFirstLevelLinksController extends BaseController {
     public void setControlsStyle() {
         try {
             super.setControlsStyle();
-            NodeStyleTools.setTooltip(copyButton, Languages.message("CopyLink") + "\nCTRL+c");
-            NodeStyleTools.setTooltip(copyDownloadingButton, Languages.message("CopyLink"));
-            NodeStyleTools.setTooltip(linkFailedButton, Languages.message("CopyLink"));
-            NodeStyleTools.setTooltip(htmlButton, Languages.message("AddressHtml"));
+            NodeStyleTools.setTooltip(copyButton, message("CopyLink") + "\nCTRL+c");
+            NodeStyleTools.setTooltip(copyDownloadingButton, message("CopyLink"));
+            NodeStyleTools.setTooltip(linkFailedButton, message("CopyLink"));
+            NodeStyleTools.setTooltip(htmlButton, message("AddressHtml"));
             NodeStyleTools.removeTooltip(equalButton);
         } catch (Exception e) {
             MyBoxLog.debug(e.toString());
@@ -472,7 +459,7 @@ public class DownloadFirstLevelLinksController extends BaseController {
     public void afterSceneLoaded() {
         try {
             super.afterSceneLoaded();
-            if (targetPathController.file == null) {
+            if (targetPathInputController.file == null) {
                 tabPane.getSelectionModel().select(optionsTab);
             }
 
@@ -495,7 +482,7 @@ public class DownloadFirstLevelLinksController extends BaseController {
                     }
                     downloadThreads.remove(linkTask);
                 }
-                updateLogs(Languages.message("DownloadThread") + ": " + downloadThreads.size());
+                updateLogs(message("DownloadThread") + ": " + downloadThreads.size());
             } catch (Exception e) {
                 MyBoxLog.console(e.toString());
             }
@@ -505,25 +492,25 @@ public class DownloadFirstLevelLinksController extends BaseController {
     @FXML
     @Override
     public void goAction() {
-        String address = urlSelector.getEditor().getText();
+        String address = addressInput.getText();
         if (address == null) {
-            popError(Languages.message("InvalidParameters"));
+            popError(message("InvalidParameters") + ": " + message("Address"));
             return;
         }
-        VisitHistoryTools.visitURI(address);
-        File downloadPath = targetPathController.file;
+        TableStringValues.add("DownloadHtmlsHistories", address);
+        File downloadPath = targetPathInputController.file;
         if (downloadPath == null) {
-            popError(Languages.message("InvalidParameters"));
+            popError(message("InvalidParameters") + ": " + message("TargetPath"));
             tabPane.getSelectionModel().select(optionsTab);
             return;
         }
-        updateLogs(Languages.message("WebPageAddress") + ": " + address);
-        updateLogs(Languages.message("TargetPath") + ": " + downloadPath);
+        updateLogs(message("WebPageAddress") + ": " + address);
+        updateLogs(message("TargetPath") + ": " + downloadPath);
         synchronized (this) {
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
                 private String title;
 
                 @Override
@@ -551,11 +538,7 @@ public class DownloadFirstLevelLinksController extends BaseController {
                     setValues(title);
                 }
             };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
 
     }
@@ -575,13 +558,13 @@ public class DownloadFirstLevelLinksController extends BaseController {
         }
         this.subPath = subPath;
         filenameType = nameType;
-        linksData.clear();
-        File downloadPath = targetPathController.file;
+        tableData.clear();
+        File downloadPath = targetPathInputController.file;
         synchronized (this) {
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 private List<Link> links;
 
@@ -595,18 +578,18 @@ public class DownloadFirstLevelLinksController extends BaseController {
                 @Override
                 protected void whenSucceeded() {
                     if (!links.isEmpty()) {
-                        linksData.addAll(links);
-                        linksTableView.getSortOrder().clear();
-                        linksTableView.getSortOrder().addAll(addressPathColumn, indexColumn);
+                        tableData.addAll(links);
+                        tableView.getSortOrder().clear();
+                        tableView.getSortOrder().addAll(addressPathColumn, indexColumn);
 
                         for (Link link : links) {
                             if (link.getAddressPath().startsWith(addressLink.getAddressPath())) {
-                                linksTableView.getSelectionModel().select(link);
+                                tableView.getSelectionModel().select(link);
                             }
                         }
                     }
 
-                    String txt = Languages.message("Links") + ": " + linksData.size();
+                    String txt = message("Links") + ": " + tableData.size();
                     linksLabel.setText(txt);
                     updateLogs(txt);
 
@@ -620,19 +603,16 @@ public class DownloadFirstLevelLinksController extends BaseController {
 
                 }
             };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
     }
 
     @FXML
-    public void downloadAction() {
+    @Override
+    public void startAction() {
         try {
             stopped = false;
-            List<Link> selected = linksTableView.getSelectionModel().getSelectedItems();
+            List<Link> selected = tableView.getSelectionModel().getSelectedItems();
             if (selected == null || selected.isEmpty()) {
                 return;
             }
@@ -662,32 +642,6 @@ public class DownloadFirstLevelLinksController extends BaseController {
     }
 
     @FXML
-    public void clearHistories() {
-        String address = urlSelector.getValue();
-        if (address == null) {
-            popError(Languages.message("InvalidParameters"));
-            return;
-        }
-        synchronized (this) {
-            if (task != null && !task.isQuit()) {
-                return;
-            }
-            task = new SingletonTask<Void>() {
-                @Override
-                protected boolean handle() {
-//                    tableDownloadHistory.deleteAddressHistory(address);
-                    return true;
-                }
-            };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
-        }
-    }
-
-    @FXML
     public void stop() {
         stopped = true;
     }
@@ -703,38 +657,38 @@ public class DownloadFirstLevelLinksController extends BaseController {
 
             MenuItem menu;
 
-            menu = new MenuItem(Languages.message("SetSubdirectoryName"));
+            menu = new MenuItem(message("SetSubdirectoryName"));
             menu.setOnAction((ActionEvent event) -> {
                 setPath();
             });
             popMenu.getItems().add(menu);
             popMenu.getItems().add(new SeparatorMenuItem());
 
-            menu = new MenuItem(Languages.message("AddOrderBeforeFilename"));
+            menu = new MenuItem(message("AddOrderBeforeFilename"));
             menu.setOnAction((ActionEvent event) -> {
                 addOrderBeforeFilename();
             });
             popMenu.getItems().add(menu);
 
-            menu = new MenuItem(Languages.message("SetLinkNameAsFilename"));
+            menu = new MenuItem(message("SetLinkNameAsFilename"));
             menu.setOnAction((ActionEvent event) -> {
                 setLinkNameAsFilename();
             });
             popMenu.getItems().add(menu);
 
-            menu = new MenuItem(Languages.message("SetLinkTitleAsFilename"));
+            menu = new MenuItem(message("SetLinkTitleAsFilename"));
             menu.setOnAction((ActionEvent event) -> {
                 setLinkTitleAsFilename();
             });
             popMenu.getItems().add(menu);
 
-            menu = new MenuItem(Languages.message("SetLinkAddressAsFilename"));
+            menu = new MenuItem(message("SetLinkAddressAsFilename"));
             menu.setOnAction((ActionEvent event) -> {
                 setLinkAddressAsFilename();
             });
             popMenu.getItems().add(menu);
 
-            menu = new MenuItem(Languages.message("PopupClose"));
+            menu = new MenuItem(message("PopupClose"), StyleTools.getIconImage("iconCancel.png"));
             menu.setStyle("-fx-text-fill: #2e598a;");
             menu.setOnAction(new EventHandler<ActionEvent>() {
                 @Override
@@ -752,13 +706,13 @@ public class DownloadFirstLevelLinksController extends BaseController {
     }
 
     public void setPath() {
-        List<Link> selected = linksTableView.getSelectionModel().getSelectedItems();
+        List<Link> selected = tableView.getSelectionModel().getSelectedItems();
         if (selected == null || selected.isEmpty()) {
             return;
         }
         TextInputDialog dialog = new TextInputDialog("");
-        dialog.setTitle(Languages.message("DownloadLinks"));
-        dialog.setHeaderText(Languages.message("SubdirectoryName"));
+        dialog.setTitle(message("DownloadLinks"));
+        dialog.setHeaderText(message("SubdirectoryName"));
         dialog.setContentText("");
         dialog.getEditor().setPrefWidth(300);
         dialog.getEditor().setText("");
@@ -771,15 +725,15 @@ public class DownloadFirstLevelLinksController extends BaseController {
         }
         String path = result.get().trim();
         for (Link link : selected) {
-            File fullpath = new File(targetPathController.file.getAbsolutePath() + File.separator + path);
+            File fullpath = new File(targetPathInputController.file.getAbsolutePath() + File.separator + path);
             String filename = link.filename(fullpath, filenameType);
             link.setFile(filename);
         }
-        linksTableView.refresh();
+        tableView.refresh();
     }
 
     public void addOrderBeforeFilename() {
-        List<Link> selected = linksTableView.getSelectionModel().getSelectedItems();
+        List<Link> selected = tableView.getSelectionModel().getSelectedItems();
         if (selected == null || selected.isEmpty()) {
             return;
         }
@@ -787,34 +741,34 @@ public class DownloadFirstLevelLinksController extends BaseController {
             Link link = selected.get(i);
             String filename = link.getFile();
             if (filename == null) {
-                filename = link.filename(new File(targetPathController.file.getAbsolutePath()), filenameType);
+                filename = link.filename(new File(targetPathInputController.file.getAbsolutePath()), filenameType);
                 link.setFile(filename);
             }
             File file = new File(filename);
             String newName = file.getParent() + File.separator + (i + 1) + "_" + file.getName();
             link.setFile(newName);
         }
-        linksTableView.refresh();
+        tableView.refresh();
     }
 
     public void setFilename() {
-        List<Link> selected = linksTableView.getSelectionModel().getSelectedItems();
+        List<Link> selected = tableView.getSelectionModel().getSelectedItems();
         if (selected == null || selected.isEmpty()) {
             return;
         }
         for (Link link : selected) {
             String filename = link.getFile();
             if (filename == null) {
-                filename = link.filename(new File(targetPathController.file.getAbsolutePath()), filenameType);
+                filename = link.filename(new File(targetPathInputController.file.getAbsolutePath()), filenameType);
                 link.setFile(filename);
             }
             File file = new File(filename);
-            String suffix = FileNameTools.getFileSuffix(filename);
+            String suffix = FileNameTools.suffix(file.getName());
             suffix = (suffix != null && !suffix.isBlank()) ? "." + suffix : "";
             String newName = file.getParent() + File.separator + link.pageName(filenameType) + suffix;
             link.setFile(newName);
         }
-        linksTableView.refresh();
+        tableView.refresh();
     }
 
     public void setLinkNameAsFilename() {
@@ -838,101 +792,22 @@ public class DownloadFirstLevelLinksController extends BaseController {
         if (tabPane.getSelectionModel().getSelectedItem() != linksTab) {
             return;
         }
-        Link link = linksTableView.getSelectionModel().getSelectedItem();
+        Link link = tableView.getSelectionModel().getSelectedItem();
         if (link == null) {
             return;
         }
         TextClipboardTools.copyToSystemClipboard(myController, link.getAddress());
-        updateLogs(Languages.message("Copied") + ": " + link.getAddress());
+        updateLogs(message("Copied") + ": " + link.getAddress());
     }
 
     @FXML
     @Override
     public void infoAction() {
-        Link link = linksTableView.getSelectionModel().getSelectedItem();
+        Link link = tableView.getSelectionModel().getSelectedItem();
         if (link == null) {
             return;
         }
-        info(link.getAddress());
-    }
-
-    @FXML
-    public void info(String link) {
-        if (link == null) {
-            return;
-        }
-        Task infoTask = new DownloadTask() {
-
-            @Override
-            protected boolean initValues() {
-                readHead = true;
-                address = link;
-                return super.initValues();
-            }
-
-            @Override
-            protected void whenSucceeded() {
-                if (head == null) {
-                    popError(Languages.message("InvalidData"));
-                    return;
-                }
-                StringBuilder s = new StringBuilder();
-                s.append("<h1  class=\"center\">").append(address).append("</h1>\n");
-                s.append("<hr>\n");
-                List<String> names = new ArrayList<>();
-                names.addAll(Arrays.asList(Languages.message("Name"), Languages.message("Value")));
-                StringTable table = new StringTable(names);
-                for (Object key : head.keySet()) {
-                    String name = (String) key;
-                    if (name.startsWith("HeaderField_") || name.startsWith("RequestProperty_")) {
-                        continue;
-                    }
-                    List<String> row = new ArrayList<>();
-                    row.addAll(Arrays.asList(name, (String) head.get(key)));
-                    table.add(row);
-                }
-                s.append(StringTable.tableDiv(table));
-                s.append("<h2  class=\"center\">").append("Header Fields").append("</h2>\n");
-                int hlen = "HeaderField_".length();
-                for (Object key : head.keySet()) {
-                    String name = (String) key;
-                    if (!name.startsWith("HeaderField_")) {
-                        continue;
-                    }
-                    List<String> row = new ArrayList<>();
-                    row.addAll(Arrays.asList(name.substring(hlen), (String) head.get(key)));
-                    table.add(row);
-                }
-                s.append(StringTable.tableDiv(table));
-                s.append("<h2  class=\"center\">").append("Request Property").append("</h2>\n");
-                int rlen = "RequestProperty_".length();
-                for (Object key : head.keySet()) {
-                    String name = (String) key;
-                    if (!name.startsWith("RequestProperty_")) {
-                        continue;
-                    }
-                    List<String> row = new ArrayList<>();
-                    row.addAll(Arrays.asList(name.substring(rlen), (String) head.get(key)));
-                    table.add(row);
-                }
-                s.append(StringTable.tableDiv(table));
-                ControllerTools.openHtmlTable(null, s.toString());
-            }
-
-            @Override
-            protected void whenFailed() {
-                if (error != null) {
-                    popError(error);
-                } else {
-                    popFailed();
-                }
-            }
-
-        };
-        Thread thread = new Thread(infoTask);
-        handling(infoTask);
-        thread.setDaemon(false);
-        thread.start();
+        HtmlReadTools.requestHead(this, link.getAddress());
     }
 
     @FXML
@@ -941,7 +816,7 @@ public class DownloadFirstLevelLinksController extends BaseController {
         if (link == null) {
             return;
         }
-        info(link.getAddress());
+        HtmlReadTools.requestHead(this, link.getAddress());
     }
 
     @FXML
@@ -950,21 +825,31 @@ public class DownloadFirstLevelLinksController extends BaseController {
         if (link == null) {
             return;
         }
-        info(link.getAddress());
+        HtmlReadTools.requestHead(this, link.getAddress());
     }
 
     @FXML
     public void html() {
         try {
+            String addr = addressInput.getText();
+            if (addr == null || addr.isBlank()) {
+                popError(message("InvalidParameters") + ": " + message("Address"));
+                return;
+            }
             HtmlEditorController controller = (HtmlEditorController) openStage(Fxmls.HtmlEditorFxml);
-            controller.loadAddress(urlSelector.getValue());
+            controller.loadAddress(addr);
         } catch (Exception e) {
         }
     }
 
+    @Override
+    public void itemDoubleClicked() {
+        openLink();
+    }
+
     @FXML
     protected void openLink() {
-        Link link = linksTableView.getSelectionModel().getSelectedItem();
+        Link link = tableView.getSelectionModel().getSelectedItem();
         openLink(link);
     }
 
@@ -988,21 +873,22 @@ public class DownloadFirstLevelLinksController extends BaseController {
     }
 
     @FXML
+    @Override
     public void viewAction() {
-        Link link = linksTableView.getSelectionModel().getSelectedItem();
+        Link link = tableView.getSelectionModel().getSelectedItem();
         view(link);
     }
 
     @FXML
     public void view(Link link) {
-        if (link == null || targetPathController.file == null) {
+        if (link == null || targetPathInputController.file == null) {
             return;
         }
-        String s = Languages.message("Address") + ": " + link.getAddress() + "<br>"
-                + Languages.message("Name") + ": " + (link.getName() == null ? "" : link.getName()) + "<br>"
-                + Languages.message("Title") + ": " + (link.getTitle() == null ? "" : link.getTitle()) + "<br>"
-                + Languages.message("TargetFile") + ": " + link.getFile();
-        HtmlReadTools.htmlTable(Languages.message("Link"), s);
+        String s = message("Address") + ": " + link.getAddress() + "<br>"
+                + message("Name") + ": " + (link.getName() == null ? "" : link.getName()) + "<br>"
+                + message("Title") + ": " + (link.getTitle() == null ? "" : link.getTitle()) + "<br>"
+                + message("TargetFile") + ": " + link.getFile();
+        HtmlReadTools.htmlTable(message("Link"), s);
     }
 
     @FXML
@@ -1022,7 +908,7 @@ public class DownloadFirstLevelLinksController extends BaseController {
     public void pasteAction() {
         String string = TextClipboardTools.getSystemClipboardString();
         if (string != null && !string.isBlank()) {
-            urlSelector.setValue(string);
+            addressInput.setText(string);
         }
         goAction();
     }
@@ -1089,7 +975,7 @@ public class DownloadFirstLevelLinksController extends BaseController {
                     }
                 }
                 downloadThreads.clear();
-                updateLogs(Languages.message("DownloadThread") + ": " + downloadThreads.size());
+                updateLogs(message("DownloadThread") + ": " + downloadThreads.size());
             } catch (Exception e) {
                 MyBoxLog.console(e.toString());
             }
@@ -1169,8 +1055,8 @@ public class DownloadFirstLevelLinksController extends BaseController {
                         linkTask.setDaemon(false);
                         downloadThreads.add(linkTask);
                         linkTask.start();
-                        updateLogs(Languages.message("Started") + ": " + Languages.message("DownloadThread") + linkTask.getId() + "    "
-                                + Languages.message("Count") + ": " + downloadThreads.size());
+                        updateLogs(message("Started") + ": " + message("DownloadThread") + linkTask.getId() + "    "
+                                + message("Count") + ": " + downloadThreads.size());
                     }
                 } catch (Exception e) {
                     MyBoxLog.console(e.toString());
@@ -1180,8 +1066,8 @@ public class DownloadFirstLevelLinksController extends BaseController {
         Platform.runLater(new Runnable() {
             @Override
             public void run() {
-                downloadingsLabel.setText((stopped ? Languages.message("Stopped") + "  " : "")
-                        + Languages.message("Links") + ": " + dataSize);
+                downloadingsLabel.setText((stopped ? message("Stopped") + "  " : "")
+                        + message("Links") + ": " + dataSize);
             }
         });
     }
@@ -1195,11 +1081,11 @@ public class DownloadFirstLevelLinksController extends BaseController {
                 connValue = v;
                 webConnectTimeoutInput.setStyle(null);
             } else {
-                webConnectTimeoutInput.setStyle(NodeStyleTools.badStyle);
+                webConnectTimeoutInput.setStyle(UserConfig.badStyle());
                 return;
             }
         } catch (Exception e) {
-            webConnectTimeoutInput.setStyle(NodeStyleTools.badStyle);
+            webConnectTimeoutInput.setStyle(UserConfig.badStyle());
             return;
         }
         try {
@@ -1208,11 +1094,11 @@ public class DownloadFirstLevelLinksController extends BaseController {
                 readValue = v;
                 webReadTimeoutInput.setStyle(null);
             } else {
-                webReadTimeoutInput.setStyle(NodeStyleTools.badStyle);
+                webReadTimeoutInput.setStyle(UserConfig.badStyle());
                 return;
             }
         } catch (Exception e) {
-            webReadTimeoutInput.setStyle(NodeStyleTools.badStyle);
+            webReadTimeoutInput.setStyle(UserConfig.badStyle());
             return;
         }
         UserConfig.setInt("WebConnectTimeout", connValue);
@@ -1279,18 +1165,18 @@ public class DownloadFirstLevelLinksController extends BaseController {
                 file.getParentFile().mkdirs();
                 link.setFile(file.getAbsolutePath());
 
-                updateLogs(Languages.message("Downloading") + ": " + url + " --> " + file);
+                updateLogs(message("Downloading") + ": " + url + " --> " + file);
                 File tmpFile = HtmlReadTools.url2File(url.toString());
                 if (tmpFile != null && tmpFile.exists()) {
                     FileTools.rename(tmpFile, file);
                     link.setDlTime(new Date());
-                    updateLogs(Languages.message("Downloaded") + ": " + url + " --> " + file);
+                    updateLogs(message("Downloaded") + ": " + url + " --> " + file);
                     if (utf8Check.isSelected()) {
                         String utf8 = HtmlWriteTools.toUTF8(file, false);
                         if (utf8 == null) {
-                            updateLogs(Languages.message("Failed") + ": " + file);
+                            updateLogs(message("Failed") + ": " + file);
                         } else if (!"NeedNot".equals(utf8)) {
-                            updateLogs(Languages.message("HtmlSetCharset") + ": " + file);
+                            updateLogs(message("HtmlSetCharset") + ": " + file);
                             TextFileTools.writeFile(file, utf8, Charset.forName("utf-8"));
                         }
                     }
@@ -1341,7 +1227,7 @@ public class DownloadFirstLevelLinksController extends BaseController {
                         synchronized (downloadingData) {
                             downloadingData.add(0, link);
                         }
-                        updateLogs(Languages.message("Retry") + " " + currentRetries
+                        updateLogs(message("Retry") + " " + currentRetries
                                 + ": " + link.getUrl() + " --> " + link.getFile());
                     } else {
                         synchronized (failedData) {
@@ -1349,7 +1235,7 @@ public class DownloadFirstLevelLinksController extends BaseController {
                                 failedData.add(0, link);
                             }
                         }
-                        updateLogs(Languages.message("Failed") + ": " + link.getUrl() + " --> " + link.getFile());
+                        updateLogs(message("Failed") + ": " + link.getUrl() + " --> " + link.getFile());
                     }
                 }
             }
@@ -1364,14 +1250,14 @@ public class DownloadFirstLevelLinksController extends BaseController {
                 synchronized (downloadThreads) {
                     if (self != null) {
                         downloadThreads.remove(self);
-                        updateLogs(Languages.message("Stopped") + ": " + Languages.message("DownloadThread") + self.getId() + "    "
-                                + Languages.message("Count") + ": " + downloadThreads.size());
+                        updateLogs(message("Stopped") + ": " + message("DownloadThread") + self.getId() + "    "
+                                + message("Count") + ": " + downloadThreads.size());
                     }
                     if (!downloadThreads.isEmpty()) {
                         return;
                     }
                 }
-                updateLogs(Languages.message("DownloadCompleted"));
+                updateLogs(message("DownloadCompleted"));
                 if (!stopped && !cancel
                         && (relinksCheck.isSelected() || indexCheck.isSelected()
                         || mdCheck.isSelected() || textCheck.isSelected()
@@ -1386,8 +1272,8 @@ public class DownloadFirstLevelLinksController extends BaseController {
                                 pThread.setDaemon(false);
                                 pathThreads.add(pThread);
                                 pThread.start();
-                                updateLogs(Languages.message("Started") + ": " + Languages.message("PathThread") + pThread.getId() + "    "
-                                        + Languages.message("Count") + ": " + pathThreads.size());
+                                updateLogs(message("Started") + ": " + message("PathThread") + pThread.getId() + "    "
+                                        + message("Count") + ": " + pathThreads.size());
                             }
                         }
                         paths.clear();
@@ -1427,7 +1313,7 @@ public class DownloadFirstLevelLinksController extends BaseController {
                 return;
             }
             files = new ArrayList<>();
-            String indexPrefix = "0000_" + Languages.message("PathIndex");
+            String indexPrefix = "0000_" + message("PathIndex");
             for (File file : pathFiles) {
                 if (file.isFile() && !file.getName().startsWith(indexPrefix)) {
                     files.add(file);
@@ -1440,7 +1326,7 @@ public class DownloadFirstLevelLinksController extends BaseController {
             Collections.sort(files, new Comparator<File>() {
                 @Override
                 public int compare(File f1, File f2) {
-                    return FileNameTools.compareFilename(f1, f2);
+                    return FileNameTools.compareName(f1, f2);
                 }
             });
 
@@ -1467,7 +1353,7 @@ public class DownloadFirstLevelLinksController extends BaseController {
                     return;
                 }
                 HtmlWriteTools.relinkPage(file, completedLinks, completedAddresses);
-                updateLogs(Languages.message("HtmlLinksRewritten") + ": " + file);
+                updateLogs(message("HtmlLinksRewritten") + ": " + file);
             }
         }
 
@@ -1475,13 +1361,13 @@ public class DownloadFirstLevelLinksController extends BaseController {
             if (stopped || files == null || files.isEmpty() || !indexCheck.isSelected()) {
                 return;
             }
-            updateLogs(Languages.message("GeneratingPathIndex") + ": " + path + " ...");
+            updateLogs(message("GeneratingPathIndex") + ": " + path + " ...");
             HtmlWriteTools.makePathList(path, files, completedLinks);
-            File frameFile = new File(path.getAbsolutePath() + File.separator + "0000_" + Languages.message("PathIndex") + ".html");
+            File frameFile = new File(path.getAbsolutePath() + File.separator + "0000_" + message("PathIndex") + ".html");
             if (HtmlWriteTools.generateFrameset(files, frameFile)) {
-                updateLogs(Languages.message("HtmlFrameset") + ": " + frameFile + "");
+                updateLogs(message("HtmlFrameset") + ": " + frameFile + "");
             } else {
-                updateLogs(Languages.message("Failed") + ": " + frameFile + "");
+                updateLogs(message("Failed") + ": " + frameFile + "");
             }
         }
 
@@ -1521,20 +1407,20 @@ public class DownloadFirstLevelLinksController extends BaseController {
             }
             if (htmlCheck.isSelected()) {
                 String htmlFile = filePrefix + ".html";
-                updateLogs(Languages.message("MergeAsOneHtml") + ": " + htmlFile + " ...");
+                updateLogs(message("MergeAsOneHtml") + ": " + htmlFile + " ...");
                 TextFileTools.writeFile(new File(htmlFile), html);
-                updateLogs(Languages.message("Generated") + ": " + htmlFile);
+                updateLogs(message("Generated") + ": " + htmlFile);
             }
             String md = null, text = null;
             if (textCheck.isSelected() || mdCheck.isSelected()
                     || pdfTextCheck.isSelected() || pdfMarkdownCheck.isSelected()) {
-                updateLogs(Languages.message("ConvertToMarkdown") + ": " + filePrefix + " ...");
+                updateLogs(message("ConvertToMarkdown") + ": " + filePrefix + " ...");
                 md = mdConverter.convert(html);
                 if (stopped) {
                     return;
                 }
                 if (textCheck.isSelected() || pdfTextCheck.isSelected()) {
-                    updateLogs(Languages.message("ConvertToText") + ": " + filePrefix + " ...");
+                    updateLogs(message("ConvertToText") + ": " + filePrefix + " ...");
                     Node document = textParser.parse(md);
                     text = textCollectingVisitor.collectAndGetText(document);
                 }
@@ -1546,7 +1432,7 @@ public class DownloadFirstLevelLinksController extends BaseController {
             if (textCheck.isSelected() && text != null) {
                 String textFile = filePrefix + ".txt";
                 TextFileTools.writeFile(new File(textFile), text);
-                updateLogs(Languages.message("Generated") + ": " + textFile);
+                updateLogs(message("Generated") + ": " + textFile);
             }
             if (stopped) {
                 return;
@@ -1554,7 +1440,7 @@ public class DownloadFirstLevelLinksController extends BaseController {
             if (mdCheck.isSelected() && md != null) {
                 String mdFile = filePrefix + ".md";
                 TextFileTools.writeFile(new File(mdFile), md);
-                updateLogs(Languages.message("Generated") + ": " + mdFile);
+                updateLogs(message("Generated") + ": " + mdFile);
             }
             if (stopped) {
                 return;
@@ -1583,7 +1469,7 @@ public class DownloadFirstLevelLinksController extends BaseController {
         }
 
         public void mergePDF(String file, String html) {
-            updateLogs(Languages.message("MergeAsPDF") + ": " + file + " ...");
+            updateLogs(message("MergeAsPDF") + ": " + file + " ...");
             String css = cssArea.getText().trim();
             if (!css.isBlank()) {
                 try {
@@ -1599,15 +1485,15 @@ public class DownloadFirstLevelLinksController extends BaseController {
                 PdfConverterExtension.exportToPdf(file, html, "", pdfOptions);
                 File ffile = new File(file);
                 if (!ffile.exists()) {
-                    updateLogs(Languages.message("Failed") + ": " + file);
+                    updateLogs(message("Failed") + ": " + file);
                 } else if (ffile.length() == 0) {
                     FileDeleteTools.delete(ffile);
-                    updateLogs(Languages.message("Failed") + ": " + file);
+                    updateLogs(message("Failed") + ": " + file);
                 } else {
-                    updateLogs(Languages.message("Generated") + ": " + file);
+                    updateLogs(message("Generated") + ": " + file);
                 }
             } catch (Exception e) {
-                updateLogs(Languages.message("Failed") + ": " + file + "\n" + e.toString());
+                updateLogs(message("Failed") + ": " + file + "\n" + e.toString());
             }
         }
 
@@ -1615,14 +1501,14 @@ public class DownloadFirstLevelLinksController extends BaseController {
             synchronized (pathThreads) {
                 if (self != null) {
                     pathThreads.remove(self);
-                    updateLogs(Languages.message("Stopped") + ": " + Languages.message("PathThread") + self.getId() + "    "
-                            + Languages.message("Count") + ": " + pathThreads.size());
+                    updateLogs(message("Stopped") + ": " + message("PathThread") + self.getId() + "    "
+                            + message("Count") + ": " + pathThreads.size());
                 }
                 if (pathThreads.isEmpty()) {
                     synchronized (completedAddresses) {
                         completedAddresses.clear();
                         completedLinks.clear();
-                        updateLogs(Languages.message("DataCleared"));
+                        updateLogs(message("DataCleared"));
                     }
                     if (miaowCheck.isSelected()) {
                         SoundTools.miao7();
@@ -1651,10 +1537,10 @@ public class DownloadFirstLevelLinksController extends BaseController {
                 maxLogsinput.setStyle(null);
                 UserConfig.setInt(baseName + "MaxLogs", maxLogs);
             } else {
-                maxLogsinput.setStyle(NodeStyleTools.badStyle);
+                maxLogsinput.setStyle(UserConfig.badStyle());
             }
         } catch (Exception e) {
-            maxLogsinput.setStyle(NodeStyleTools.badStyle);
+            maxLogsinput.setStyle(UserConfig.badStyle());
         }
     }
 
@@ -1682,9 +1568,14 @@ public class DownloadFirstLevelLinksController extends BaseController {
     @FXML
     protected void openFolder() {
         try {
-            browseURI(targetPathController.file.toURI());
+            browseURI(targetPathInputController.file.toURI());
         } catch (Exception e) {
         }
+    }
+
+    @FXML
+    protected void popAddressHistories(MouseEvent mouseEvent) {
+        PopTools.popStringValues(this, addressInput, mouseEvent, "DownloadHtmlsHistories");
     }
 
     @Override
@@ -1702,7 +1593,7 @@ public class DownloadFirstLevelLinksController extends BaseController {
                 }
             }
             if (ask) {
-                if (PopTools.askSure(getMyStage().getTitle(), Languages.message("TaskRunning"))) {
+                if (PopTools.askSure(this, getMyStage().getTitle(), message("TaskRunning"))) {
                     stopped = true;
                 } else {
                     return false;
@@ -1710,6 +1601,15 @@ public class DownloadFirstLevelLinksController extends BaseController {
             }
         }
         return true;
+    }
+
+    @Override
+    public boolean keyEnter() {
+        if (addressInput != null && addressInput.isFocused()) {
+            goAction();
+            return true;
+        }
+        return false;
     }
 
 }

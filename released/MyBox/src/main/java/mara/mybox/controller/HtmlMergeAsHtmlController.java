@@ -15,20 +15,17 @@ import mara.mybox.db.data.VisitHistory;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.tools.FileDeleteTools;
 import mara.mybox.tools.FileNameTools;
-import mara.mybox.tools.FileTools;
 import mara.mybox.tools.HtmlReadTools;
-
 import mara.mybox.tools.TextFileTools;
-import mara.mybox.value.AppVariables;
-import static mara.mybox.value.Languages.message;
 import mara.mybox.value.Languages;
+import static mara.mybox.value.Languages.message;
 
 /**
  * @Author Mara
  * @CreateDate 2020-10-21
  * @License Apache License Version 2.0
  */
-public class HtmlMergeAsHtmlController extends BaseBatchFileController {
+public class HtmlMergeAsHtmlController extends FilesMergeController {
 
     protected FileWriter writer;
 
@@ -39,25 +36,10 @@ public class HtmlMergeAsHtmlController extends BaseBatchFileController {
     @FXML
     protected CheckBox deleteCheck;
     @FXML
-    protected ControlFileSelecter targetFileController;
+    protected TextArea cssArea;
 
     public HtmlMergeAsHtmlController() {
         baseTitle = Languages.message("HtmlMergeAsHtml");
-    }
-
-    @Override
-    public void initValues() {
-        try {
-            super.initValues();
-            targetFileController.label(Languages.message("TargetFile"))
-                    .isDirectory(false).isSource(false).mustExist(false).permitNull(false)
-                    .defaultValue("_" + Languages.message("Merge"))
-                    .name(baseName + "TargetFile", false).type(VisitHistory.FileType.Html);
-            targetFileInput = targetFileController.fileInput;
-
-        } catch (Exception e) {
-            MyBoxLog.error(e.toString());
-        }
     }
 
     @Override
@@ -75,12 +57,15 @@ public class HtmlMergeAsHtmlController extends BaseBatchFileController {
                     + "    </head>";
             headArea.setText(head);
 
-            targetFileInput.textProperty().addListener(
-                    (ObservableValue<? extends String> observable, String oldValue, String newValue) -> {
-                        String prefix = FileNameTools.namePrefix(newValue);
-                        if (prefix != null) {
-                            titleInput.setText(prefix);
+            targetFileController.notify.addListener(
+                    (ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) -> {
+                        if (targetFileController.file != null) {
+                            String prefix = FileNameTools.prefix(targetFileController.file.getName());
+                            if (prefix != null) {
+                                titleInput.setText(prefix);
+                            }
                         }
+
                     });
 //            titleInput.textProperty().addListener(
 //                    (ObservableValue<? extends String> observable, String oldValue, String newValue) -> {
@@ -95,30 +80,11 @@ public class HtmlMergeAsHtmlController extends BaseBatchFileController {
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
         }
-
-    }
-
-    @Override
-    public boolean makeMoreParameters() {
-        try {
-            targetFile = targetFileController.file;
-            if (targetFile == null) {
-                return false;
-            }
-            writer = new FileWriter(targetFile, Charset.forName("utf-8"));
-            writer.write("<!DOCTYPE html><html>\n"
-                    + headArea.getText().replace("####title####", titleInput.getText()) + "\n"
-                    + "    <body>\n");
-        } catch (Exception e) {
-            MyBoxLog.error(e.toString());
-            return false;
-        }
-        return super.makeMoreParameters();
     }
 
     @Override
     public boolean matchType(File file) {
-        String suffix = FileNameTools.getFileSuffix(file.getName());
+        String suffix = FileNameTools.suffix(file.getName());
         if (suffix == null) {
             return false;
         }
@@ -127,25 +93,43 @@ public class HtmlMergeAsHtmlController extends BaseBatchFileController {
     }
 
     @Override
-    public String handleFile(File srcFile, File targetPath) {
+    protected boolean openWriter() {
         try {
-            String html = TextFileTools.readTexts(srcFile);
-            String body = HtmlReadTools.body(html, false);
-            writer.write(body + "\n");
-            return Languages.message("Successful");
+            writer = new FileWriter(targetFile, Charset.forName("utf-8"));
+            writer.write("<!DOCTYPE html><html>\n"
+                    + headArea.getText().replace("####title####", titleInput.getText()) + "\n"
+                    + "    <body>\n");
+            return true;
         } catch (Exception e) {
-            MyBoxLog.error(e.toString());
-            return Languages.message("Failed");
+            updateLogs(e.toString(), true, true);
+            return false;
         }
     }
 
     @Override
-    public void afterHandleFiles() {
+    public String handleFile(File file) {
+        try {
+            if (task == null || task.isCancelled()) {
+                return message("Canceled");
+            }
+            if (file == null || !file.isFile() || !match(file)) {
+                return message("Skip" + ": " + file);
+            }
+            String body = HtmlReadTools.body(TextFileTools.readTexts(file), false);
+            writer.write(body + "\n");
+            return message("Successful");
+        } catch (Exception e) {
+            MyBoxLog.error(e.toString());
+            return message("Failed");
+        }
+    }
+
+    @Override
+    protected boolean closeWriter() {
         try {
             writer.write("    </body>\n</html>\n");
             writer.flush();
             writer.close();
-            targetFileGenerated(targetFile);
             if (deleteCheck.isSelected()) {
                 List<FileInformation> sources = new ArrayList<>();
                 sources.addAll(tableData);
@@ -158,8 +142,10 @@ public class HtmlMergeAsHtmlController extends BaseBatchFileController {
                     }
                 }
             }
+            return true;
         } catch (Exception e) {
-            MyBoxLog.error(e.toString());
+            updateLogs(e.toString(), true, true);
+            return false;
         }
     }
 

@@ -31,8 +31,8 @@ public class ColorsPopController extends ColorsManageController {
     }
 
     @Override
-    public void setStageStatus(String prefix, int minSize) {
-        setAsPopup(baseName);
+    public void setStageStatus() {
+        setAsPop(baseName);
     }
 
     public void setParameters(BaseController parent) {

@@ -17,14 +17,11 @@ import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 import mara.mybox.db.data.ConvolutionKernel;
 import mara.mybox.db.data.FileBackup;
-import mara.mybox.db.data.ImageEditHistory;
 import mara.mybox.db.table.TableFileBackup;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fximage.FxImageTools;
-import mara.mybox.fxml.NodeStyleTools;
-import mara.mybox.fxml.WindowTools;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.imagefile.ImageFileReaders;
-import mara.mybox.value.Fxmls;
 import mara.mybox.value.Languages;
 import mara.mybox.value.UserConfig;
 
@@ -33,7 +30,7 @@ import mara.mybox.value.UserConfig;
  * @CreateDate 2021-8-12
  * @License Apache License Version 2.0
  */
-public abstract class ImageManufactureController_Actions extends ImageManufactureController_Histories {
+public abstract class ImageManufactureController_Actions extends ImageManufactureController_Image {
 
     protected void initEditBar() {
         try {
@@ -61,10 +58,10 @@ public abstract class ImageManufactureController_Actions extends ImageManufactur
                                 newWidth = v;
                                 newWidthInput.setStyle(null);
                             } else {
-                                newWidthInput.setStyle(NodeStyleTools.badStyle);
+                                newWidthInput.setStyle(UserConfig.badStyle());
                             }
                         } catch (Exception e) {
-                            newWidthInput.setStyle(NodeStyleTools.badStyle);
+                            newWidthInput.setStyle(UserConfig.badStyle());
                         }
                     });
             newHeightInput.textProperty().addListener(
@@ -75,10 +72,10 @@ public abstract class ImageManufactureController_Actions extends ImageManufactur
                                 newHeight = v;
                                 newHeightInput.setStyle(null);
                             } else {
-                                newHeightInput.setStyle(NodeStyleTools.badStyle);
+                                newHeightInput.setStyle(UserConfig.badStyle());
                             }
                         } catch (Exception e) {
-                            newHeightInput.setStyle(NodeStyleTools.badStyle);
+                            newHeightInput.setStyle(UserConfig.badStyle());
                         }
                     });
             colorSetController.init(this, baseName + "NewBackgroundColor");
@@ -87,13 +84,17 @@ public abstract class ImageManufactureController_Actions extends ImageManufactur
             newHeightInput.setText("500");
 
             createButton.disableProperty().bind(
-                    newWidthInput.styleProperty().isEqualTo(NodeStyleTools.badStyle)
-                            .or(newHeightInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                    newWidthInput.styleProperty().isEqualTo(UserConfig.badStyle())
+                            .or(newHeightInput.styleProperty().isEqualTo(UserConfig.badStyle()))
             );
 
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
         }
+    }
+
+    @Override
+    protected void checkSelect() {
     }
 
     @FXML
@@ -119,7 +120,7 @@ public abstract class ImageManufactureController_Actions extends ImageManufactur
         if (undoButton.isDisabled()) {
             return;
         }
-        loadImageHistory(historyIndex + 1);
+        hisController.loadImageHistory(hisController.historyIndex + 1);
     }
 
     @FXML
@@ -128,7 +129,7 @@ public abstract class ImageManufactureController_Actions extends ImageManufactur
         if (redoButton.isDisabled()) {
             return;
         }
-        loadImageHistory(historyIndex - 1);
+        hisController.loadImageHistory(hisController.historyIndex - 1);
     }
 
     @FXML
@@ -169,6 +170,14 @@ public abstract class ImageManufactureController_Actions extends ImageManufactur
         operationsController.clipboardController.pasteImageInSystemClipboard();
     }
 
+    @FXML
+    public void popImage() {
+        if (imagePopController != null && imagePopController.getMyWindow().isShowing()) {
+            return;
+        }
+        imagePopController = ImagePopController.openView(this, imageView);
+    }
+
     public void applyKernel(ConvolutionKernel kernel) {
         operationsController.enhancementPane.setExpanded(true);
         operationsController.enhancementController.optionsController.applyKernel(kernel);
@@ -191,6 +200,58 @@ public abstract class ImageManufactureController_Actions extends ImageManufactur
 
     @FXML
     @Override
+    public void zoomOut() {
+        Tab tab = tabPane.getSelectionModel().getSelectedItem();
+        if (tab == imageTab) {
+            super.zoomOut();
+
+        } else if (tab == scopeTab) {
+            scopeController.zoomOut();
+
+        }
+    }
+
+    @FXML
+    @Override
+    public void zoomIn() {
+        Tab tab = tabPane.getSelectionModel().getSelectedItem();
+        if (tab == imageTab) {
+            super.zoomIn();
+
+        } else if (tab == scopeTab) {
+            scopeController.zoomIn();
+
+        }
+    }
+
+    @FXML
+    @Override
+    public void paneSize() {
+        Tab tab = tabPane.getSelectionModel().getSelectedItem();
+        if (tab == imageTab) {
+            super.paneSize();
+
+        } else if (tab == scopeTab) {
+            scopeController.paneSize();
+
+        }
+    }
+
+    @FXML
+    @Override
+    public void loadedSize() {
+        Tab tab = tabPane.getSelectionModel().getSelectedItem();
+        if (tab == imageTab) {
+            super.loadedSize();
+
+        } else if (tab == scopeTab) {
+            scopeController.loadedSize();
+
+        }
+    }
+
+    @FXML
+    @Override
     public boolean menuAction() {
         try {
             closePopup();
@@ -201,7 +262,7 @@ public abstract class ImageManufactureController_Actions extends ImageManufactur
                 return true;
 
             } else if (tab == scopeTab) {
-                scopeController.popMenu();
+                scopeController.menuAction();
                 return true;
 
             }
@@ -211,50 +272,21 @@ public abstract class ImageManufactureController_Actions extends ImageManufactur
         return false;
     }
 
-    public void popHistory() {
-        synchronized (this) {
-            ImageEditHistory selected = historiesList.getSelectionModel().getSelectedItem();
-            if (selected == null) {
-                return;
-            }
-            SingletonTask viewTask = new SingletonTask<Void>() {
-                private Image hisImage;
-
-                @Override
-                protected boolean handle() {
-                    hisImage = hisImage(selected);
-                    return hisImage != null;
-                }
-
-                @Override
-                protected void whenSucceeded() {
-                    ImagePopController.open(myController, hisImage);
-                }
-
-            };
-            Thread thread = new Thread(viewTask);
-            handling(viewTask);
-            thread.setDaemon(false);
-            thread.start();
-        }
-    }
-
     @FXML
     @Override
     public boolean popAction() {
         try {
             Tab tab = tabPane.getSelectionModel().getSelectedItem();
             if (tab == imageTab) {
-                ImagePopController controller = (ImagePopController) WindowTools.openChildStage(getMyWindow(), Fxmls.ImagePopFxml, false);
-                controller.loadImage(imageFile(), imageInformation, imageView.getImage(), imageChanged);
+                popImage();
                 return true;
 
             } else if (tab == scopeTab) {
-                scopeController.popScope();
+                ImageScopePopController.open(scopeController);
                 return true;
 
             } else if (tab == hisTab) {
-                popHistory();
+                hisController.popHistory();
                 return true;
 
             } else if (tab == backupTab) {
@@ -278,7 +310,7 @@ public abstract class ImageManufactureController_Actions extends ImageManufactur
             if (file == null) {
                 return;
             }
-            SingletonTask viewTask = new SingletonTask<Void>() {
+            SingletonTask bgTask = new SingletonTask<Void>(this) {
                 private Image backImage;
 
                 @Override
@@ -289,7 +321,7 @@ public abstract class ImageManufactureController_Actions extends ImageManufactur
                             Platform.runLater(new Runnable() {
                                 @Override
                                 public void run() {
-                                    backupController.backupsList.getItems().remove(selected);
+                                    backupController.tableData.remove(selected);
                                 }
                             });
                             return false;
@@ -306,14 +338,11 @@ public abstract class ImageManufactureController_Actions extends ImageManufactur
 
                 @Override
                 protected void whenSucceeded() {
-                    ImagePopController.open(myController, backImage);
+                    ImagePopController.openImage(myController, backImage);
                 }
 
             };
-            Thread thread = new Thread(viewTask);
-            handling(viewTask);
-            thread.setDaemon(false);
-            thread.start();
+            start(bgTask, false);
         }
     }
 
@@ -336,6 +365,9 @@ public abstract class ImageManufactureController_Actions extends ImageManufactur
         stage.toFront();
 
         Optional<ButtonType> result = alert.showAndWait();
+        if (result == null || !result.isPresent()) {
+            return false;
+        }
         if (result.get() == buttonSave) {
             saveAction();
             return true;

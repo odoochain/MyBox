@@ -7,36 +7,37 @@ import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.scene.control.RadioButton;
 import javafx.scene.control.TableColumn;
+import javafx.scene.control.TextField;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.input.MouseEvent;
 import javafx.stage.Window;
 import mara.mybox.db.DerbyBase;
 import mara.mybox.db.data.WebHistory;
+import mara.mybox.db.table.TableStringValues;
 import mara.mybox.db.table.TableWebHistory;
 import mara.mybox.dev.MyBoxLog;
+import mara.mybox.fxml.PopTools;
 import mara.mybox.fxml.WindowTools;
 import mara.mybox.fxml.cell.TableDateCell;
 import mara.mybox.fxml.cell.TableImageFileCell;
 import mara.mybox.tools.StringTools;
-import mara.mybox.value.AppVariables;
-import static mara.mybox.value.Languages.message;
-
 import mara.mybox.value.Fxmls;
 import mara.mybox.value.Languages;
+import static mara.mybox.value.Languages.message;
 
 /**
  * @Author Mara
  * @CreateDate 2019-12-1
  * @License Apache License Version 2.0
  */
-public class WebHistoriesController extends BaseDataTableController<WebHistory> {
+public class WebHistoriesController extends BaseSysTableController<WebHistory> {
 
     protected TableWebHistory tableWebHistory;
 
     @FXML
-    protected ControlTimeTree timeController;
+    protected ControlTimesTree timesController;
     @FXML
-    protected ControlStringSelector searchController;
+    protected TextField findInput;
     @FXML
     protected RadioButton titleRadio, addressRadio;
     @FXML
@@ -57,6 +58,7 @@ public class WebHistoriesController extends BaseDataTableController<WebHistory> 
     @Override
     protected void initColumns() {
         try {
+            super.initColumns();
             iconColumn.setCellValueFactory(new PropertyValueFactory<>("icon"));
             iconColumn.setCellFactory(new TableImageFileCell(20));
             titleColumn.setCellValueFactory(new PropertyValueFactory<>("title"));
@@ -73,21 +75,19 @@ public class WebHistoriesController extends BaseDataTableController<WebHistory> 
         try {
             super.initControls();
 
-            timeController.setParent(this, false);
-            timeController.queryNodesButton.setOnMouseClicked(new EventHandler<MouseEvent>() {
+            timesController.setParent(this, null, "Web_History", "visit_time");
+            timesController.queryNodesButton.setOnMouseClicked(new EventHandler<MouseEvent>() {
                 @Override
                 public void handle(MouseEvent event) {
                     queryTimes();
                 }
             });
-            timeController.refreshNodesButton.setOnMouseClicked(new EventHandler<MouseEvent>() {
+            timesController.refreshNodesButton.setOnMouseClicked(new EventHandler<MouseEvent>() {
                 @Override
                 public void handle(MouseEvent event) {
                     refreshTimes();
                 }
             });
-
-            searchController.init(this, baseName + "Saved", null, 20);
 
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
@@ -95,13 +95,15 @@ public class WebHistoriesController extends BaseDataTableController<WebHistory> 
     }
 
     @Override
-    protected int checkSelected() {
+    protected void checkButtons() {
         if (isSettingValues) {
-            return -1;
+            return;
         }
-        int selection = super.checkSelected();
-        goButton.setDisable(selection == 0);
-        return selection;
+        super.checkButtons();
+
+        boolean isEmpty = tableData == null || tableData.isEmpty();
+        boolean none = isEmpty || tableView.getSelectionModel().getSelectedItem() == null;
+        goButton.setDisable(none);
     }
 
     @Override
@@ -119,7 +121,7 @@ public class WebHistoriesController extends BaseDataTableController<WebHistory> 
         queryConditions = null;
         queryConditionsString = null;
         tableData.clear();
-        currentPageStart = 1;
+        startRowOfCurrentPage = 0;
     }
 
     /*
@@ -127,59 +129,38 @@ public class WebHistoriesController extends BaseDataTableController<WebHistory> 
      */
     @FXML
     protected void refreshTimes() {
-        synchronized (this) {
-            timeController.clearTree();
-            SingletonTask timesTask = new SingletonTask<Void>() {
-                private List<Date> times;
-
-                @Override
-                protected boolean handle() {
-                    times = TableWebHistory.times();
-                    return true;
-                }
-
-                @Override
-                protected void whenSucceeded() {
-                    timeController.loadTree("visit_time", times, false);
-                }
-
-            };
-            timesTask.setSelf(timesTask);
-            Thread thread = new Thread(timesTask);
-            thread.setDaemon(false);
-            thread.start();
-        }
+        timesController.loadTree();
     }
 
     @FXML
     protected void queryTimes() {
-        String c = timeController.check();
+        String c = timesController.check();
         if (c == null) {
             popError(Languages.message("MissTime"));
             return;
         }
         clearQuery();
         queryConditions = c;
-        queryConditionsString = timeController.getFinalTitle();
+        queryConditionsString = timesController.getFinalTitle();
         loadTableData();
     }
 
     /*
-        Search
+        Find
      */
     @FXML
-    protected void search() {
-        String s = searchController.value();
+    protected void find() {
+        String s = findInput.getText();
         if (s == null || s.isBlank()) {
-            popError(Languages.message("InvalidData"));
+            popError(message("InvalidParameters") + ": " + message("Find"));
             return;
         }
         String[] values = StringTools.splitBySpace(s);
         if (values == null || values.length == 0) {
-            popError(Languages.message("InvalidData"));
+            popError(message("InvalidParameters") + ": " + message("Find"));
             return;
         }
-        searchController.refreshList();
+        TableStringValues.add("WebHistoriesFindHistories", s);
         clearQuery();
         if (titleRadio.isSelected()) {
             queryConditions = null;
@@ -210,6 +191,11 @@ public class WebHistoriesController extends BaseDataTableController<WebHistory> 
         loadTableData();
     }
 
+    @FXML
+    protected void popFindHistories(MouseEvent mouseEvent) {
+        PopTools.popStringValues(this, findInput, mouseEvent, "WebHistoriesFindHistories", true);
+    }
+
     /*
         table
      */
@@ -225,7 +211,7 @@ public class WebHistoriesController extends BaseDataTableController<WebHistory> 
         if (selected == null) {
             return;
         }
-        WebBrowserController.oneOpen(selected.getAddress());
+        WebBrowserController.oneOpen(selected.getAddress(), true);
     }
 
     /*
@@ -240,7 +226,6 @@ public class WebHistoriesController extends BaseDataTableController<WebHistory> 
             if (object != null && object instanceof WebHistoriesController) {
                 try {
                     controller = (WebHistoriesController) object;
-                    controller.toFront();
                     break;
                 } catch (Exception e) {
                 }
@@ -249,6 +234,7 @@ public class WebHistoriesController extends BaseDataTableController<WebHistory> 
         if (controller == null) {
             controller = (WebHistoriesController) WindowTools.openStage(Fxmls.WebHistoriesFxml);
         }
+        controller.requestMouse();
         return controller;
     }
 

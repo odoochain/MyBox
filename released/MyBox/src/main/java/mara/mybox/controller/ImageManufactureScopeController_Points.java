@@ -6,7 +6,7 @@ import javafx.fxml.FXML;
 import javafx.scene.control.SelectionMode;
 import mara.mybox.bufferedimage.ImageScope;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.NodeStyleTools;
+import mara.mybox.fxml.style.NodeStyleTools;
 import mara.mybox.value.Languages;
 
 /**
@@ -14,7 +14,7 @@ import mara.mybox.value.Languages;
  * @CreateDate 2021-8-13
  * @License Apache License Version 2.0
  */
-public class ImageManufactureScopeController_Points extends ImageManufactureScopeController_Area {
+public abstract class ImageManufactureScopeController_Points extends ImageManufactureScopeController_Area {
 
     public void initPointsTab() {
         try {

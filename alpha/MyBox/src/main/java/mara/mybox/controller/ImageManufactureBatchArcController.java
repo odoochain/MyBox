@@ -14,13 +14,9 @@ import javafx.scene.control.Tooltip;
 import javafx.scene.paint.Color;
 import mara.mybox.bufferedimage.BufferedImageTools;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.NodeTools;
-import static mara.mybox.fxml.NodeStyleTools.badStyle;
 import mara.mybox.fximage.FxColorTools;
-import mara.mybox.fxml.NodeStyleTools;
+import mara.mybox.fxml.style.NodeStyleTools;
 import mara.mybox.fxml.ValidationTools;
-import mara.mybox.value.AppVariables;
-import static mara.mybox.value.Languages.message;
 import mara.mybox.value.Languages;
 import mara.mybox.value.UserConfig;
 
@@ -53,11 +49,10 @@ public class ImageManufactureBatchArcController extends BaseImageManufactureBatc
             super.initControls();
 
             startButton.disableProperty().unbind();
-            startButton.disableProperty().bind(Bindings.isEmpty(targetPathInput.textProperty())
-                    .or(targetPathInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+            startButton.disableProperty().bind(targetPathController.valid.not()
                     .or(Bindings.isEmpty(tableView.getItems()))
-                    .or(arcBox.getEditor().styleProperty().isEqualTo(NodeStyleTools.badStyle))
-                    .or(perBox.getEditor().styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                    .or(arcBox.getEditor().styleProperty().isEqualTo(UserConfig.badStyle()))
+                    .or(perBox.getEditor().styleProperty().isEqualTo(UserConfig.badStyle()))
             );
 
         } catch (Exception e) {

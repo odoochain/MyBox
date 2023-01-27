@@ -3,8 +3,10 @@ package mara.mybox.controller;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.fxml.FXML;
+import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fxml.WindowTools;
 import mara.mybox.value.Fxmls;
@@ -17,52 +19,140 @@ import mara.mybox.value.UserConfig;
  */
 public class ImagePopController extends BaseImageController {
 
+    protected ImageView sourceImageView;
+    protected ChangeListener sourceListener;
+
     @FXML
-    protected CheckBox openCheck;
+    protected CheckBox refreshChangeCheck;
+    @FXML
+    protected Button refreshButton;
 
     @Override
-    public void initControls() {
-        try {
-            super.initControls();
+    public void setStageStatus() {
+    }
 
-            openCheck.setSelected(UserConfig.getBoolean(baseName + "Open", true));
-            openCheck.selectedProperty().addListener(new ChangeListener<Boolean>() {
+    public void setControls() {
+        try {
+            baseName += parentController.baseName;
+
+            saveAsType = SaveAsType.Open;
+
+            sourceListener = new ChangeListener<Image>() {
                 @Override
-                public void changed(ObservableValue<? extends Boolean> ov, Boolean oldValue, Boolean newValue) {
-                    UserConfig.setBoolean(baseName + "Open", newValue);
-                    checkSaveAsType();
+                public void changed(ObservableValue ov, Image oldv, Image newv) {
+                    if (refreshChangeCheck.isVisible() && refreshChangeCheck.isSelected()) {
+                        refreshAction();
+                    }
+                }
+            };
+
+            refreshChangeCheck.setSelected(UserConfig.getBoolean(baseName + "Sychronized", true));
+            checkSychronize();
+            refreshChangeCheck.selectedProperty().addListener(new ChangeListener<Boolean>() {
+                @Override
+                public void changed(ObservableValue ov, Boolean oldState, Boolean newState) {
+                    checkSychronize();
                 }
             });
-            checkSaveAsType();
+
+            setAsPop(baseName);
+            paneSize();
 
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
         }
     }
 
-    public void checkSaveAsType() {
-        if (openCheck.isSelected()) {
-            saveAsType = SaveAsType.Open;
+    public void checkSychronize() {
+        if (sourceImageView == null) {
+            refreshChangeCheck.setVisible(false);
+            refreshButton.setVisible(false);
+            return;
+        }
+        if (refreshChangeCheck.isVisible() && refreshChangeCheck.isSelected()) {
+            sourceImageView.imageProperty().addListener(sourceListener);
         } else {
-            saveAsType = SaveAsType.None;
+            sourceImageView.imageProperty().removeListener(sourceListener);
+        }
+    }
+
+    public void setSourceImageView(BaseController parent, ImageView sourceImageView) {
+        try {
+            this.parentController = parent;
+            this.sourceImageView = sourceImageView;
+            refreshAction();
+
+            setControls();
+
+        } catch (Exception e) {
+            MyBoxLog.debug(e.toString());
+        }
+    }
+
+    public void setImage(BaseController parent, Image image) {
+        try {
+            this.parentController = parent;
+            refreshChangeCheck.setVisible(false);
+            refreshButton.setVisible(false);
+
+            loadImage(image);
+
+            setControls();
+        } catch (Exception e) {
+            MyBoxLog.debug(e.toString());
+        }
+    }
+
+    @FXML
+    public void refreshAction() {
+        if (sourceImageView != null) {
+            loadImage(sourceImageView.getImage());
+
+        } else {
+            refreshChangeCheck.setVisible(false);
+            refreshButton.setVisible(false);
+
         }
     }
 
     @Override
-    public void setStageStatus(String prefix, int minSize) {
-        setAsPopup(baseName);
+    public void cleanPane() {
+        try {
+            if (sourceImageView != null) {
+                sourceImageView.imageProperty().removeListener(sourceListener);
+            }
+            sourceListener = null;
+            sourceImageView = null;
+        } catch (Exception e) {
+        }
+        super.cleanPane();
     }
+
 
     /*
         static methods
      */
-    public static ImagePopController open(BaseController parent, Image image) {
+    public static ImagePopController openImage(BaseController parent, Image image) {
         try {
-            if (image == null) {
+            if (parent == null || image == null) {
                 return null;
             }
             ImagePopController controller = (ImagePopController) WindowTools.openChildStage(parent.getMyWindow(), Fxmls.ImagePopFxml, false);
-            controller.loadImage(image);
+            controller.setImage(parent, image);
+            return controller;
+        } catch (Exception e) {
+            MyBoxLog.error(e.toString());
+            return null;
+        }
+    }
+
+    public static ImagePopController openView(BaseController parent, ImageView imageView) {
+        try {
+            if (parent == null || imageView == null) {
+                return null;
+            }
+            ImagePopController controller = (ImagePopController) WindowTools.openChildStage(parent.getMyWindow(), Fxmls.ImagePopFxml, false);
+            controller.setSourceImageView(parent, imageView);
             return controller;
         } catch (Exception e) {
             MyBoxLog.error(e.toString());

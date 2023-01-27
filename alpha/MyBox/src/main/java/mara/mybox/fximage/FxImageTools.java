@@ -1,9 +1,11 @@
 package mara.mybox.fximage;
 
+import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
@@ -33,13 +35,14 @@ import mara.mybox.bufferedimage.PixelsBlendFactory;
 import mara.mybox.bufferedimage.PixelsOperationFactory;
 import mara.mybox.bufferedimage.ShadowTools;
 import mara.mybox.controller.BaseController;
+import mara.mybox.controller.ControlImageText;
 import mara.mybox.controller.ImagesBrowserController;
-import mara.mybox.data.DoubleRectangle;
 import mara.mybox.data.DoubleShape;
 import mara.mybox.dev.MyBoxLog;
 import static mara.mybox.fximage.FxColorTools.toAwtColor;
 import mara.mybox.fxml.WindowTools;
 import mara.mybox.imagefile.ImageFileWriters;
+import mara.mybox.value.AppValues;
 import mara.mybox.value.AppVariables;
 import mara.mybox.value.Fxmls;
 import mara.mybox.value.Languages;
@@ -73,8 +76,37 @@ public class FxImageTools {
         return newImage;
     }
 
-    public static byte[] bytes(Image image) {
-        return BufferedImageTools.bytes(SwingFXUtils.fromFXImage(image, null));
+    public static byte[] bytes(Image image, String format) {
+        return BufferedImageTools.bytes(SwingFXUtils.fromFXImage(image, null), format);
+    }
+
+    public static String base64(Image image, String format) {
+        try {
+            if (image == null || format == null) {
+                return null;
+            }
+            return BufferedImageTools.base64(SwingFXUtils.fromFXImage(image, null), format);
+        } catch (Exception e) {
+            MyBoxLog.error(e.toString());
+            return null;
+        }
+    }
+
+    public static Image clone(Image srcImage) {
+        if (srcImage == null) {
+            return srcImage;
+        }
+        double w = srcImage.getWidth();
+        double h = srcImage.getHeight();
+        PixelReader pixelReader = srcImage.getPixelReader();
+        WritableImage newImage = new WritableImage((int) w, (int) h);
+        PixelWriter pixelWriter = newImage.getPixelWriter();
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                pixelWriter.setColor(x, y, pixelReader.getColor(x, y));
+            }
+        }
+        return newImage;
     }
 
     // This way may be more quicker than comparing digests
@@ -140,14 +172,9 @@ public class FxImageTools {
         return newImage;
     }
 
-    public static Image addText(Image image, String textString,
-            java.awt.Font font, Color color, int x, int y,
-            ImagesBlendMode blendMode, float opacity, boolean orderReversed, boolean ignoreTransparent,
-            int shadow, int angle, boolean isOutline, boolean isVertical) {
+    public static Image addText(Image image, ControlImageText optionsController) {
         BufferedImage source = SwingFXUtils.fromFXImage(image, null);
-        BufferedImage target = ImageTextTools.addText(source, textString,
-                font, toAwtColor(color), x, y, blendMode, opacity, orderReversed, ignoreTransparent,
-                shadow, angle, isOutline, isVertical);
+        BufferedImage target = ImageTextTools.addText(source, optionsController);
         Image newImage = SwingFXUtils.toFXImage(target, null);
         return newImage;
     }
@@ -245,7 +272,7 @@ public class FxImageTools {
         for (int y = 0; y < h; y++) {
             for (int x = 0; x < w; x++) {
                 if (isExcluded) {
-                    if (shape.include(x, y)) {
+                    if (shape.contains(x, y)) {
                         pixelWriter.setColor(x, y, pixelReader.getColor(x, y));
                     } else {
                         if (isMosaic) {
@@ -259,7 +286,7 @@ public class FxImageTools {
                         }
                     }
                 } else {
-                    if (shape.include(x, y)) {
+                    if (shape.contains(x, y)) {
                         if (isMosaic) {
                             int mx = Math.max(0, Math.min(w - 1, x - x % size));
                             int my = Math.max(0, Math.min(h - 1, y - y % size));
@@ -286,33 +313,6 @@ public class FxImageTools {
         BufferedImage source = SwingFXUtils.fromFXImage(image, null);
         BufferedImage target = PixelsOperationFactory.replaceColor(source,
                 ColorConvertTools.converColor(oldColor), ColorConvertTools.converColor(newColor), distance);
-        Image newImage = SwingFXUtils.toFXImage(target, null);
-        return newImage;
-    }
-
-    public static Image drawHTML(Image backImage, Image html,
-            DoubleRectangle bkRect, Color bkColor, float bkOpacity, int bkarc,
-            int rotate, int margin) {
-        if (html == null || backImage == null || bkRect == null) {
-            return backImage;
-        }
-        BufferedImage backBfImage = SwingFXUtils.fromFXImage(backImage, null);
-        BufferedImage htmlBfImage = SwingFXUtils.fromFXImage(html, null);
-        BufferedImage target = ImageTextTools.drawHTML(backBfImage, htmlBfImage,
-                bkRect, ColorConvertTools.converColor(bkColor), bkOpacity, bkarc, rotate, margin);
-        Image newImage = SwingFXUtils.toFXImage(target, null);
-        return newImage;
-    }
-
-    public static Image drawHTML(Image backImage, BufferedImage html,
-            int htmlX, int htmlY, int htmlWdith, int htmlHeight) {
-        if (html == null || backImage == null) {
-            return backImage;
-        }
-        BufferedImage backBfImage = SwingFXUtils.fromFXImage(backImage, null);
-//        BufferedImage htmlBfImage = SwingFXUtils.fromFXImage(html, null);
-        BufferedImage target = ImageTextTools.drawHTML(backBfImage, html,
-                htmlX, htmlY, htmlWdith, htmlHeight);
         Image newImage = SwingFXUtils.toFXImage(target, null);
         return newImage;
     }
@@ -348,11 +348,11 @@ public class FxImageTools {
                 try {
                     BufferedImage foreBI = foreImage;
                     if (foreBI == null) {
-                        foreBI = SwingFXUtils.fromFXImage(new Image("img/About.png"), null);
+                        foreBI = SwingFXUtils.fromFXImage(new Image("img/cover" + AppValues.AppYear + "g9.png"), null);
                     }
                     BufferedImage backBI = backImage;
                     if (backBI == null) {
-                        backBI = SwingFXUtils.fromFXImage(new Image("img/ww8.png"), null);
+                        backBI = SwingFXUtils.fromFXImage(new Image("img/cover" + AppValues.AppYear + "g2.png"), null);
                     }
                     files = new ArrayList<>();
                     for (String name : PixelsBlendFactory.blendModes()) {
@@ -414,7 +414,16 @@ public class FxImageTools {
         Thread thread = new Thread(demoTask);
         thread.setDaemon(false);
         thread.start();
+    }
 
+    public static Image applyRenderHints(Image image, Map<RenderingHints.Key, Object> hints) {
+        if (image == null || hints == null) {
+            return image;
+        }
+        BufferedImage source = SwingFXUtils.fromFXImage(image, null);
+        BufferedImage target = BufferedImageTools.applyRenderHints(source, hints);
+        Image newImage = SwingFXUtils.toFXImage(target, null);
+        return newImage;
     }
 
 }

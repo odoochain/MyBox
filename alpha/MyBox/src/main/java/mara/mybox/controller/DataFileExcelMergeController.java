@@ -7,18 +7,17 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import javafx.beans.binding.Bindings;
 import javafx.fxml.FXML;
 import javafx.scene.control.CheckBox;
 import mara.mybox.db.DerbyBase;
-import mara.mybox.db.data.DataDefinition;
+import mara.mybox.db.data.Data2DDefinition;
 import mara.mybox.db.data.VisitHistory;
-import mara.mybox.db.table.TableDataDefinition;
+import mara.mybox.db.table.TableData2DDefinition;
+import mara.mybox.dev.MyBoxLog;
 import mara.mybox.tools.FileNameTools;
 import mara.mybox.tools.MicrosoftDocumentTools;
-import mara.mybox.tools.FileTools;
-import mara.mybox.value.AppVariables;
 import static mara.mybox.value.Languages.message;
-import mara.mybox.value.Languages;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.Row;
@@ -41,7 +40,7 @@ public class DataFileExcelMergeController extends FilesMergeController {
     protected CheckBox sourceWithNamesCheck, targetWithNamesCheck;
 
     public DataFileExcelMergeController() {
-        baseTitle = Languages.message("ExcelMerge");
+        baseTitle = message("ExcelMerge");
     }
 
     @Override
@@ -50,8 +49,23 @@ public class DataFileExcelMergeController extends FilesMergeController {
     }
 
     @Override
+    public void initControls() {
+        try {
+            super.initControls();
+
+            startButton.disableProperty().unbind();
+            startButton.disableProperty().bind(Bindings.isEmpty(tableData)
+                    .or(targetFileController.valid.not())
+            );
+
+        } catch (Exception e) {
+            MyBoxLog.error(e.toString());
+        }
+    }
+
+    @Override
     public boolean matchType(File file) {
-        String suffix = FileNameTools.getFileSuffix(file.getName());
+        String suffix = FileNameTools.suffix(file.getName());
         if (suffix == null) {
             return false;
         }
@@ -76,9 +90,12 @@ public class DataFileExcelMergeController extends FilesMergeController {
         try ( Workbook sourceBook = WorkbookFactory.create(srcFile)) {
             List<String> rowData = new ArrayList<>();
             for (int s = 0; s < sourceBook.getNumberOfSheets(); s++) {
+                if (task == null || task.isCancelled()) {
+                    return message("Cancelled");
+                }
                 Sheet sourceSheet = sourceBook.getSheetAt(s);
                 String sheetName = sourceSheet.getSheetName();
-                updateLogs(Languages.message("Reading") + " " + Languages.message("Sheet") + ":" + sheetName);
+                updateLogs(message("Reading") + " " + message("Sheet") + ":" + sheetName);
                 Sheet targetSheet = targetBook.getSheet(sheetName);
                 if (targetSheet == null) {
                     targetSheet = targetBook.createSheet(sheetName);
@@ -88,6 +105,9 @@ public class DataFileExcelMergeController extends FilesMergeController {
                     targetIndex = sheetsIndex.get(sheetName);
                 }
                 for (Row sourceRow : sourceSheet) {
+                    if (task == null || task.isCancelled()) {
+                        return message("Cancelled");
+                    }
                     if (sourceRow == null) {
                         continue;
                     }
@@ -101,7 +121,7 @@ public class DataFileExcelMergeController extends FilesMergeController {
                             if (sourceWithNamesCheck.isSelected()) {
                                 targetCell.setCellValue(rowData.get(col));
                             } else {
-                                targetCell.setCellValue(Languages.message("Field") + col);
+                                targetCell.setCellValue(message("Column") + col);
                             }
                         }
                     }
@@ -117,7 +137,7 @@ public class DataFileExcelMergeController extends FilesMergeController {
                 }
                 sheetsIndex.put(sheetName, targetIndex);
             }
-            result = Languages.message("Handled");
+            result = message("Handled");
         } catch (Exception e) {
             result = e.toString();
         }
@@ -131,16 +151,28 @@ public class DataFileExcelMergeController extends FilesMergeController {
                 targetBook.write(fileOut);
             }
             targetBook.close();
+            if (sheetsIndex.isEmpty()) {
+                return true;
+            }
             try ( Connection conn = DerbyBase.getConnection()) {
-                TableDataDefinition tableDataDefinition = new TableDataDefinition();
-                tableDataDefinition.clear(conn, DataDefinition.DataType.DataFile, targetFile.getAbsolutePath());
-                conn.commit();
-                DataDefinition dataDefinition = DataDefinition.create()
-                        .setDataName(targetFile.getAbsolutePath())
-                        .setDataType(DataDefinition.DataType.DataFile)
-                        .setHasHeader(targetWithNamesCheck.isSelected());
-                tableDataDefinition.insertData(conn, dataDefinition);
-                conn.commit();
+                TableData2DDefinition tableData2DDefinition = new TableData2DDefinition();
+                for (String sheet : sheetsIndex.keySet()) {
+                    Data2DDefinition def = tableData2DDefinition.queryFileSheet(conn, Data2DDefinition.Type.Excel, targetFile, sheet);
+                    if (def == null) {
+                        def = Data2DDefinition.create();
+                    }
+                    def.setType(Data2DDefinition.Type.Excel)
+                            .setFile(targetFile)
+                            .setDelimiter(sheet)
+                            .setDataName(targetFile.getName())
+                            .setHasHeader(targetWithNamesCheck.isSelected());
+                    if (def.getD2did() < 0) {
+                        tableData2DDefinition.insertData(conn, def);
+                    } else {
+                        tableData2DDefinition.updateData(conn, def);
+                    }
+                    conn.commit();
+                }
             } catch (Exception e) {
                 updateLogs(e.toString(), true, true);
                 return false;

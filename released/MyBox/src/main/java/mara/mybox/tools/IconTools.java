@@ -5,6 +5,8 @@ import java.io.File;
 import java.net.URL;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import mara.mybox.bufferedimage.ImageAttributes;
+import mara.mybox.bufferedimage.ImageConvertTools;
 import mara.mybox.fxml.FxFileTools;
 import mara.mybox.imagefile.ImageFileReaders;
 import static mara.mybox.value.AppVariables.MyboxDataPath;
@@ -21,7 +23,12 @@ public class IconTools {
             if (address == null) {
                 return null;
             }
-            URL url = new URL(address);
+            URL url;
+            try {
+                url = new URL(address);
+            } catch (Exception e) {
+                return null;
+            }
             String host = url.getHost();
             if (host == null || host.isBlank()) {
                 return null;
@@ -51,6 +58,18 @@ public class IconTools {
         if (actualTarget != null) {
             BufferedImage image = ImageFileReaders.readImage(actualTarget);
             if (image != null) {
+                String name = actualTarget.getAbsolutePath();
+                if (name.endsWith(".ico")) {
+                    ImageAttributes attributes = new ImageAttributes()
+                            .setImageFormat("png").setColorSpaceName("sRGB")
+                            .setAlpha(ImageAttributes.Alpha.Keep).setQuality(100);
+                    File png = new File(name.substring(0, name.lastIndexOf(".")) + ".png");
+                    ImageConvertTools.convertColorSpace(actualTarget, attributes, png);
+                    if (png.exists()) {
+                        FileDeleteTools.delete(actualTarget);
+                        actualTarget = png;
+                    }
+                }
                 return actualTarget;
             } else {
                 FileDeleteTools.delete(actualTarget);
@@ -64,7 +83,12 @@ public class IconTools {
             if (address == null || targetFile == null) {
                 return null;
             }
-            URL url = new URL(address);
+            URL url;
+            try {
+                url = new URL(address);
+            } catch (Exception e) {
+                return null;
+            }
             String iconUrl = "https://" + url.getHost() + "/favicon.ico";
             File actualTarget = downloadIcon(iconUrl, targetFile);
             if (actualTarget == null) {
@@ -103,10 +127,10 @@ public class IconTools {
             if (iconFile == null || !iconFile.exists()) {
                 return null;
             }
-            String suffix = FileNameTools.getFileSuffix(address);
+            String suffix = FileNameTools.suffix(address);
             File actualTarget = targetFile;
             if (suffix != null && !suffix.isBlank()) {
-                actualTarget = new File(FileNameTools.replaceFileSuffix(targetFile.getAbsolutePath(), suffix));
+                actualTarget = new File(FileNameTools.replaceSuffix(targetFile.getAbsolutePath(), suffix));
             }
             FileTools.rename(iconFile, actualTarget);
             return actualTarget;

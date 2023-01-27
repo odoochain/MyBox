@@ -12,22 +12,21 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.image.Image;
 import javafx.scene.paint.Color;
-import javafx.stage.Modality;
-import mara.mybox.controller.ImageManufactureController_Image.ImageOperation;
-import mara.mybox.db.data.ConvolutionKernel;
-import mara.mybox.fxml.WindowTools;
+import mara.mybox.bufferedimage.AlphaTools;
+import mara.mybox.bufferedimage.ColorConvertTools;
 import mara.mybox.bufferedimage.ImageContrast;
 import mara.mybox.bufferedimage.ImageContrast.ContrastAlgorithm;
 import mara.mybox.bufferedimage.ImageConvolution;
 import mara.mybox.bufferedimage.ImageScope;
-import mara.mybox.imagefile.ImageFileWriters;
-import mara.mybox.value.AppVariables;
-import mara.mybox.dev.MyBoxLog;
-import mara.mybox.bufferedimage.AlphaTools;
-import mara.mybox.bufferedimage.ColorConvertTools;
 import mara.mybox.bufferedimage.ScaleTools;
-import static mara.mybox.value.Languages.message;
-
+import mara.mybox.controller.ImageManufactureController_Image.ImageOperation;
+import mara.mybox.db.data.ConvolutionKernel;
+import mara.mybox.dev.MyBoxLog;
+import mara.mybox.fxml.SingletonTask;
+import mara.mybox.fxml.WindowTools;
+import mara.mybox.imagefile.ImageFileWriters;
+import mara.mybox.value.AppPaths;
+import mara.mybox.value.AppValues;
 import mara.mybox.value.Fxmls;
 import mara.mybox.value.Languages;
 
@@ -49,6 +48,7 @@ public class ImageManufactureEnhancementController extends ImageManufactureOpera
     @Override
     public void initPane() {
         try {
+            super.initPane();
 
             optionsController.setValues(this);
 
@@ -74,7 +74,7 @@ public class ImageManufactureEnhancementController extends ImageManufactureOpera
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 private Image newImage;
                 private String value = null;
@@ -157,11 +157,7 @@ public class ImageManufactureEnhancementController extends ImageManufactureOpera
                     imageController.updateImage(ImageOperation.Effects, optionsController.enhanceType.name(), value, newImage, cost);
                 }
             };
-            imageController.handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            imageController.start(task);
         }
     }
 
@@ -186,7 +182,7 @@ public class ImageManufactureEnhancementController extends ImageManufactureOpera
                     ImageContrast imageContrast = new ImageContrast(image,
                             ContrastAlgorithm.HSB_Histogram_Equalization);
                     BufferedImage bufferedImage = imageContrast.operateImage();
-                    String tmpFile = AppVariables.MyBoxTempPath + File.separator
+                    String tmpFile = AppPaths.getGeneratedPath() + File.separator
                             + Languages.message("HSBHistogramEqualization") + ".png";
                     if (ImageFileWriters.writeImageFile(bufferedImage, tmpFile)) {
                         files.add(tmpFile);
@@ -195,7 +191,7 @@ public class ImageManufactureEnhancementController extends ImageManufactureOpera
                     imageContrast = new ImageContrast(image,
                             ContrastAlgorithm.Gray_Histogram_Equalization);
                     bufferedImage = imageContrast.operateImage();
-                    tmpFile = AppVariables.MyBoxTempPath + File.separator
+                    tmpFile = AppPaths.getGeneratedPath() + File.separator
                             + Languages.message("GrayHistogramEqualization") + ".png";
                     if (ImageFileWriters.writeImageFile(bufferedImage, tmpFile)) {
                         files.add(tmpFile);
@@ -206,7 +202,7 @@ public class ImageManufactureEnhancementController extends ImageManufactureOpera
                     imageContrast.setIntPara1(100);
                     imageContrast.setIntPara2(100);
                     bufferedImage = imageContrast.operateImage();
-                    tmpFile = AppVariables.MyBoxTempPath + File.separator
+                    tmpFile = AppPaths.getGeneratedPath() + File.separator
                             + Languages.message("GrayHistogramStretching") + ".png";
                     if (ImageFileWriters.writeImageFile(bufferedImage, tmpFile)) {
                         files.add(tmpFile);
@@ -216,13 +212,14 @@ public class ImageManufactureEnhancementController extends ImageManufactureOpera
                             ContrastAlgorithm.Gray_Histogram_Shifting);
                     imageContrast.setIntPara1(40);
                     bufferedImage = imageContrast.operateImage();
-                    tmpFile = AppVariables.MyBoxTempPath + File.separator
+                    tmpFile = AppPaths.getGeneratedPath() + File.separator
                             + Languages.message("GrayHistogramShifting") + ".png";
                     if (ImageFileWriters.writeImageFile(bufferedImage, tmpFile)) {
                         files.add(tmpFile);
                     }
 
-                    BufferedImage outlineSource = SwingFXUtils.fromFXImage(new Image("img/ImageTools.png"), null);
+                    BufferedImage outlineSource = SwingFXUtils.fromFXImage(
+                            new Image("img/cover" + AppValues.AppYear + "g2.png"), null);
                     ImageScope scope = new ImageScope(SwingFXUtils.toFXImage(image, null));
                     scope.setScopeType(ImageScope.ScopeType.Outline);
                     if (sourceFile != null) {
@@ -238,7 +235,7 @@ public class ImageManufactureEnhancementController extends ImageManufactureOpera
                     ImageConvolution imageConvolution = ImageConvolution.create().
                             setImage(image).setScope(scope).setKernel(kernel);
                     bufferedImage = imageConvolution.operateImage();
-                    tmpFile = AppVariables.MyBoxTempPath + File.separator
+                    tmpFile = AppPaths.getGeneratedPath() + File.separator
                             + Languages.message("UnsharpMasking") + ".png";
                     if (ImageFileWriters.writeImageFile(bufferedImage, tmpFile)) {
                         files.add(tmpFile);
@@ -248,7 +245,7 @@ public class ImageManufactureEnhancementController extends ImageManufactureOpera
                     imageConvolution = ImageConvolution.create().
                             setImage(image).setScope(scope).setKernel(kernel);
                     bufferedImage = imageConvolution.operateImage();
-                    tmpFile = AppVariables.MyBoxTempPath + File.separator
+                    tmpFile = AppPaths.getGeneratedPath() + File.separator
                             + Languages.message("FourNeighborLaplace") + ".png";
                     if (ImageFileWriters.writeImageFile(bufferedImage, tmpFile)) {
                         files.add(tmpFile);
@@ -258,7 +255,7 @@ public class ImageManufactureEnhancementController extends ImageManufactureOpera
                     imageConvolution = ImageConvolution.create().
                             setImage(image).setScope(scope).setKernel(kernel);
                     bufferedImage = imageConvolution.operateImage();
-                    tmpFile = AppVariables.MyBoxTempPath + File.separator
+                    tmpFile = AppPaths.getGeneratedPath() + File.separator
                             + Languages.message("EightNeighborLaplace") + ".png";
                     if (ImageFileWriters.writeImageFile(bufferedImage, tmpFile)) {
                         files.add(tmpFile);
@@ -268,7 +265,7 @@ public class ImageManufactureEnhancementController extends ImageManufactureOpera
                     imageConvolution = ImageConvolution.create().
                             setImage(image).setScope(scope).setKernel(kernel);
                     bufferedImage = imageConvolution.operateImage();
-                    tmpFile = AppVariables.MyBoxTempPath + File.separator
+                    tmpFile = AppPaths.getGeneratedPath() + File.separator
                             + Languages.message("GaussianBlur") + ".png";
                     if (ImageFileWriters.writeImageFile(bufferedImage, tmpFile)) {
                         files.add(tmpFile);
@@ -278,7 +275,7 @@ public class ImageManufactureEnhancementController extends ImageManufactureOpera
                     imageConvolution = ImageConvolution.create().
                             setImage(image).setScope(scope).setKernel(kernel);
                     bufferedImage = imageConvolution.operateImage();
-                    tmpFile = AppVariables.MyBoxTempPath + File.separator
+                    tmpFile = AppPaths.getGeneratedPath() + File.separator
                             + Languages.message("AverageBlur") + ".png";
                     if (ImageFileWriters.writeImageFile(bufferedImage, tmpFile)) {
                         files.add(tmpFile);
@@ -313,10 +310,7 @@ public class ImageManufactureEnhancementController extends ImageManufactureOpera
             }
 
         };
-        Thread thread = new Thread(demoTask);
-        thread.setDaemon(false);
-        thread.start();
-
+        start(demoTask, false);
     }
 
 }

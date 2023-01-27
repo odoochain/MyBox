@@ -9,16 +9,11 @@ import javafx.fxml.FXML;
 import javafx.scene.control.Button;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
-import javafx.scene.web.WebView;
-import javafx.stage.Modality;
 import mara.mybox.color.ChromaticAdaptation;
 import mara.mybox.data.StringTable;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.NodeStyleTools;
-import static mara.mybox.fxml.NodeStyleTools.badStyle;
-import mara.mybox.tools.MatrixDoubleTools;
-import mara.mybox.value.AppVariables;
-import static mara.mybox.value.Languages.message;
+import mara.mybox.fxml.SingletonTask;
+import mara.mybox.tools.DoubleMatrixTools;
 import mara.mybox.value.Languages;
 import mara.mybox.value.UserConfig;
 
@@ -38,8 +33,6 @@ public class ChromaticAdaptationMatrixController extends ChromaticityBaseControl
     protected TextField scaleMatricesInput;
     @FXML
     protected TextArea allArea;
-    @FXML
-    protected WebView webView;
     @FXML
     protected HtmlTableController matrixController;
 
@@ -65,19 +58,19 @@ public class ChromaticAdaptationMatrixController extends ChromaticityBaseControl
             initOptions();
 
             calculateButton.disableProperty().bind(Bindings.isEmpty(scaleInput.textProperty())
-                    .or(scaleInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                    .or(scaleInput.styleProperty().isEqualTo(UserConfig.badStyle()))
                     .or(Bindings.isEmpty(sourceWPController.xInput.textProperty()))
-                    .or(sourceWPController.xInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                    .or(sourceWPController.xInput.styleProperty().isEqualTo(UserConfig.badStyle()))
                     .or(Bindings.isEmpty(sourceWPController.yInput.textProperty()))
-                    .or(sourceWPController.yInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                    .or(sourceWPController.yInput.styleProperty().isEqualTo(UserConfig.badStyle()))
                     .or(Bindings.isEmpty(sourceWPController.zInput.textProperty()))
-                    .or(sourceWPController.zInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                    .or(sourceWPController.zInput.styleProperty().isEqualTo(UserConfig.badStyle()))
                     .or(Bindings.isEmpty(targetWPController.xInput.textProperty()))
-                    .or(targetWPController.xInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                    .or(targetWPController.xInput.styleProperty().isEqualTo(UserConfig.badStyle()))
                     .or(Bindings.isEmpty(targetWPController.yInput.textProperty()))
-                    .or(targetWPController.yInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                    .or(targetWPController.yInput.styleProperty().isEqualTo(UserConfig.badStyle()))
                     .or(Bindings.isEmpty(targetWPController.zInput.textProperty()))
-                    .or(targetWPController.zInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                    .or(targetWPController.zInput.styleProperty().isEqualTo(UserConfig.badStyle()))
             );
 
         } catch (Exception e) {
@@ -93,14 +86,14 @@ public class ChromaticAdaptationMatrixController extends ChromaticityBaseControl
                     try {
                         int p = Integer.parseInt(scaleMatricesInput.getText());
                         if (p <= 0) {
-                            scaleMatricesInput.setStyle(NodeStyleTools.badStyle);
+                            scaleMatricesInput.setStyle(UserConfig.badStyle());
                         } else {
                             scale = p;
                             scaleMatricesInput.setStyle(null);
                             UserConfig.setInt("MatrixDecimalScale", scale);
                         }
                     } catch (Exception e) {
-                        scaleMatricesInput.setStyle(NodeStyleTools.badStyle);
+                        scaleMatricesInput.setStyle(UserConfig.badStyle());
                     }
                 }
             });
@@ -108,7 +101,7 @@ public class ChromaticAdaptationMatrixController extends ChromaticityBaseControl
             scaleMatricesInput.setText(p + "");
 
             calculateAllButton.disableProperty().bind(scaleMatricesInput.textProperty().isEmpty()
-                    .or(scaleMatricesInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                    .or(scaleMatricesInput.styleProperty().isEqualTo(UserConfig.badStyle()))
             );
 
             exportButton.disableProperty().bind(allArea.textProperty().isEmpty()
@@ -132,7 +125,7 @@ public class ChromaticAdaptationMatrixController extends ChromaticityBaseControl
         }
         Map<String, Object> run = ChromaticAdaptation.matrixDemo(
                 swp[0], swp[1], swp[2], twp[0], twp[1], twp[2], algorithm, scale);
-        String s = MatrixDoubleTools.print((double[][]) run.get("matrix"), 0, scale)
+        String s = DoubleMatrixTools.print((double[][]) run.get("matrix"), 0, scale)
                 + "\n\n----------------" + Languages.message("CalculationProcedure") + "----------------\n"
                 + Languages.message("ReferTo") + "： \n"
                 + "            http://www.thefullwiki.org/Standard_illuminant#cite_note-30 \n"
@@ -147,7 +140,7 @@ public class ChromaticAdaptationMatrixController extends ChromaticityBaseControl
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
                 private StringTable table;
                 private String allTexts;
 
@@ -166,11 +159,7 @@ public class ChromaticAdaptationMatrixController extends ChromaticityBaseControl
                 }
 
             };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
     }
 

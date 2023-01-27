@@ -1,22 +1,26 @@
 package mara.mybox.controller;
 
 import com.sun.management.OperatingSystemMXBean;
+import java.io.File;
 import java.lang.management.ManagementFactory;
 import java.util.Timer;
 import java.util.TimerTask;
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
+import javafx.event.Event;
 import javafx.fxml.FXML;
 import javafx.geometry.Pos;
+import javafx.scene.control.CheckMenuItem;
 import javafx.scene.control.Label;
+import javafx.scene.control.Menu;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.tools.FloatTools;
+import mara.mybox.tools.SystemTools;
 import mara.mybox.value.AppVariables;
-
 import mara.mybox.value.Fxmls;
 import mara.mybox.value.Languages;
 import mara.mybox.value.UserConfig;
@@ -27,6 +31,44 @@ import mara.mybox.value.UserConfig;
  * @License Apache License Version 2.0
  */
 public abstract class MainMenuController_Development extends MainMenuController_Settings {
+
+    protected HBox memoryBox, cpuBox;
+    protected Timer memoryMonitorTimer, cpuMonitorTimer;
+    protected final int memoryMonitorInterval = 1000, cpuMonitorInterval = 1000;
+    protected Runtime r;
+    protected OperatingSystemMXBean osmxb;
+    protected Label sysMemLabel, myboxMemLabel, sysCpuLabel, myboxCpuLabel;
+    protected ProgressBar sysMemBar, myboxMemBar, sysCpuBar, myboxCpuBar;
+    protected long mb;
+
+    @FXML
+    protected Menu devMenu;
+    @FXML
+    protected CheckMenuItem monitorMemroyCheck, monitorCpuCheck, detailedDebugCheck, popErrorCheck;
+
+    @Override
+    public void initControls() {
+        try {
+            super.initControls();
+
+            devMenu.setOnShowing((Event e) -> {
+                checkDev();
+            });
+            checkDev();
+
+        } catch (Exception e) {
+            MyBoxLog.debug(e.toString());
+        }
+    }
+
+    protected void checkDev() {
+        monitorMemroyCheck.setSelected(UserConfig.getBoolean("MonitorMemroy", false));
+        monitorCpuCheck.setSelected(UserConfig.getBoolean("MonitorCpu", false));
+        popErrorCheck.setSelected(AppVariables.popErrorLogs);
+        detailedDebugCheck.setSelected(AppVariables.detailedDebugLogs);
+        checkMemroyMonitor();
+        checkCpuMonitor();
+    }
 
     protected void makeMemoryMonitorBox() {
         sysMemLabel = new Label();
@@ -70,13 +112,13 @@ public abstract class MainMenuController_Development extends MainMenuController_
                     Platform.runLater(new Runnable() {
                         @Override
                         public void run() {
-                            long physicalFree = osmxb.getFreePhysicalMemorySize() / mb;
-                            long physicalTotal = osmxb.getTotalPhysicalMemorySize() / mb;
+                            long physicalFree = osmxb.getFreeMemorySize() / mb;
+                            long physicalTotal = osmxb.getTotalMemorySize() / mb;
                             long physicalUse = physicalTotal - physicalFree;
                             String sysInfo = System.getProperty("os.name")
                                     + " " + Languages.message("PhysicalMemory") + ":" + physicalTotal + "MB"
                                     + " " + Languages.message("Used") + ":"
-                                    + physicalUse + "MB (" + FloatTools.roundFloat2(physicalUse * 100.0f / physicalTotal) + "%)";
+                                    + physicalUse + "MB (" + FloatTools.percentage(physicalUse, physicalTotal) + "%)";
                             sysMemLabel.setText(sysInfo);
                             sysMemBar.setProgress(physicalUse * 1.0f / physicalTotal);
 
@@ -88,9 +130,9 @@ public abstract class MainMenuController_Development extends MainMenuController_
                                     //                    + "  " + AppVariables.getMessage("AvailableProcessors") + ":" + availableProcessors
                                     + " " + Languages.message("AvaliableMemory") + ":" + maxMemory + "MB"
                                     + " " + Languages.message("Required") + ":"
-                                    + totalMemory + "MB(" + FloatTools.roundFloat2(totalMemory * 100.0f / maxMemory) + "%)"
+                                    + totalMemory + "MB(" + FloatTools.percentage(totalMemory, maxMemory) + "%)"
                                     + " " + Languages.message("Used") + ":"
-                                    + usedMemory + "MB(" + FloatTools.roundFloat2(usedMemory * 100.0f / maxMemory) + "%)";
+                                    + usedMemory + "MB(" + FloatTools.percentage(usedMemory, maxMemory) + "%)";
                             myboxMemLabel.setText(myboxInfo);
                             myboxMemBar.setProgress(usedMemory * 1.0f / maxMemory);
                         }
@@ -168,7 +210,7 @@ public abstract class MainMenuController_Development extends MainMenuController_
                         @Override
                         public void run() {
 
-                            float load = (float) osmxb.getSystemCpuLoad();
+                            float load = (float) osmxb.getCpuLoad();
                             long s = (long) (osmxb.getSystemLoadAverage() / 1000000000);
                             String sysInfo = System.getProperty("os.name")
                                     + " " + Languages.message("SystemLoadAverage") + ":" + s + "s"
@@ -223,6 +265,18 @@ public abstract class MainMenuController_Development extends MainMenuController_
     }
 
     @FXML
+    protected void detailedDebug() {
+        AppVariables.detailedDebugLogs = detailedDebugCheck.isSelected();
+        UserConfig.setBoolean("DetailedDebugLogs", AppVariables.detailedDebugLogs);
+    }
+
+    @FXML
+    protected void popError() {
+        AppVariables.popErrorLogs = popErrorCheck.isSelected();
+        UserConfig.setBoolean("PopErrorLogs", AppVariables.popErrorLogs);
+    }
+
+    @FXML
     protected void MyBoxProperties(ActionEvent event) {
         openStage(Fxmls.MyBoxPropertiesFxml);
     }
@@ -233,13 +287,26 @@ public abstract class MainMenuController_Development extends MainMenuController_
     }
 
     @FXML
-    protected void MyBoxData(ActionEvent event) {
-        openStage(Fxmls.MyBoxDataFxml);
+    protected void MyBoxTables(ActionEvent event) {
+        loadScene(Fxmls.MyBoxTablesFxml);
     }
 
     @FXML
     protected void runSystemCommand(ActionEvent event) {
         loadScene(Fxmls.RunSystemCommandFxml);
+    }
+
+    @FXML
+    protected void JConsole(ActionEvent event) {
+        try {
+            String cmd = System.getProperty("java.home") + File.separator + "bin" + File.separator + "jconsole";
+            if (SystemTools.isWindows()) {
+                cmd += ".exe";
+            }
+            new ProcessBuilder(cmd).start();
+        } catch (Exception e) {
+            MyBoxLog.error(e);
+        }
     }
 
     @FXML
@@ -250,11 +317,17 @@ public abstract class MainMenuController_Development extends MainMenuController_
     // This is for developement to generate Icons automatically in different color style
     @FXML
     public void makeIcons() {
-        openStage(Fxmls.MyBoxIconsFxml);
+        loadScene(Fxmls.MyBoxIconsFxml);
+    }
+
+    @FXML
+    public void autoTesting() {
+        loadScene(Fxmls.AutoTestingCasesFxml);
     }
 
     @FXML
     protected void messageAuthor(ActionEvent event) {
         openStage(Fxmls.MessageAuthorFxml);
     }
+
 }

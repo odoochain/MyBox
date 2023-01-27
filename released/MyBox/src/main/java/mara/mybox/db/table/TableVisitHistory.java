@@ -1,8 +1,6 @@
 package mara.mybox.db.table;
 
-import java.io.File;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
@@ -10,10 +8,14 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import mara.mybox.db.DerbyBase;
+import mara.mybox.db.data.ColumnDefinition;
 import mara.mybox.db.data.VisitHistory;
 import mara.mybox.db.data.VisitHistory.FileType;
 import mara.mybox.db.data.VisitHistory.OperationType;
 import mara.mybox.db.data.VisitHistory.ResourceType;
+import mara.mybox.db.data.VisitHistoryTools;
+import static mara.mybox.db.table.BaseTable.StringMaxLength;
+import mara.mybox.dev.MyBoxLog;
 import mara.mybox.tools.DateTools;
 
 /**
@@ -21,62 +23,64 @@ import mara.mybox.tools.DateTools;
  * @CreateDate 2019-4-5
  * @License Apache License Version 2.0
  */
-public class TableVisitHistory extends DerbyBase {
+public class TableVisitHistory extends BaseTable<VisitHistory> {
 
     private static final String AllQuery
             = " SELECT * FROM visit_history  ORDER BY last_visit_time  DESC  ";
 
     public TableVisitHistory() {
-        Table_Name = "visit_history";
-        Keys = new ArrayList<>() {
-            {
-                add("resource_type");
-                add("file_type");
-                add("operation_type");
-                add("resource_value");
-            }
-        };
-        Create_Table_Statement
-                = " CREATE TABLE visit_history ( "
-                + "  resource_type  SMALLINT NOT NULL, "
-                + "  file_type  SMALLINT NOT NULL, "
-                + "  operation_type  SMALLINT NOT NULL, "
-                + "  resource_value  VARCHAR(1024) NOT NULL, "
-                + "  data_more VARCHAR(1024), "
-                + "  last_visit_time TIMESTAMP NOT NULL, "
-                + "  visit_count  INT , "
-                + "  PRIMARY KEY (resource_type, file_type, operation_type, resource_value)"
-                + " )";
+        tableName = "visit_history";
+        defineColumns();
+    }
+
+    public TableVisitHistory(boolean defineColumns) {
+        tableName = "visit_history";
+        if (defineColumns) {
+            defineColumns();
+        }
+    }
+
+    public final TableVisitHistory defineColumns() {
+        addColumn(new ColumnDefinition("resource_type", ColumnDefinition.ColumnType.Short, true, true));
+        addColumn(new ColumnDefinition("file_type", ColumnDefinition.ColumnType.Short, true, true));
+        addColumn(new ColumnDefinition("operation_type", ColumnDefinition.ColumnType.Short, true, true));
+        addColumn(new ColumnDefinition("resource_value", ColumnDefinition.ColumnType.String, true, true).setLength(StringMaxLength));
+        addColumn(new ColumnDefinition("data_more", ColumnDefinition.ColumnType.String).setLength(StringMaxLength));
+        addColumn(new ColumnDefinition("last_visit_time", ColumnDefinition.ColumnType.Datetime, true));
+        addColumn(new ColumnDefinition("visit_count", ColumnDefinition.ColumnType.Integer));
+        orderColumns = "create_time DESC";
+        return this;
     }
 
     public static VisitHistory read(ResultSet results) {
         try {
             VisitHistory his = new VisitHistory();
-            his.setResourceType(results.getInt("resource_type"));
-            his.setFileType(results.getInt("file_type"));
-            his.setOperationType(results.getInt("operation_type"));
+            his.setResourceType(results.getShort("resource_type"));
+            his.setFileType(results.getShort("file_type"));
+            his.setOperationType(results.getShort("operation_type"));
             his.setResourceValue(results.getString("resource_value"));
             his.setDataMore(results.getString("data_more"));
             his.setLastVisitTime(results.getTimestamp("last_visit_time"));
             his.setVisitCount(results.getInt("visit_count"));
             return his;
         } catch (Exception e) {
-//            MyBoxLog.debug(e);
+            MyBoxLog.debug(e);
             return null;
         }
     }
 
-    public static List<VisitHistory> checkFilesExisted(Connection conn, List<VisitHistory> records) {
+    public static List<VisitHistory> checkValid(Connection conn, List<VisitHistory> records) {
         if (records == null || records.isEmpty()) {
             return records;
         }
         List<VisitHistory> valid = new ArrayList<>();
         List<String> names = new ArrayList<>();
         for (VisitHistory r : records) {
-            if (r.getResourceType() == ResourceType.File || r.getResourceType() == ResourceType.Path) {
+            int resourceType = r.getResourceType();
+            if (resourceType == ResourceType.File || resourceType == ResourceType.Path) {
                 String fname = r.getResourceValue();
                 try {
-                    if (!new File(fname).exists()) {
+                    if (!VisitHistoryTools.validFile(fname, resourceType, r.getFileType())) {
                         delete(conn, r);
                     } else if (!names.contains(fname)) {
                         names.add(fname);
@@ -103,13 +107,18 @@ public class TableVisitHistory extends DerbyBase {
         } catch (Exception e) {
 //            MyBoxLog.debug(e);
         }
-        return checkFilesExisted(conn, records);
+        return checkValid(conn, records);
     }
 
     public static List<VisitHistory> find(Connection conn, PreparedStatement statement) {
         List<VisitHistory> records = new ArrayList<>();
-        try ( ResultSet results = statement.executeQuery()) {
-            records = findList(conn, results);
+        try {
+            conn.setAutoCommit(true);
+            try ( ResultSet results = statement.executeQuery()) {
+                records = findList(conn, results);
+            } catch (Exception e) {
+//            MyBoxLog.debug(e);
+            }
         } catch (Exception e) {
 //            MyBoxLog.debug(e);
         }
@@ -285,7 +294,7 @@ public class TableVisitHistory extends DerbyBase {
                 }
             }
         } catch (Exception e) {
-//            MyBoxLog.debug(e);
+            MyBoxLog.debug(e);
         }
         return records;
     }
@@ -318,7 +327,7 @@ public class TableVisitHistory extends DerbyBase {
                 records = findList(conn, results);
             }
         } catch (Exception e) {
-//            MyBoxLog.debug(e);
+            MyBoxLog.debug(e);
         }
         return records;
     }
@@ -349,6 +358,7 @@ public class TableVisitHistory extends DerbyBase {
                     statement.setInt(2, operationType);
                     statement.setString(3, value);
                     VisitHistory his = null;
+                    conn.setAutoCommit(true);
                     try ( ResultSet results = statement.executeQuery()) {
                         if (results.next()) {
                             his = read(results);
@@ -366,6 +376,7 @@ public class TableVisitHistory extends DerbyBase {
                     statement.setInt(3, operationType);
                     statement.setString(4, value);
                     VisitHistory his = null;
+                    conn.setAutoCommit(true);
                     try ( ResultSet results = statement.executeQuery()) {
                         if (results.next()) {
                             his = read(results);
@@ -376,7 +387,7 @@ public class TableVisitHistory extends DerbyBase {
             }
 
         } catch (Exception e) {
-//            MyBoxLog.debug(e);
+            MyBoxLog.debug(e);
         }
         return null;
     }
@@ -447,6 +458,9 @@ public class TableVisitHistory extends DerbyBase {
         if (resourceType < 0 || fileType < 0 || operationType < 0 || value == null) {
             return false;
         }
+        if (!VisitHistoryTools.validFile(value, resourceType, fileType)) {
+            return false;
+        }
         int finalType = fileType;
         if (fileType == FileType.MultipleFrames || fileType == FileType.Image) {
             String v = value.toLowerCase();
@@ -458,6 +472,7 @@ public class TableVisitHistory extends DerbyBase {
                 finalType = FileType.Image;
             }
         }
+
         try {
             VisitHistory exist = find(conn, resourceType, finalType, operationType, value);
             Date d = new Date();
@@ -522,7 +537,7 @@ public class TableVisitHistory extends DerbyBase {
                 }
             }
         } catch (Exception e) {
-//            MyBoxLog.debug(e);
+            MyBoxLog.debug(e);
             return false;
         }
     }
@@ -546,6 +561,7 @@ public class TableVisitHistory extends DerbyBase {
                 statement.setInt(3, operationType);
                 statement.setString(4, name);
                 statement.setString(5, fxml);
+                conn.setAutoCommit(true);
                 ResultSet results = statement.executeQuery();
                 if (results.next()) {
                     exist = read(results);
@@ -584,7 +600,7 @@ public class TableVisitHistory extends DerbyBase {
                 }
             }
         } catch (Exception e) {
-//            MyBoxLog.debug(e);
+            MyBoxLog.debug(e);
             return false;
         }
     }
@@ -642,7 +658,6 @@ public class TableVisitHistory extends DerbyBase {
         }
     }
 
-    @Override
     public int clear() {
         final String sql = "DELETE FROM visit_history";
         try ( Connection conn = DerbyBase.getConnection();

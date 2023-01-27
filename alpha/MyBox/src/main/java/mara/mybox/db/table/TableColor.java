@@ -9,10 +9,11 @@ import java.util.List;
 import javafx.scene.paint.Color;
 import mara.mybox.db.DerbyBase;
 import mara.mybox.db.data.ColorData;
+import mara.mybox.db.data.ColumnDefinition;
+import mara.mybox.db.data.ColumnDefinition.ColumnType;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fximage.FxColorTools;
 import mara.mybox.value.AppValues;
-
 
 /**
  * @Author Mara
@@ -34,26 +35,26 @@ public class TableColor extends BaseTable<ColorData> {
     }
 
     public final TableColor defineColumns() {
-        addColumn(new ColumnDefinition("color_value", ColumnDefinition.ColumnType.Integer, true, true));
-        addColumn(new ColumnDefinition("rgba", ColumnDefinition.ColumnType.String, true).setLength(16));
-        addColumn(new ColumnDefinition("color_name", ColumnDefinition.ColumnType.String).setLength(1024));
-        addColumn(new ColumnDefinition("rgb", ColumnDefinition.ColumnType.String, true).setLength(16));
-        addColumn(new ColumnDefinition("srgb", ColumnDefinition.ColumnType.String).setLength(128));
-        addColumn(new ColumnDefinition("hsb", ColumnDefinition.ColumnType.String).setLength(128));
-        addColumn(new ColumnDefinition("adobeRGB", ColumnDefinition.ColumnType.String).setLength(128));
-        addColumn(new ColumnDefinition("appleRGB", ColumnDefinition.ColumnType.String).setLength(128));
-        addColumn(new ColumnDefinition("eciRGB", ColumnDefinition.ColumnType.String).setLength(128));
-        addColumn(new ColumnDefinition("sRGBLinear", ColumnDefinition.ColumnType.String).setLength(128));
-        addColumn(new ColumnDefinition("adobeRGBLinear", ColumnDefinition.ColumnType.String).setLength(128));
-        addColumn(new ColumnDefinition("appleRGBLinear", ColumnDefinition.ColumnType.String).setLength(128));
-        addColumn(new ColumnDefinition("calculatedCMYK", ColumnDefinition.ColumnType.String).setLength(128));
-        addColumn(new ColumnDefinition("eciCMYK", ColumnDefinition.ColumnType.String).setLength(128));
-        addColumn(new ColumnDefinition("adobeCMYK", ColumnDefinition.ColumnType.String).setLength(128));
-        addColumn(new ColumnDefinition("xyz", ColumnDefinition.ColumnType.String).setLength(128));
-        addColumn(new ColumnDefinition("cieLab", ColumnDefinition.ColumnType.String).setLength(128));
-        addColumn(new ColumnDefinition("lchab", ColumnDefinition.ColumnType.String).setLength(128));
-        addColumn(new ColumnDefinition("cieLuv", ColumnDefinition.ColumnType.String).setLength(128));
-        addColumn(new ColumnDefinition("lchuv", ColumnDefinition.ColumnType.String).setLength(128));
+        addColumn(new ColumnDefinition("color_value", ColumnType.Integer, true, true));
+        addColumn(new ColumnDefinition("rgba", ColumnType.Color, true).setLength(16));
+        addColumn(new ColumnDefinition("color_name", ColumnType.String).setLength(StringMaxLength));
+        addColumn(new ColumnDefinition("rgb", ColumnType.Color, true).setLength(16));
+        addColumn(new ColumnDefinition("srgb", ColumnType.String).setLength(128));
+        addColumn(new ColumnDefinition("hsb", ColumnType.String).setLength(128));
+        addColumn(new ColumnDefinition("adobeRGB", ColumnType.String).setLength(128));
+        addColumn(new ColumnDefinition("appleRGB", ColumnType.String).setLength(128));
+        addColumn(new ColumnDefinition("eciRGB", ColumnType.String).setLength(128));
+        addColumn(new ColumnDefinition("sRGBLinear", ColumnType.String).setLength(128));
+        addColumn(new ColumnDefinition("adobeRGBLinear", ColumnType.String).setLength(128));
+        addColumn(new ColumnDefinition("appleRGBLinear", ColumnType.String).setLength(128));
+        addColumn(new ColumnDefinition("calculatedCMYK", ColumnType.String).setLength(128));
+        addColumn(new ColumnDefinition("eciCMYK", ColumnType.String).setLength(128));
+        addColumn(new ColumnDefinition("adobeCMYK", ColumnType.String).setLength(128));
+        addColumn(new ColumnDefinition("xyz", ColumnType.String).setLength(128));
+        addColumn(new ColumnDefinition("cieLab", ColumnType.String).setLength(128));
+        addColumn(new ColumnDefinition("lchab", ColumnType.String).setLength(128));
+        addColumn(new ColumnDefinition("cieLuv", ColumnType.String).setLength(128));
+        addColumn(new ColumnDefinition("lchuv", ColumnType.String).setLength(128));
         orderColumns = "color_value DESC";
         return this;
     }
@@ -71,32 +72,36 @@ public class TableColor extends BaseTable<ColorData> {
             = "DELETE FROM Color WHERE color_value=?";
 
     public ColorData read(int value) {
+        ColorData data = null;
         try ( Connection conn = DerbyBase.getConnection()) {
             conn.setReadOnly(true);
-            return read(conn, value);
+            data = read(conn, value);
         } catch (Exception e) {
             MyBoxLog.error(e);
         }
-        return null;
+        return data;
     }
 
     public ColorData read(Connection conn, int value) {
         if (conn == null) {
             return null;
         }
+        ColorData data = null;
         try ( PreparedStatement statement = conn.prepareStatement(QueryValue)) {
             statement.setInt(1, value);
             statement.setMaxRows(1);
+            conn.setAutoCommit(true);
             try ( ResultSet results = statement.executeQuery()) {
-                if (results.next()) {
-                    ColorData data = readData(results);
-                    return data;
+                if (results != null && results.next()) {
+                    data = readData(results);
                 }
+            } catch (Exception e) {
+                MyBoxLog.error(e);
             }
         } catch (Exception e) {
             MyBoxLog.error(e);
         }
-        return null;
+        return data;
     }
 
     public ColorData read(String web) {
@@ -131,16 +136,18 @@ public class TableColor extends BaseTable<ColorData> {
     }
 
     public ColorData findAndCreate(int value, String name) {
+        ColorData data = null;
         try ( Connection conn = DerbyBase.getConnection()) {
-            return findAndCreate(conn, value, name);
+            data = findAndCreate(conn, value, name);
         } catch (Exception e) {
             MyBoxLog.error(e);
-            return null;
         }
+        return data;
     }
 
     public ColorData findAndCreate(Connection conn, int value, String name) {
         try {
+            boolean ac = conn.getAutoCommit();
             ColorData data = read(conn, value);
             if (data == null) {
                 data = new ColorData(value).calculate().setColorName(name);
@@ -149,9 +156,10 @@ public class TableColor extends BaseTable<ColorData> {
                 data.setColorName(name);
                 updateData(conn, data.calculate());
             }
+            conn.setAutoCommit(ac);
             return data;
         } catch (Exception e) {
-            MyBoxLog.error(e);
+            MyBoxLog.error(e, value + "");
             return null;
         }
     }
@@ -173,6 +181,7 @@ public class TableColor extends BaseTable<ColorData> {
             }
             return findAndCreate(conn, value, name);
         } catch (Exception e) {
+            MyBoxLog.error(e, web);
             return null;
         }
     }
@@ -182,7 +191,6 @@ public class TableColor extends BaseTable<ColorData> {
             return write(conn, rgba, null, replace);
         } catch (Exception e) {
             MyBoxLog.error(e);
-
             return null;
         }
     }
@@ -264,6 +272,7 @@ public class TableColor extends BaseTable<ColorData> {
         }
         List<ColorData> updateList = new ArrayList<>();
         try {
+            boolean ac = conn.getAutoCommit();
             conn.setAutoCommit(false);
             for (Color color : colors) {
                 ColorData data = new ColorData(color);
@@ -273,6 +282,7 @@ public class TableColor extends BaseTable<ColorData> {
                 }
             }
             conn.commit();
+            conn.setAutoCommit(ac);
         } catch (Exception e) {
             MyBoxLog.error(e);
         }
@@ -297,6 +307,7 @@ public class TableColor extends BaseTable<ColorData> {
         }
         List<ColorData> updateList = new ArrayList<>();
         try {
+            boolean ac = conn.getAutoCommit();
             conn.setAutoCommit(false);
             for (ColorData data : dataList) {
                 ColorData updated = write(conn, data, replace);
@@ -305,6 +316,7 @@ public class TableColor extends BaseTable<ColorData> {
                 }
             }
             conn.commit();
+            conn.setAutoCommit(ac);
         } catch (Exception e) {
             MyBoxLog.error(e);
         }
@@ -389,6 +401,7 @@ public class TableColor extends BaseTable<ColorData> {
         }
         try ( Connection conn = DerbyBase.getConnection();
                  PreparedStatement delete = conn.prepareStatement(Delete)) {
+            boolean ac = conn.getAutoCommit();
             conn.setAutoCommit(false);
             for (String web : webList) {
                 int value = FxColorTools.web2Value(web);
@@ -402,6 +415,7 @@ public class TableColor extends BaseTable<ColorData> {
                 }
             }
             conn.commit();
+            conn.setAutoCommit(ac);
         } catch (Exception e) {
             MyBoxLog.error(e);
         }

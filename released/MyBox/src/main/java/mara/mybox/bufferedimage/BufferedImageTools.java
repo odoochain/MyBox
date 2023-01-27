@@ -11,15 +11,17 @@ import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.awt.image.ColorModel;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Hashtable;
+import java.util.Map;
 import javax.imageio.ImageIO;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.tools.SystemTools;
-import mara.mybox.value.FileFilters;
-import mara.mybox.color.ColorBase;
+import mara.mybox.imagefile.ImageFileReaders;
 import mara.mybox.tools.MessageDigestTools;
-import mara.mybox.value.Colors;
+import mara.mybox.value.AppVariables;
+import mara.mybox.value.FileExtensions;
 
 /**
  * @Author Mara
@@ -75,17 +77,51 @@ public class BufferedImageTools {
     }
 
     // https://stackoverflow.com/questions/24038524/how-to-get-byte-from-javafx-imageview
-    public static byte[] bytes(BufferedImage image) {
+    public static byte[] bytes(BufferedImage srcImage, String format) {
         byte[] bytes = null;
         try ( ByteArrayOutputStream stream = new ByteArrayOutputStream();) {
-            ImageIO.write(image, "png", stream);
+            BufferedImage tmpImage = srcImage;
+            if (!FileExtensions.AlphaImages.contains(format)) {
+                tmpImage = AlphaTools.removeAlpha(srcImage);
+            }
+            ImageIO.write(tmpImage, format, stream);
             bytes = stream.toByteArray();
         } catch (Exception e) {
+            MyBoxLog.debug(e.toString());
         }
         return bytes;
     }
 
-    public static boolean same(BufferedImage imageA, BufferedImage imageB) {
+    public static String base64(BufferedImage image, String format) {
+        try {
+            if (image == null || format == null) {
+                return null;
+            }
+            Base64.Encoder encoder = Base64.getEncoder();
+            byte[] bytes = bytes(image, format);
+            if (bytes == null) {
+                return null;
+            }
+            return encoder.encodeToString(bytes);
+        } catch (Exception e) {
+            MyBoxLog.error(e.toString());
+            return null;
+        }
+    }
+
+    public static String base64(File file, String format) {
+        try {
+            if (file == null) {
+                return null;
+            }
+            return base64(ImageFileReaders.readImage(file), format == null ? "jpg" : format);
+        } catch (Exception e) {
+            MyBoxLog.error(e.toString());
+            return null;
+        }
+    }
+
+    public static boolean sameByMD5(BufferedImage imageA, BufferedImage imageB) {
         if (imageA == null || imageB == null
                 || imageA.getWidth() != imageB.getWidth()
                 || imageA.getHeight() != imageB.getHeight()) {
@@ -94,7 +130,46 @@ public class BufferedImageTools {
         return Arrays.equals(MessageDigestTools.MD5(imageA), MessageDigestTools.MD5(imageB));
     }
 
-    // This way may be more quicker than comparing digests
+    // This way may be quicker than comparing digests
+    public static boolean same(BufferedImage imageA, BufferedImage imageB) {
+        try {
+            if (imageA == null || imageB == null
+                    || imageA.getWidth() != imageB.getWidth()
+                    || imageA.getHeight() != imageB.getHeight()) {
+                return false;
+            }
+            int width = imageA.getWidth(), height = imageA.getHeight();
+            for (int y = 0; y < height / 2; y++) {
+                for (int x = 0; x < width / 2; x++) {
+                    if (imageA.getRGB(x, y) != imageA.getRGB(x, y)) {
+                        return false;
+                    }
+                }
+                for (int x = width - 1; x >= width / 2; x--) {
+                    if (imageA.getRGB(x, y) != imageA.getRGB(x, y)) {
+                        return false;
+                    }
+                }
+            }
+            for (int y = height - 1; y >= height / 2; y--) {
+                for (int x = 0; x < width / 2; x++) {
+                    if (imageA.getRGB(x, y) != imageA.getRGB(x, y)) {
+                        return false;
+                    }
+                }
+                for (int x = width - 1; x >= width / 2; x--) {
+                    if (imageA.getRGB(x, y) != imageA.getRGB(x, y)) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    // This way may be  quicker than comparing digests
     public static boolean sameImage(BufferedImage imageA, BufferedImage imageB) {
         if (imageA == null || imageB == null
                 || imageA.getWidth() != imageB.getWidth()
@@ -114,35 +189,19 @@ public class BufferedImageTools {
     public static BufferedImage addArc(BufferedImage source, int arc, Color bgColor) {
         int width = source.getWidth();
         int height = source.getHeight();
-        int imageType = source.getType();
-        if (imageType == BufferedImage.TYPE_CUSTOM) {
-            imageType = BufferedImage.TYPE_INT_ARGB;
-        }
-        if (bgColor.getRGB() == Colors.TRANSPARENT.getRGB()) {
-            imageType = BufferedImage.TYPE_INT_ARGB;
-        }
+        int imageType = BufferedImage.TYPE_INT_ARGB;
         BufferedImage target = new BufferedImage(width, height, imageType);
         Graphics2D g = target.createGraphics();
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        if (AppVariables.imageRenderHints != null) {
+            g.addRenderingHints(AppVariables.imageRenderHints);
+        }
         g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER));
         g.setColor(bgColor);
         g.fillRect(0, 0, width, height);
         g.setClip(new RoundRectangle2D.Double(0, 0, width, height, arc, arc));
         g.drawImage(source, 0, 0, null);
         g.dispose();
-
         return target;
-    }
-
-    public static void applyQualityProperties(Graphics2D g2) {
-        g2.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION, RenderingHints.VALUE_ALPHA_INTERPOLATION_QUALITY);
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g2.setRenderingHint(RenderingHints.KEY_COLOR_RENDERING, RenderingHints.VALUE_COLOR_RENDER_QUALITY);
-        g2.setRenderingHint(RenderingHints.KEY_DITHERING, RenderingHints.VALUE_DITHER_ENABLE);
-        g2.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
-        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-        g2.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
     }
 
     public static GraphicsConfiguration getGraphicsConfiguration() {
@@ -157,6 +216,25 @@ public class BufferedImageTools {
         BufferedImage image = getGraphicsConfiguration().createCompatibleImage(width, height, transparency);
         image.coerceData(true);
         return image;
+    }
+
+    public static BufferedImage applyRenderHints(BufferedImage srcImage, Map<RenderingHints.Key, Object> hints) {
+        try {
+            if (srcImage == null || hints == null) {
+                return srcImage;
+            }
+            int width = srcImage.getWidth();
+            int height = srcImage.getHeight();
+            BufferedImage target = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g = target.createGraphics();
+            g.addRenderingHints(hints);
+            g.drawImage(srcImage, 0, 0, width, height, null);
+            g.dispose();
+            return target;
+        } catch (Exception e) {
+            MyBoxLog.error(e);
+            return srcImage;
+        }
     }
 
 }

@@ -1,9 +1,10 @@
 package mara.mybox.controller;
 
+import java.io.File;
 import javafx.fxml.FXML;
 import javafx.scene.layout.VBox;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.value.AppVariables;
+import mara.mybox.tools.FileNameTools;
 import mara.mybox.value.Languages;
 
 /**
@@ -13,10 +14,10 @@ import mara.mybox.value.Languages;
  */
 public abstract class BaseDataConvertController extends BaseBatchFileController {
 
+    protected boolean skip;
+
     @FXML
-    protected VBox pdfOptionsVBox, convertVBox;
-    @FXML
-    protected ControlPdfWriteOptions pdfOptionsController;
+    protected VBox convertVBox;
     @FXML
     protected ControlDataConvert convertController;
 
@@ -25,12 +26,10 @@ public abstract class BaseDataConvertController extends BaseBatchFileController 
     }
 
     @Override
-    public void initControls() {
+    public void initOptionsSection() {
         try {
-            super.initControls();
-
-            pdfOptionsController.pixSizeRadio.setDisable(true);
-            pdfOptionsController.standardSizeRadio.fire();
+            super.initOptionsSection();
+            convertController.setControls(this);
 
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
@@ -42,13 +41,20 @@ public abstract class BaseDataConvertController extends BaseBatchFileController 
         if (!convertController.initParameters()) {
             return false;
         }
+        skip = targetPathController.isSkip();
         return super.makeMoreParameters();
+    }
+
+    public String filePrefix(File srcFile) {
+        if (srcFile == null) {
+            return null;
+        }
+        return FileNameTools.prefix(srcFile.getName());
     }
 
     @Override
     public void disableControls(boolean disable) {
         super.disableControls(disable);
-        pdfOptionsVBox.setDisable(disable);
         convertVBox.setDisable(disable);
     }
 

@@ -2,19 +2,25 @@ package mara.mybox.controller;
 
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleBooleanProperty;
+import javafx.scene.image.Image;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.value.AppVariables;
+import mara.mybox.fxml.WindowTools;
+import mara.mybox.fxml.style.NodeStyleTools;
+import mara.mybox.value.Fxmls;
 import mara.mybox.value.Languages;
 
 /**
  * @Author Mara
  * @CreateDate 2019-8-12
  * @License Apache License Version 2.0
+ *
+ * ImageManufactureController < ImageManufactureController_Actions <
+ * ImageManufactureController_Image < ImageViewerController
  */
 public class ImageManufactureController extends ImageManufactureController_Actions {
 
     public ImageManufactureController() {
-        baseTitle = Languages.message("ImageManufacture");
+        baseTitle = Languages.message("EditImage");
         TipsLabelKey = "ImageManufactureTips";
     }
 
@@ -24,8 +30,6 @@ public class ImageManufactureController extends ImageManufactureController_Actio
             super.initValues();
 
             imageLoaded = new SimpleBooleanProperty(false);
-            historyIndex = -1;
-            imageHistoriesPath = AppVariables.getImageHisPath();
 
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
@@ -38,7 +42,7 @@ public class ImageManufactureController extends ImageManufactureController_Actio
             super.initControls();
 
             initCreatePane();
-            initHistoriesTab();
+            initHisTab();
             initBackupsTab();
             initEditBar();
 
@@ -51,6 +55,17 @@ public class ImageManufactureController extends ImageManufactureController_Actio
         }
     }
 
+    @Override
+    public void setControlsStyle() {
+        try {
+            super.setControlsStyle();
+            NodeStyleTools.setTooltip(popButton, Languages.message("PopTabImage"));
+            NodeStyleTools.setTooltip(viewImageButton, Languages.message("PopManufacturedImage"));
+        } catch (Exception e) {
+            MyBoxLog.debug(e.toString());
+        }
+    }
+
     protected void initBackupsTab() {
         try {
             backupController.setControls(this, baseName);
@@ -60,17 +75,14 @@ public class ImageManufactureController extends ImageManufactureController_Actio
         }
     }
 
-//    @Override
-//    public void afterSceneLoaded() {
-//        try {
-//            super.afterSceneLoaded();
-//
-//            scopeController.initSplitDivider();
-//
-//        } catch (Exception e) {
-//            MyBoxLog.error(e.toString());
-//        }
-//    }
+    protected void initHisTab() {
+        try {
+            hisController.setParameters(this);
+        } catch (Exception e) {
+            MyBoxLog.error(e.toString());
+        }
+    }
+
     @Override
     public boolean afterImageLoaded() {
         try {
@@ -85,11 +97,12 @@ public class ImageManufactureController extends ImageManufactureController_Actio
             scopeSavedController.setParameters(this);
             operationsController.resetOperationPanes();
 
-            recordImageHistory(ImageOperation.Load, image);
-            updateLabel(Languages.message("Loaded"));
-
 //            autoSize();
+            hisTab.setDisable(sourceFile == null);
+            backupTab.setDisable(sourceFile == null);
+            hisController.recordImageHistory(ImageOperation.Load, image);
             backupController.loadBackups(sourceFile);
+            updateLabelString(Languages.message("Loaded"));
 
             return true;
         } catch (Exception e) {
@@ -98,4 +111,12 @@ public class ImageManufactureController extends ImageManufactureController_Actio
         }
     }
 
+    /*
+        static methods
+     */
+    public static ImageManufactureController load(Image image) {
+        ImageManufactureController controller = (ImageManufactureController) WindowTools.openStage(Fxmls.ImageManufactureFxml);
+        controller.loadImage(image);
+        return controller;
+    }
 }

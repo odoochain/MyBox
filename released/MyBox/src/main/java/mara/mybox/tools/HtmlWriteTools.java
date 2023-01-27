@@ -1,5 +1,11 @@
 package mara.mybox.tools;
 
+import com.vladsch.flexmark.ext.tables.TablesExtension;
+import com.vladsch.flexmark.html.HtmlRenderer;
+import com.vladsch.flexmark.parser.Parser;
+import com.vladsch.flexmark.parser.ParserEmulationProfile;
+import com.vladsch.flexmark.util.data.MutableDataHolder;
+import com.vladsch.flexmark.util.data.MutableDataSet;
 import java.io.File;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
@@ -13,8 +19,10 @@ import mara.mybox.data.Link;
 import mara.mybox.data.StringTable;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fxml.ControllerTools;
+import mara.mybox.fxml.style.HtmlStyles;
+import static mara.mybox.tools.HtmlReadTools.charsetInHead;
+import static mara.mybox.tools.HtmlReadTools.tag;
 import static mara.mybox.value.AppValues.Indent;
-import mara.mybox.value.HtmlStyles;
 import mara.mybox.value.Languages;
 import org.jsoup.Jsoup;
 import org.w3c.dom.Document;
@@ -34,7 +42,11 @@ public class HtmlWriteTools {
     public static File writeHtml(String html) {
         try {
             File htmFile = TmpFileTools.getTempFile(".htm");
-            Charset charset = HtmlReadTools.htmlCharset(html);
+            Charset charset = charsetInHead(tag(html, "head", true));
+            if (charset == null) {
+                charset = Charset.forName("UTF-8");
+                html = setCharset(html, charset);
+            }
             TextFileTools.writeFile(htmFile, html, charset);
             return htmFile;
         } catch (Exception e) {
@@ -59,14 +71,20 @@ public class HtmlWriteTools {
     /*
         build html
      */
-    public static String emptyHmtl() {
-        return htmlWithStyleValue(null, null, "<BODY>\n\n\n</BODY>\n");
+    public static String emptyHmtl(String title) {
+        String body = title == null ? "<BODY>\n\n\n</BODY>\n" : "<BODY>\n<h2>" + title + "</h2>\n</BODY>\n";
+        return html(title, "utf-8", null, body);
     }
 
-    public static String htmlPrefix(String title, String styleValue) {
+    public static String htmlPrefix(String title, String charset, String styleValue) {
         StringBuilder s = new StringBuilder();
-        s.append("<!DOCTYPE html><HTML>\n").append(Indent).append("<HEAD>\n").append(Indent).append(Indent)
-                .append("<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" />\n");
+        s.append("<!DOCTYPE html><HTML>\n").append(Indent).append("<HEAD>\n");
+        if (charset == null || charset.isBlank()) {
+            charset = "utf-8";
+        }
+        s.append(Indent).append(Indent)
+                .append("<meta http-equiv=\"Content-Type\" content=\"text/html; charset=")
+                .append(charset).append("\" />\n");
         if (title != null && !title.trim().isEmpty()) {
             s.append(Indent).append(Indent).append("<TITLE>").append(title).append("</TITLE>\n");
         }
@@ -80,41 +98,56 @@ public class HtmlWriteTools {
     }
 
     public static String htmlPrefix() {
-        return htmlPrefix(null, HtmlStyles.DefaultStyle);
+        return htmlPrefix(null, "utf-8", null);
     }
 
     public static String html(String title, String body) {
-        return htmlWithStyleValue(title, HtmlStyles.DefaultStyle, body);
+        return html(title, "utf-8", null, body);
     }
 
-    public static String html(String title, HtmlStyles.HtmlStyle style, String body) {
-        return htmlWithStyleValue(title, HtmlStyles.styleValue(style), body);
+    public static String html(String title, String style, String body) {
+        return html(title, "utf-8", style, body);
     }
 
-    public static String html(String title, String styleName, String body) {
-        return html(title, HtmlStyles.styleName(styleName), body);
-    }
-
-    public static String setStyle(String html, HtmlStyles.HtmlStyle style) {
-        return setStyleValue(html, HtmlStyles.styleValue(style));
-    }
-
-    public static String setStyle(String html, String styleName) {
-        return setStyle(html, HtmlStyles.styleName(styleName));
-    }
-
-    public static String htmlWithStyleValue(String title, String styleValue, String body) {
+    public static String html(String title, String charset, String styleValue, String body) {
         StringBuilder s = new StringBuilder();
-        s.append(htmlPrefix(title, styleValue));
+        s.append(htmlPrefix(title, charset, styleValue));
         s.append(body);
         s.append("</HTML>\n");
         return s.toString();
     }
 
-    public static String setStyleValue(String html, String styleValue) {
-        String title = HtmlReadTools.htmlTitle(html);
-        String body = HtmlReadTools.body(html, true);
-        return htmlWithStyleValue(title, styleValue, body);
+    public static String html(String body) {
+        return html(null, "utf-8", HtmlStyles.DefaultStyle, body);
+    }
+
+    public static String style(String html, String styleValue) {
+        return html(HtmlReadTools.htmlTitle(html),
+                HtmlReadTools.charsetName(html),
+                styleValue,
+                HtmlReadTools.body(html, true));
+    }
+
+    public static String addStyle(String html, String style) {
+        try {
+            if (html == null || style == null) {
+                return "InvalidData";
+            }
+            String preHtml = HtmlReadTools.preHtml(html);
+            String head = HtmlReadTools.tag(html, "head", false);
+            String body = HtmlReadTools.body(html, true);
+            html = preHtml + "<html>\n"
+                    + "    <head>\n"
+                    + head + "\n"
+                    + "        <style type=\"text/css\">\n"
+                    + style + "        </style>\n"
+                    + "    </head>\n"
+                    + body + "\n</html>";
+            return html;
+        } catch (Exception e) {
+            MyBoxLog.error(e);
+            return null;
+        }
     }
 
     /*
@@ -145,7 +178,48 @@ public class HtmlWriteTools {
 
     public static String htmlToText(String html) {
         try {
-            return Jsoup.parse(html).wholeText();
+            if (html == null || html.isBlank()) {
+                return html;
+            } else {
+                return Jsoup.parse(html).wholeText();
+            }
+        } catch (Exception e) {
+            MyBoxLog.error(e);
+            return null;
+        }
+    }
+
+    public static String md2html(String md, Parser htmlParser, HtmlRenderer htmlRender) {
+        try {
+            if (htmlParser == null || htmlRender == null || md == null || md.isBlank()) {
+                return null;
+            }
+            com.vladsch.flexmark.util.ast.Node document = htmlParser.parse(md);
+            String html = htmlRender.render(document);
+            return html;
+        } catch (Exception e) {
+            MyBoxLog.error(e);
+            return null;
+        }
+    }
+
+    public static String md2html(String md) {
+        try {
+            if (md == null || md.isBlank()) {
+                return null;
+            }
+            MutableDataHolder htmlOptions = new MutableDataSet();
+            htmlOptions.setFrom(ParserEmulationProfile.valueOf("PEGDOWN"));
+            htmlOptions.set(Parser.EXTENSIONS, Arrays.asList(
+                    TablesExtension.create()
+            ));
+            htmlOptions.set(HtmlRenderer.INDENT_SIZE, 4)
+                    .set(TablesExtension.TRIM_CELL_WHITESPACE, false)
+                    .set(TablesExtension.DISCARD_EXTRA_COLUMNS, true)
+                    .set(TablesExtension.APPEND_MISSING_COLUMNS, true);
+            Parser htmlParser = Parser.builder(htmlOptions).build();
+            HtmlRenderer htmlRender = HtmlRenderer.builder(htmlOptions).build();
+            return md2html(md, htmlParser, htmlRender);
         } catch (Exception e) {
             MyBoxLog.error(e);
             return null;
@@ -160,28 +234,71 @@ public class HtmlWriteTools {
             Charset fileCharset = TextFileTools.charset(htmlFile);
             String html = TextFileTools.readTexts(htmlFile, fileCharset);
             String head = HtmlReadTools.tag(html, "head", false);
-            String preHtml = HtmlReadTools.preHtml(html);
             if (head == null) {
                 if (!must && fileCharset.equals(charset)) {
                     return "NeedNot";
                 }
-                html = preHtml + "<html>\n" + "    <head>\n" + "        <meta http-equiv=\"Content-Type\" content=\"text/html; charset=" + charset.name() + "\" />\n" + "    </head>\n" + html + "\n" + "</html>";
             } else {
-                String newHead;
                 Charset headCharset = HtmlReadTools.charsetInHead(head);
                 if (!must && fileCharset.equals(charset) && (headCharset == null || charset.equals(headCharset))) {
                     return "NeedNot";
                 }
+            }
+            return setCharset(html, charset);
+        } catch (Exception e) {
+            MyBoxLog.error(e, charset.displayName());
+            return null;
+        }
+    }
+
+    public static String setCharset(String html, Charset charset) {
+        try {
+            if (html == null || charset == null) {
+                return "InvalidData";
+            }
+            String head = HtmlReadTools.tag(html, "head", false);
+            String preHtml = HtmlReadTools.preHtml(html);
+            String name = charset.name().toLowerCase();
+            if (head == null) {
+                html = preHtml + "<html>\n" + "    <head>\n" + "        <meta http-equiv=\"Content-Type\" content=\"text/html;charset="
+                        + name + "\" />\n" + "    </head>\n" + html + "\n" + "</html>";
+            } else {
+                String newHead;
+                Charset headCharset = HtmlReadTools.charsetInHead(head);
                 if (headCharset != null) {
-                    newHead = FindReplaceString.replace(head, headCharset.name(), charset.name(), 0, false, true, false);
+                    newHead = FindReplaceString.replaceFirst(head, headCharset.name(), name, 0, false, true, false);
                 } else {
-                    newHead = head + "\n<meta charset=\"text/html; charset=" + charset.name() + "\"/>";
+                    newHead = head + "\n<meta http-equiv=\"Content-Type\" content=\"text/html;charset=" + name + "\"/>";
                 }
-                html = preHtml + "<html>\n" + "    <head>\n" + newHead + "\n" + "    </head>\n" + HtmlReadTools.body(html, true) + "\n" + "</html>";
+                html = preHtml + "<html>\n" + "    <head>\n" + newHead + "\n"
+                        + "    </head>\n" + HtmlReadTools.body(html, true) + "\n" + "</html>";
             }
             return html;
         } catch (Exception e) {
             MyBoxLog.error(e, charset.displayName());
+            return null;
+        }
+    }
+
+    public static String ignoreHead(String html) {
+        try {
+            if (html == null) {
+                return "InvalidData";
+            }
+            String head = HtmlReadTools.tag(html, "head", false);
+            String preHtml = HtmlReadTools.preHtml(html);
+            String charset = "utf-8";
+            if (head != null) {
+                Charset headCharset = HtmlReadTools.charsetInHead(head);
+                if (headCharset != null) {
+                    charset = headCharset.name();
+                }
+            }
+            html = preHtml + "<html>\n" + "    <head>\n" + "        <meta http-equiv=\"Content-Type\" content=\"text/html;charset="
+                    + charset + "\" />\n" + "    </head>\n" + HtmlReadTools.body(html, true) + "\n" + "</html>";
+            return html;
+        } catch (Exception e) {
+            MyBoxLog.error(e);
             return null;
         }
     }
@@ -194,24 +311,30 @@ public class HtmlWriteTools {
         return setCharset(htmlFile, Charset.forName("utf-8"), must);
     }
 
-    public static String setStyle(File htmlFile, String css, boolean ignoreOriginal) {
+    public static String setStyle(File htmlFile, Charset charset, String css, boolean ignoreOriginal) {
         try {
             if (htmlFile == null || css == null) {
                 return "InvalidData";
             }
-            Charset fileCharset = TextFileTools.charset(htmlFile);
-            String html = TextFileTools.readTexts(htmlFile, fileCharset);
+            if (charset == null) {
+                charset = TextFileTools.charset(htmlFile);
+            }
+            String html = TextFileTools.readTexts(htmlFile, charset);
             String preHtml = HtmlReadTools.preHtml(html);
             String head;
             if (ignoreOriginal) {
-                head = "        <meta http-equiv=\"Content-Type\" content=\"text/html; charset=" + fileCharset.name() + "\" />\n";
+                head = "        <meta http-equiv=\"Content-Type\" content=\"text/html; charset=" + charset.name() + "\" />\n";
             } else {
                 head = HtmlReadTools.tag(html, "head", false);
                 if (head == null) {
-                    head = "        <meta http-equiv=\"Content-Type\" content=\"text/html; charset=" + fileCharset.name() + "\" />\n";
+                    head = "        <meta http-equiv=\"Content-Type\" content=\"text/html; charset=" + charset.name() + "\" />\n";
                 }
             }
-            html = preHtml + "<html>\n" + "    <head>\n" + head + "\n" + "        <style type=\"text/css\">/>\n" + css + "        </style>/>\n" + "    </head>\n" + HtmlReadTools.body(html, true) + "\n" + "</html>";
+            String body = HtmlReadTools.body(html, true);
+            html = preHtml + "<html>\n    <head>\n"
+                    + head + "\n        <style type=\"text/css\">\n"
+                    + css + "        </style>\n    </head>\n"
+                    + body + "\n</html>";
             return html;
         } catch (Exception e) {
             MyBoxLog.error(e);
@@ -225,7 +348,7 @@ public class HtmlWriteTools {
             if (files == null || files.isEmpty()) {
                 return false;
             }
-            String namePrefix = FileNameTools.getFilePrefix(targetFile.getName());
+            String namePrefix = FileNameTools.prefix(targetFile.getName());
             File navFile = new File(targetFile.getParent() + File.separator + namePrefix + "_nav.html");
             StringBuilder nav = new StringBuilder();
             File first = null;
@@ -318,7 +441,8 @@ public class HtmlWriteTools {
         if (nodeList == null || nodeList.getLength() < 1) {
             return 0;
         }
-        FindReplaceString finder = FindReplaceString.create().setOperation(FindReplaceString.Operation.FindNext).setFindString(findString).setIsRegex(reg).setCaseInsensitive(caseInsensitive).setMultiline(true);
+        FindReplaceString finder = FindReplaceString.create().setOperation(FindReplaceString.Operation.FindNext)
+                .setFindString(findString).setIsRegex(reg).setCaseInsensitive(caseInsensitive).setMultiline(true);
         String replaceSuffix = " style=\"color:" + color + "; background: " + bgColor + "; font-size:" + font + ";\">" + findString + "</span>";
         return replace(finder, nodeList.item(0), 0, replaceSuffix);
     }
@@ -420,7 +544,7 @@ public class HtmlWriteTools {
                 Collections.sort(files, new Comparator<File>() {
                     @Override
                     public int compare(File f1, File f2) {
-                        return FileNameTools.compareFilename(f1, f2);
+                        return FileNameTools.compareName(f1, f2);
                     }
                 });
                 File frameFile = new File(path.getAbsolutePath() + File.separator + "0000_" + Languages.message("PathIndex") + ".html");

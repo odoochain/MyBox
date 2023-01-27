@@ -1,5 +1,6 @@
 package mara.mybox.fxml;
 
+import java.io.File;
 import java.sql.Connection;
 import javafx.application.Platform;
 import javafx.scene.control.TextInputControl;
@@ -12,8 +13,9 @@ import mara.mybox.db.DerbyBase;
 import mara.mybox.db.table.TableTextClipboard;
 import mara.mybox.dev.MyBoxLog;
 import static mara.mybox.fxml.TextClipboardMonitor.DefaultInterval;
+import mara.mybox.tools.TextFileTools;
 import static mara.mybox.value.AppVariables.textClipboardMonitor;
-import mara.mybox.value.Languages;
+import static mara.mybox.value.Languages.message;
 import mara.mybox.value.UserConfig;
 
 /**
@@ -116,30 +118,47 @@ public class TextClipboardTools {
         if (controller == null || textInput == null) {
             return;
         }
-        copyToSystemClipboard(controller, textInput.getSelectedText());
+        String text = textInput.getSelectedText();
+        if (text == null || text.isEmpty()) {
+            text = textInput.getText();
+        }
+        copyToSystemClipboard(controller, text);
     }
 
     public static void copyToSystemClipboard(BaseController controller, String text) {
-        if (controller == null) {
-            return;
-        }
         Platform.runLater(new Runnable() {
             @Override
             public void run() {
                 if (text == null || text.isEmpty()) {
-                    controller.popError(Languages.message("CopyNone"));
+                    controller.popError(message("SelectToHandle"));
                     return;
                 }
                 if (stringToSystemClipboard(text)) {
-                    String info = text.length() > 200 ? text.substring(0, 200) + "\n......" : text;
+                    int len = text.length();
+                    String info = "\n" + message("CharactersNumber") + ":" + len
+                            + "\n----------------------\n"
+                            + (len > 100 ? text.substring(0, 100) + "\n......" : text);
                     if (TextClipboardTools.isMonitoringCopy()) {
-                        controller.popInformation(Languages.message("CopiedInClipBoards") + "\n----------------------\n" + info);
+                        controller.popInformation(message("CopiedInClipBoards") + info);
                     } else {
-                        controller.popInformation(Languages.message("CopiedInSystemClipBoard") + "\n----------------------\n" + info);
+                        controller.popInformation(message("CopiedInSystemClipBoard") + info);
                     }
                 } else {
                     controller.popFailed();
                 }
+            }
+        });
+    }
+
+    public static void copyFileToSystemClipboard(BaseController controller, File file) {
+        Platform.runLater(new Runnable() {
+            @Override
+            public void run() {
+                if (file == null || !file.exists()) {
+                    controller.popError(message("SelectToHandle"));
+                    return;
+                }
+                copyToSystemClipboard(controller, TextFileTools.readTexts(file));
             }
         });
     }
@@ -151,7 +170,11 @@ public class TextClipboardTools {
         if (controller == null || textInput == null) {
             return;
         }
-        copyToMyBoxClipboard(controller, textInput.getSelectedText());
+        String text = textInput.getSelectedText();
+        if (text == null || text.isEmpty()) {
+            text = textInput.getText();
+        }
+        copyToMyBoxClipboard(controller, text);
     }
 
     public static void copyToMyBoxClipboard(BaseController controller, String text) {
@@ -162,12 +185,12 @@ public class TextClipboardTools {
             @Override
             public void run() {
                 if (text == null || text.isEmpty()) {
-                    controller.popError(Languages.message("CopyNone"));
+                    controller.popError(message("SelectToHandle"));
                     return;
                 }
                 if (stringToMyBoxClipboard(text)) {
                     String info = text.length() > 200 ? text.substring(0, 200) + "\n......" : text;
-                    controller.popInformation(Languages.message("CopiedInMyBoxClipBoard") + "\n----------------------\n" + info);
+                    controller.popInformation(message("CopiedInMyBoxClipBoard") + "\n----------------------\n" + info);
                 } else {
                     controller.popFailed();
                 }

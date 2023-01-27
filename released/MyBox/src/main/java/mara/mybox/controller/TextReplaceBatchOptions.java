@@ -11,7 +11,6 @@ import javafx.scene.control.Toggle;
 import javafx.scene.control.ToggleGroup;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.tools.TextTools;
-import static mara.mybox.value.Languages.message;
 import mara.mybox.value.Languages;
 
 /**
@@ -38,7 +37,7 @@ public class TextReplaceBatchOptions extends ControlFindReplace {
         try {
             super.initControls();
 
-            setControls();
+            setParent(this);
 
             charsetGroup.selectedToggleProperty().addListener(new ChangeListener<Toggle>() {
                 @Override
@@ -66,7 +65,7 @@ public class TextReplaceBatchOptions extends ControlFindReplace {
 
     protected void checkCharset() {
         RadioButton selected = (RadioButton) charsetGroup.getSelectedToggle();
-        if (Languages.message("DetermainAutomatically").equals(selected.getText())) {
+        if (Languages.message("DetermineAutomatically").equals(selected.getText())) {
             autoDetermine = true;
             encodeBox.setDisable(true);
         } else {

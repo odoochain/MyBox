@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
@@ -22,27 +23,25 @@ import javafx.scene.control.ListView;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.SelectionMode;
 import javafx.scene.control.SeparatorMenuItem;
-import javafx.scene.control.Tab;
-import javafx.scene.control.TabPane;
+import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextInputDialog;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
-import javafx.stage.Modality;
 import javafx.stage.Stage;
+import javafx.util.Callback;
+import javafx.util.converter.DefaultStringConverter;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.NodeTools;
 import mara.mybox.fxml.PopTools;
+import mara.mybox.fxml.SingletonTask;
+import mara.mybox.fxml.cell.TableAutoCommitCell;
 import mara.mybox.tools.ConfigTools;
 import mara.mybox.tools.FileDeleteTools;
-import mara.mybox.tools.FileTools;
 import mara.mybox.value.AppVariables;
-import static mara.mybox.value.Languages.message;
-
 import mara.mybox.value.Languages;
-import thridparty.TableAutoCommitCell;
+import static mara.mybox.value.Languages.message;
 
 /**
  * @Author Mara
@@ -51,27 +50,24 @@ import thridparty.TableAutoCommitCell;
  */
 public class MyBoxLanguagesController extends BaseController {
 
-    protected ObservableList<LanguageItem> interfaceData, tableData;
+    protected ObservableList<LanguageItem> tableData;
     protected String langName;
+    protected ChangeListener<Boolean> getListener;
 
-    @FXML
-    protected TabPane tabPane;
-    @FXML
-    protected Tab interfaceTab, tableTab;
     @FXML
     protected ListView<String> listView;
     @FXML
-    protected TableView<LanguageItem> interfaceView, tableView;
+    protected TableView<LanguageItem> tableView;
     @FXML
-    protected TableColumn<LanguageItem, String> keyColumn, englishColumn, valueColumn,
-            tableKeyColumn, tableValueColumn, tableEnglishColumn;
+    protected TableColumn<LanguageItem, String> keyColumn, englishColumn, chineseColumn, valueColumn;
     @FXML
     protected Label langLabel;
     @FXML
-    protected Button useButton, copyEnglishButton;
+    protected Button useButton;
 
     public MyBoxLanguagesController() {
-        baseTitle = Languages.message("ManageLanguages");
+        baseTitle = message("ManageLanguages");
+        TipsLabelKey = "MyBoxLanguagesTips";
     }
 
     @Override
@@ -79,17 +75,10 @@ public class MyBoxLanguagesController extends BaseController {
         try {
             super.initControls();
 
-            initIntefaceView();
             initTableView();
             initListView();
 
-            tabPane.getSelectionModel().selectedItemProperty().addListener(new ChangeListener() {
-                @Override
-                public void changed(ObservableValue ov, Object t, Object t1) {
-                    checkTableSelected();
-                }
-            });
-            saveButton.disableProperty().bind(Bindings.isEmpty(tableView.getItems()));
+            saveButton.disableProperty().bind(Bindings.isEmpty(tableData));
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
         }
@@ -119,14 +108,72 @@ public class MyBoxLanguagesController extends BaseController {
         }
     }
 
-    public void initIntefaceView() {
+    public class LanguageCell extends TableAutoCommitCell {
+
+        private ChangeListener<Boolean> getListener;
+
+        public LanguageCell() {
+            super(new DefaultStringConverter());
+        }
+
+        protected void setCellValue(int rowIndex, String value) {
+            if (isSettingValues || rowIndex < 0 || rowIndex >= tableData.size()) {
+                return;
+            }
+            LanguageItem item = tableData.get(rowIndex);
+            String currentValue = item.getValue();
+            if ((currentValue == null && value == null)
+                    || (currentValue != null && currentValue.equals(value))) {
+                return;
+            }
+            item.setValue(value);
+            tableData.set(rowIndex, item);
+        }
+
+        @Override
+        public void startEdit() {
+            int row = rowIndex();
+            if (row < 0) {
+                return;
+            }
+            LanguageItem item = tableData.get(row);
+            String en = item.getEnglish();
+            String value = item.getValue();
+            if (value != null && value.contains("\n") || en != null && en.contains("\n")) {
+                MyBoxLanguageInputController inputController
+                        = MyBoxLanguageInputController.open((MyBoxLanguagesController) myController, item);
+                getListener = new ChangeListener<Boolean>() {
+                    @Override
+                    public void changed(ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) {
+                        String value = inputController.getInput();
+                        inputController.getNotify().removeListener(getListener);
+                        getListener = null;
+                        setCellValue(row, value);
+                        inputController.closeStage();
+                    }
+                };
+                inputController.getNotify().addListener(getListener);
+            } else {
+                super.startEdit();
+            }
+        }
+
+    }
+
+    public void initTableView() {
         try {
-            interfaceData = FXCollections.observableArrayList();
+            tableData = FXCollections.observableArrayList();
 
             keyColumn.setCellValueFactory(new PropertyValueFactory<>("key"));
             englishColumn.setCellValueFactory(new PropertyValueFactory<>("english"));
+            chineseColumn.setCellValueFactory(new PropertyValueFactory<>("chinese"));
             valueColumn.setCellValueFactory(new PropertyValueFactory<>("value"));
-            valueColumn.setCellFactory(TableAutoCommitCell.forTableColumn());
+            valueColumn.setCellFactory(new Callback<TableColumn<LanguageItem, String>, TableCell<LanguageItem, String>>() {
+                @Override
+                public TableCell<LanguageItem, String> call(TableColumn<LanguageItem, String> param) {
+                    return new LanguageCell();
+                }
+            });
             valueColumn.setOnEditCommit(new EventHandler<TableColumn.CellEditEvent<LanguageItem, String>>() {
                 @Override
                 public void handle(TableColumn.CellEditEvent<LanguageItem, String> t) {
@@ -134,63 +181,23 @@ public class MyBoxLanguagesController extends BaseController {
                         return;
                     }
                     LanguageItem row = t.getRowValue();
-                    row.setValue(t.getNewValue());
-                }
-            });
-            valueColumn.getStyleClass().add("editable-column");
-
-            interfaceView.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
-            interfaceView.getSelectionModel().selectedItemProperty().addListener(new ChangeListener() {
-                @Override
-                public void changed(ObservableValue ov, Object t, Object t1) {
-                    checkTableSelected();
-                }
-            });
-
-            interfaceView.setOnMouseClicked(new EventHandler<MouseEvent>() {
-                @Override
-                public void handle(MouseEvent event) {
-                    if (event.getButton() == MouseButton.SECONDARY) {
-                        popMenu(interfaceView, event);
-                    }
-                }
-            });
-
-            interfaceView.setItems(interfaceData);
-
-        } catch (Exception e) {
-            MyBoxLog.error(e.toString());
-        }
-    }
-
-    public void initTableView() {
-        try {
-            tableData = FXCollections.observableArrayList();
-
-            tableKeyColumn.setCellValueFactory(new PropertyValueFactory<>("key"));
-            tableEnglishColumn.setCellValueFactory(new PropertyValueFactory<>("english"));
-            tableValueColumn.setCellValueFactory(new PropertyValueFactory<>("value"));
-            tableValueColumn.setCellFactory(TableAutoCommitCell.forTableColumn());
-            tableValueColumn.setOnEditCommit(new EventHandler<TableColumn.CellEditEvent<LanguageItem, String>>() {
-                @Override
-                public void handle(TableColumn.CellEditEvent<LanguageItem, String> t) {
-                    if (t == null) {
+                    if (row == null) {
                         return;
                     }
-                    LanguageItem row = t.getRowValue();
-                    row.setValue(t.getNewValue());
+                    String v = t.getNewValue();
+                    String o = row.getValue();
+                    if (v == null && o == null
+                            || v != null && v.equals(o)) {
+                        return;
+                    }
+                    row.setValue(v);
+                    tableChanged(true);
                 }
             });
-            tableValueColumn.getStyleClass().add("editable-column");
+            valueColumn.setEditable(true);
+            valueColumn.getStyleClass().add("editable-column");
 
             tableView.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
-            tableView.getSelectionModel().selectedItemProperty().addListener(new ChangeListener() {
-                @Override
-                public void changed(ObservableValue ov, Object t, Object t1) {
-                    checkTableSelected();
-                }
-            });
-
             tableView.setOnMouseClicked(new EventHandler<MouseEvent>() {
                 @Override
                 public void handle(MouseEvent event) {
@@ -230,16 +237,6 @@ public class MyBoxLanguagesController extends BaseController {
         }
     }
 
-    protected void checkTableSelected() {
-        if (isSettingValues) {
-            return;
-        }
-        Tab tab = tabPane.getSelectionModel().getSelectedItem();
-        boolean selected = (tab == tableTab) && tableView.getSelectionModel().getSelectedItem() != null
-                || (tab == interfaceTab) && interfaceView.getSelectionModel().getSelectedItem() != null;
-        copyEnglishButton.setDisable(!selected);
-    }
-
     public void loadList() {
         try {
             isSettingValues = true;
@@ -253,71 +250,49 @@ public class MyBoxLanguagesController extends BaseController {
     }
 
     public void loadLanguage(String name) {
-        interfaceData.clear();
-        tableData.clear();
-        copyEnglishButton.setDisable(true);
-        synchronized (this) {
-            if (task != null && !task.isQuit()) {
-                return;
-            }
-            task = new SingletonTask<Void>() {
-
-                @Override
-                protected boolean handle() {
-                    try {
-                        error = null;
-                        Map<String, String> interfaceItems = null;
-                        File interfaceFile = Languages.interfaceLanguageFile(name);
-                        if (interfaceFile != null && interfaceFile.exists()) {
-                            interfaceItems = ConfigTools.readValues(interfaceFile);
-                        }
-                        Enumeration<String> interfaceKeys = Languages.BundleEn.getKeys();
-                        while (interfaceKeys.hasMoreElements()) {
-                            String key = interfaceKeys.nextElement();
-                            LanguageItem item = new LanguageItem(key, Languages.BundleEn.getString(key));
-                            if (interfaceItems != null) {
-                                item.setValue(interfaceItems.get(key));
-                            }
-                            interfaceData.add(item);
-                        }
-
-                        File tableFile = Languages.tableLanguageFile(name);
-                        Map<String, String> dataItems = null;
-                        if (tableFile != null && tableFile.exists()) {
-                            dataItems = ConfigTools.readValues(tableFile);
-                        }
-                        Enumeration<String> tableKeys = Languages.TableBundleEn.getKeys();
-                        while (tableKeys.hasMoreElements()) {
-                            String key = tableKeys.nextElement();
-                            LanguageItem item = new LanguageItem(key, Languages.TableBundleEn.getString(key));
-                            if (dataItems != null) {
-                                item.setValue(dataItems.get(key));
-                            }
-                            tableData.add(item);
-                        }
-
-                    } catch (Exception e) {
-                        error = e.toString();
-                    }
-                    return true;
-                }
-
-                @Override
-                protected void whenSucceeded() {
-                    if (error == null) {
-                        interfaceView.refresh();
-                        tableView.refresh();
-                    } else {
-                        popError(error);
-                    }
-                }
-            };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+        if (task != null) {
+            task.cancel();
         }
+        tableData.clear();
+        task = new SingletonTask<Void>(this) {
+
+            @Override
+            protected boolean handle() {
+                try {
+                    error = null;
+                    Map<String, String> interfaceItems = null;
+                    File interfaceFile = Languages.interfaceLanguageFile(name);
+                    if (interfaceFile != null && interfaceFile.exists()) {
+                        interfaceItems = ConfigTools.readValues(interfaceFile);
+                    }
+                    Enumeration<String> interfaceKeys = Languages.BundleEn.getKeys();
+                    while (interfaceKeys.hasMoreElements()) {
+                        String key = interfaceKeys.nextElement();
+                        LanguageItem item = new LanguageItem(key,
+                                Languages.BundleEn.getString(key), Languages.BundleZhCN.getString(key));
+                        if (interfaceItems != null) {
+                            item.setValue(interfaceItems.get(key));
+                        }
+                        tableData.add(item);
+                    }
+
+                } catch (Exception e) {
+                    error = e.toString();
+                }
+                return true;
+            }
+
+            @Override
+            protected void whenSucceeded() {
+                setTitle(baseTitle + " - " + langName);
+                if (error == null) {
+                    tableView.refresh();
+                } else {
+                    popError(error);
+                }
+            }
+        };
+        start(task);
     }
 
     protected void popMenu(TableView<LanguageItem> view, MouseEvent event) {
@@ -329,6 +304,12 @@ public class MyBoxLanguagesController extends BaseController {
         menu = new MenuItem(Languages.message("CopyEnglish"));
         menu.setOnAction((ActionEvent menuItemEvent) -> {
             copyEnglish();
+        });
+        items.add(menu);
+
+        menu = new MenuItem(Languages.message("CopyChinese"));
+        menu.setOnAction((ActionEvent menuItemEvent) -> {
+            copyChinese();
         });
         items.add(menu);
 
@@ -353,7 +334,7 @@ public class MyBoxLanguagesController extends BaseController {
 
     @FXML
     @Override
-    public void addAction(ActionEvent event) {
+    public void addAction() {
         TextInputDialog dialog = new TextInputDialog("");
         dialog.setTitle(Languages.message("ManageLanguages"));
         dialog.setHeaderText(Languages.message("InputLangaugeName"));
@@ -379,48 +360,52 @@ public class MyBoxLanguagesController extends BaseController {
         if (selected == null || selected.isEmpty()) {
             return;
         }
-        if (!PopTools.askSure(getMyStage().getTitle(), Languages.message("SureDelete"))) {
+        if (!PopTools.askSure(this, getMyStage().getTitle(), Languages.message("SureDelete"))) {
             return;
         }
         for (String name : selected) {
             File interfaceFile = Languages.interfaceLanguageFile(name);
-            File tableFile = Languages.tableLanguageFile(name);
             FileDeleteTools.delete(interfaceFile);
-            FileDeleteTools.delete(tableFile);
         }
         isSettingValues = true;
         listView.getItems().removeAll(selected);
         isSettingValues = false;
         langName = null;
         langLabel.setText("");
-        interfaceData.clear();
         tableData.clear();
         checkListSelected();
+        Languages.refreshBundle();
+        popSuccessful();
+
     }
 
     @FXML
     public void copyEnglish() {
-        Tab tab = tabPane.getSelectionModel().getSelectedItem();
-        if (tab == interfaceTab) {
-            List<LanguageItem> selected = interfaceView.getSelectionModel().getSelectedItems();
-            if (selected == null || selected.isEmpty()) {
-                return;
-            }
-            for (LanguageItem item : selected) {
-                item.setValue(item.getEnglish());
-            }
-            interfaceView.refresh();
-
-        } else if (tab == tableTab) {
-            List<LanguageItem> selected = tableView.getSelectionModel().getSelectedItems();
-            if (selected == null || selected.isEmpty()) {
-                return;
-            }
-            for (LanguageItem item : selected) {
-                item.setValue(item.getEnglish());
-            }
-            tableView.refresh();
+        List<LanguageItem> selected = tableView.getSelectionModel().getSelectedItems();
+        if (selected == null || selected.isEmpty()) {
+            return;
         }
+        for (LanguageItem item : selected) {
+            item.setValue(item.getEnglish());
+        }
+        tableView.refresh();
+    }
+
+    @FXML
+    public void copyChinese() {
+        List<LanguageItem> selected = tableView.getSelectionModel().getSelectedItems();
+        if (selected == null || selected.isEmpty()) {
+            return;
+        }
+        for (LanguageItem item : selected) {
+            item.setValue(item.getChinese());
+        }
+        tableView.refresh();
+    }
+
+    protected void tableChanged(boolean changed) {
+        setTitle(baseTitle + " - " + langName + (changed ? "*" : ""));
+        langLabel.setText(langName + (changed ? "*" : ""));
     }
 
     @FXML
@@ -434,7 +419,7 @@ public class MyBoxLanguagesController extends BaseController {
                 if (task != null && !task.isQuit()) {
                     return;
                 }
-                task = new SingletonTask<Void>() {
+                task = new SingletonTask<Void>(this) {
 
                     @Override
                     protected boolean handle() {
@@ -442,21 +427,13 @@ public class MyBoxLanguagesController extends BaseController {
                             error = null;
                             Map<String, String> interfaceItems = new HashMap();
                             File interfaceFile = Languages.interfaceLanguageFile(langName);
-                            for (LanguageItem item : interfaceData) {
-                                if (item.getValue() != null && !item.getValue().isBlank()) {
-                                    interfaceItems.put(item.getKey(), item.getValue());
+                            for (LanguageItem item : tableView.getItems()) {
+                                String value = item.getValue();
+                                if (value != null && !value.isBlank()) {
+                                    interfaceItems.put(item.getKey(), value);
                                 }
                             }
                             ConfigTools.writeValues(interfaceFile, interfaceItems);
-
-                            Map<String, String> tableItems = new HashMap();
-                            File tableFile = Languages.tableLanguageFile(langName);
-                            for (LanguageItem item : tableData) {
-                                if (item.getValue() != null && !item.getValue().isBlank()) {
-                                    tableItems.put(item.getKey(), item.getValue());
-                                }
-                            }
-                            ConfigTools.writeValues(tableFile, tableItems);
 
                         } catch (Exception e) {
                             error = e.toString();
@@ -470,17 +447,14 @@ public class MyBoxLanguagesController extends BaseController {
                             if (!listView.getItems().contains(langName)) {
                                 listView.getItems().add(0, langName);
                             }
+                            tableChanged(false);
                             popSuccessful();
                         } else {
                             popError(error);
                         }
                     }
                 };
-                handling(task);
-                task.setSelf(task);
-                Thread thread = new Thread(task);
-                thread.setDaemon(false);
-                thread.start();
+                start(task);
             }
 
         } catch (Exception e) {
@@ -496,6 +470,9 @@ public class MyBoxLanguagesController extends BaseController {
         }
         Languages.setLanguage(name);
         refreshInterfaceAndFile();
+        Platform.runLater(() -> {
+            PopTools.alertInformation(null, message("CurrentLanguage") + ": " + name);
+        });
     }
 
     @FXML
@@ -505,11 +482,12 @@ public class MyBoxLanguagesController extends BaseController {
 
     protected class LanguageItem {
 
-        protected String key, english, value;
+        protected String key, english, chinese, value;
 
-        public LanguageItem(String key, String english) {
+        public LanguageItem(String key, String english, String chinese) {
             this.key = key;
             this.english = english;
+            this.chinese = chinese;
         }
 
         public String getKey() {
@@ -526,6 +504,14 @@ public class MyBoxLanguagesController extends BaseController {
 
         public void setEnglish(String english) {
             this.english = english;
+        }
+
+        public String getChinese() {
+            return chinese;
+        }
+
+        public void setChinese(String chinese) {
+            this.chinese = chinese;
         }
 
         public String getValue() {

@@ -9,16 +9,15 @@ import java.util.Date;
 import java.util.Random;
 import javafx.embed.swing.SwingFXUtils;
 import javafx.scene.image.Image;
+import mara.mybox.bufferedimage.ScaleTools;
 import mara.mybox.controller.ControlImagesClipboard;
 import mara.mybox.db.table.TableImageClipboard;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.bufferedimage.ScaleTools;
 import mara.mybox.imagefile.ImageFileReaders;
 import mara.mybox.imagefile.ImageFileWriters;
+import mara.mybox.value.AppPaths;
 import mara.mybox.value.AppValues;
 import mara.mybox.value.AppVariables;
-
-import mara.mybox.value.UserConfig;
 
 /**
  * @Author Mara
@@ -41,6 +40,7 @@ public class ImageClipboard extends BaseData {
     }
 
     private void init() {
+        icid = -1;
         source = ImageSource.Unknown;
         createTime = new Date();
         self = this;
@@ -180,11 +180,11 @@ public class ImageClipboard extends BaseData {
             if (image == null) {
                 return null;
             }
-            String prefix = AppVariables.getImageClipboardPath() + File.separator
+            String prefix = AppPaths.getImageClipboardPath() + File.separator
                     + (new Date().getTime()) + "_" + new Random().nextInt(1000);
             String imageFile = prefix + ".png";
             while (new File(imageFile).exists()) {
-                prefix = AppVariables.getImageClipboardPath() + File.separator
+                prefix = AppPaths.getImageClipboardPath() + File.separator
                         + (new Date().getTime()) + "_" + new Random().nextInt(1000);
                 imageFile = prefix + ".png";
             }
@@ -192,8 +192,7 @@ public class ImageClipboard extends BaseData {
                 return null;
             }
             String thumbFile = prefix + "_thumbnail.png";
-            BufferedImage thumbnail = ScaleTools.scaleImageWidthKeep(image,
-                    UserConfig.getInt("ThumbnailWidth", 100));
+            BufferedImage thumbnail = ScaleTools.scaleImageWidthKeep(image, AppVariables.thumbnailWidth);
             if (thumbnail == null) {
                 return null;
             }

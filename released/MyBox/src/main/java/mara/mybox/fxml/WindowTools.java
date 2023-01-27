@@ -1,5 +1,8 @@
 package mara.mybox.fxml;
 
+import java.io.File;
+import java.net.URL;
+import java.sql.Connection;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.ResourceBundle;
@@ -7,6 +10,7 @@ import java.util.concurrent.ScheduledFuture;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
+import javafx.event.EventHandler;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
 import javafx.scene.image.Image;
@@ -20,11 +24,14 @@ import javafx.stage.WindowEvent;
 import mara.mybox.controller.BaseController;
 import mara.mybox.db.DerbyBase;
 import mara.mybox.db.DerbyBase.DerbyStatus;
-import mara.mybox.db.data.VisitHistoryTools;
+import mara.mybox.db.table.TableData2DDefinition;
+import mara.mybox.db.table.TableFileBackup;
+import mara.mybox.db.table.TableImageClipboard;
+import mara.mybox.db.table.TableImageEditHistory;
 import mara.mybox.db.table.TableUserConf;
 import mara.mybox.dev.MyBoxLog;
+import mara.mybox.tools.FileDeleteTools;
 import mara.mybox.value.AppVariables;
-import mara.mybox.value.Languages;
 import mara.mybox.value.UserConfig;
 
 /**
@@ -84,26 +91,34 @@ public class WindowTools {
                 stage.initStyle(stageStyle);
             }
             // External request to close
-            stage.setOnCloseRequest((WindowEvent event) -> {
-                if (!controller.leavingScene()) {
-                    event.consume();
-                } else {
-                    WindowTools.closeWindow(stage);
+            stage.setOnCloseRequest(new EventHandler<WindowEvent>() {
+                @Override
+                public void handle(WindowEvent event) {
+                    if (!controller.leavingScene()) {
+                        event.consume();
+                    } else {
+                        WindowTools.closeWindow(stage);
+                    }
+                }
+            });
+
+            stage.setOnHiding(new EventHandler<WindowEvent>() {
+                @Override
+                public void handle(WindowEvent event) {
+                    if (controller != null) {
+                        controller.leaveScene();
+                    }
+                    WindowTools.closeWindow(stage);   // Close anyway
                 }
             });
 
             stage.focusedProperty().addListener(new ChangeListener<Boolean>() {
                 @Override
                 public void changed(ObservableValue<? extends Boolean> ob, Boolean ov, Boolean nv) {
-                    if (!nv) {
+                    if (!nv && controller != null) {
                         controller.closePopup();
                     }
                 }
-            });
-
-            // Close anyway
-            stage.setOnHiding((WindowEvent event) -> {
-                WindowTools.closeWindow(stage);
             });
 
             stage.setScene(scene);
@@ -111,10 +126,6 @@ public class WindowTools {
 
             controller.afterSceneLoaded();
 
-            String fxml = controller.getMyFxml();
-            if (controller.getMainMenuController() != null && !controller.isIsPop()) {
-                VisitHistoryTools.visitMenu(controller.getBaseTitle(), fxml);
-            }
             Platform.setImplicitExit(AppVariables.scheduledTasks == null || AppVariables.scheduledTasks.isEmpty());
 
             return controller;
@@ -132,12 +143,36 @@ public class WindowTools {
         return initController(controller, scene, newStage(), null);
     }
 
-    public static BaseController setScene(String fxml) {
+    public static BaseController loadFxml(String fxml) {
         try {
             if (fxml == null) {
                 return null;
             }
-            FXMLLoader fxmlLoader = new FXMLLoader(WindowTools.class.getResource(fxml), AppVariables.currentBundle);
+            return loadURL(WindowTools.class.getResource(fxml));
+        } catch (Exception e) {
+            MyBoxLog.error(e.toString());
+            return null;
+        }
+    }
+
+    public static BaseController loadFile(File file) {
+        try {
+            if (file == null || !file.exists()) {
+                return null;
+            }
+            return loadURL(file.toURI().toURL());
+        } catch (Exception e) {
+            MyBoxLog.error(e.toString());
+            return null;
+        }
+    }
+
+    public static BaseController loadURL(URL url) {
+        try {
+            if (url == null) {
+                return null;
+            }
+            FXMLLoader fxmlLoader = new FXMLLoader(url, AppVariables.currentBundle);
             Pane pane = fxmlLoader.load();
             try {
                 pane.getStylesheets().add(WindowTools.class.getResource(UserConfig.getStyle()).toExternalForm());
@@ -148,7 +183,6 @@ public class WindowTools {
             BaseController controller = (BaseController) fxmlLoader.getController();
             controller.setMyScene(scene);
             controller.refreshStyle();
-
             return controller;
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
@@ -207,12 +241,16 @@ public class WindowTools {
         return openStage(parent, newFxml, AppVariables.currentBundle, false, Modality.NONE, null);
     }
 
+    public static BaseController openChildStage(Window parent, String newFxml) {
+        return openChildStage(parent, newFxml, true);
+    }
+
     public static BaseController openChildStage(Window parent, String newFxml, boolean isModal) {
         return openStage(parent, newFxml, AppVariables.currentBundle, true, isModal ? Modality.WINDOW_MODAL : Modality.NONE, null);
     }
 
     public static BaseController handling(Window parent, String newFxml) {
-        return openStage(parent, newFxml, AppVariables.currentBundle, true, Modality.WINDOW_MODAL, StageStyle.TRANSPARENT);
+        return openStage(parent, newFxml, AppVariables.currentBundle, true, Modality.WINDOW_MODAL, StageStyle.DECORATED);
     }
 
     public static BaseController openScene(Window parent, String newFxml, StageStyle stageStyle) {
@@ -222,7 +260,9 @@ public class WindowTools {
             newStage.initStyle(StageStyle.DECORATED);
             newStage.initOwner(null);
             BaseController controller = initScene(newStage, newFxml, stageStyle);
-            closeWindow(parent);
+            if (controller != null) {
+                closeWindow(parent);
+            }
             return controller;
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
@@ -232,15 +272,6 @@ public class WindowTools {
 
     public static BaseController openScene(Window parent, String fxml) {
         return openScene(parent, fxml, null);
-    }
-
-    public static BaseController openTableStage(Window parent, String newFxml, boolean isOwned,
-            Modality modality, StageStyle stageStyle) {
-        return openStage(parent, newFxml, Languages.getTableBundle(), isOwned, modality, stageStyle);
-    }
-
-    public static BaseController openTableStage(String fxml) {
-        return openTableStage(null, fxml, false, Modality.NONE, null);
     }
 
     public static void reloadAll() {
@@ -330,16 +361,34 @@ public class WindowTools {
                 window.setUserData(null);
             }
             window.hide();
-            if (Window.getWindows().isEmpty()) {
-                appExit();
-            }
+            checkExit();
         } catch (Exception e) {
 //            MyBoxLog.error(e.toString());
         }
     }
 
+    public static void checkExit() {
+        try {
+            List<Window> windows = new ArrayList<>();
+            windows.addAll(Window.getWindows());
+            for (Window window : windows) {
+                if (window != null && window.isShowing()) {
+                    return;
+                }
+            }
+            appExit();
+        } catch (Exception e) {
+//            MyBoxLog.error(e.toString());
+        }
+
+    }
+
     public static void appExit() {
         try {
+            if (AppVariables.handlingExit) {
+                return;
+            }
+            AppVariables.handlingExit = true;
             if (Window.getWindows() != null) {
                 List<Window> windows = new ArrayList<>();
                 windows.addAll(Window.getWindows());
@@ -350,9 +399,11 @@ public class WindowTools {
             ImageClipboardTools.stopImageClipboardMonitor();
             TextClipboardTools.stopTextClipboardMonitor();
 
+            clearInvalidData();
+
             if (AppVariables.scheduledTasks != null && !AppVariables.scheduledTasks.isEmpty()) {
                 if (UserConfig.getBoolean("StopAlarmsWhenExit")) {
-                    for (Long key : AppVariables.scheduledTasks.keySet()) {
+                    for (String key : AppVariables.scheduledTasks.keySet()) {
                         ScheduledFuture future = AppVariables.scheduledTasks.get(key);
                         future.cancel(true);
                     }
@@ -372,23 +423,94 @@ public class WindowTools {
                 }
             }
 
+            if (AppVariables.exitTimer != null) {
+                AppVariables.exitTimer.cancel();
+                AppVariables.exitTimer = null;
+            }
+
             if (AppVariables.scheduledTasks == null || AppVariables.scheduledTasks.isEmpty()) {
                 MyBoxLog.info("Exit now. Bye!");
                 if (DerbyBase.status == DerbyStatus.Embedded) {
-                    MyBoxLog.debug("Shut down Derby...");
+                    MyBoxLog.info("Shut down Derby...");
                     DerbyBase.shutdownEmbeddedDerby();
                 }
+                AppVariables.handlingExit = false;
+
                 Platform.setImplicitExit(true);
                 System.gc();
                 Platform.exit(); // Some thread may still be alive after this
                 System.exit(0);  // Go
                 Runtime.getRuntime().halt(0);
+                return;
             }
 
         } catch (Exception e) {
-            MyBoxLog.debug(e.toString());
-        }
 
+        }
+        AppVariables.handlingExit = false;
+
+    }
+
+    public static void clearInvalidData() {
+        try {
+            MyBoxLog.info("clearing tmeporary data...");
+
+            FileDeleteTools.clearDir(AppVariables.MyBoxTempPath);
+
+            try ( Connection conn = DerbyBase.getConnection()) {
+
+                new TableImageClipboard().clearInvalid(conn);
+
+                new TableImageEditHistory().clearInvalid(conn);
+
+                new TableFileBackup().clearInvalid(conn);
+
+                new TableData2DDefinition().clearInvalid(conn, true);
+
+            } catch (Exception e) {
+                MyBoxLog.error(e);
+            }
+
+        } catch (Exception e) {
+            MyBoxLog.error(e);
+        }
+    }
+
+    public static void closeAllPopup() {
+        try {
+            List<Window> windows = new ArrayList<>();
+            windows.addAll(Window.getWindows());
+            for (Window window : windows) {
+                if (window instanceof Popup) {
+                    window.hide();
+                }
+            }
+        } catch (Exception e) {
+        }
+    }
+
+    public static BaseController find(String interfaceName) {
+        try {
+            if (interfaceName == null || interfaceName.isBlank()) {
+                return null;
+            }
+            List<Window> windows = new ArrayList<>();
+            windows.addAll(Window.getWindows());
+            for (Window window : windows) {
+                Object object = window.getUserData();
+                if (object != null && object instanceof BaseController) {
+                    try {
+                        BaseController controller = (BaseController) object;
+                        if (interfaceName.equals(controller.getInterfaceName())) {
+                            return controller;
+                        }
+                    } catch (Exception e) {
+                    }
+                }
+            }
+        } catch (Exception e) {
+        }
+        return null;
     }
 
 }

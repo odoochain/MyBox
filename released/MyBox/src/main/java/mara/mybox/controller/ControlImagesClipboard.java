@@ -3,11 +3,9 @@ package mara.mybox.controller;
 import java.io.File;
 import java.sql.Connection;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import javafx.application.Platform;
-import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
 import javafx.scene.control.TableCell;
@@ -15,37 +13,38 @@ import javafx.scene.control.TableColumn;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
-import javafx.scene.layout.HBox;
+import javafx.scene.layout.FlowPane;
 import javafx.stage.Stage;
 import javafx.stage.Window;
 import javafx.util.Callback;
-import mara.mybox.db.DerbyBase;
+import mara.mybox.data.ImageItem;
 import mara.mybox.db.data.ImageClipboard;
+import mara.mybox.db.data.VisitHistory;
 import mara.mybox.db.table.TableImageClipboard;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fximage.FxImageTools;
 import mara.mybox.fxml.ImageClipboardTools;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.fxml.WindowTools;
 import mara.mybox.fxml.cell.TableDateCell;
 import mara.mybox.fxml.cell.TableMessageCell;
 import mara.mybox.tools.FileDeleteTools;
+import mara.mybox.value.AppPaths;
 import mara.mybox.value.AppVariables;
 import mara.mybox.value.Fxmls;
-import mara.mybox.value.Languages;
-import mara.mybox.value.UserConfig;
+import static mara.mybox.value.Languages.message;
 
 /**
  * @Author Mara
  * @CreateDate 2021-6-5
  * @License Apache License Version 2.0
  */
-public class ControlImagesClipboard extends BaseDataTableController<ImageClipboard> {
+public class ControlImagesClipboard extends BaseSysTableController<ImageClipboard> {
 
     protected Image lastSystemClip;
-    protected int thumbWidth = UserConfig.getInt("ThumbnailWidth", 100);
+    protected int thumbWidth = AppVariables.thumbnailWidth;
 
     @FXML
-    protected HBox buttonsBox;
+    protected FlowPane buttonsPane;
     @FXML
     protected Button useClipButton, thumbsListButton;
     @FXML
@@ -58,6 +57,11 @@ public class ControlImagesClipboard extends BaseDataTableController<ImageClipboa
     protected TableColumn<ImageClipboard, Date> timeColumn;
 
     @Override
+    public void setFileType() {
+        setFileType(VisitHistory.FileType.Image);
+    }
+
+    @Override
     public void setTableDefinition() {
         tableDefinition = new TableImageClipboard();
         parentController = this;
@@ -66,6 +70,7 @@ public class ControlImagesClipboard extends BaseDataTableController<ImageClipboa
     @Override
     protected void initColumns() {
         try {
+            super.initColumns();
             thumbColumn.setCellValueFactory(new PropertyValueFactory<>("self"));
             thumbColumn.setCellFactory(new Callback<TableColumn<ImageClipboard, ImageClipboard>, TableCell<ImageClipboard, ImageClipboard>>() {
 
@@ -110,11 +115,9 @@ public class ControlImagesClipboard extends BaseDataTableController<ImageClipboa
         try {
             this.parentController = parent;
             if (use) {
-//                buttonsBox.getChildren().remove(copyToSystemClipboardButton);
-//                copyToSystemClipboardButton.setVisible(false);
                 useClipButton.disableProperty().bind(tableView.getSelectionModel().selectedItemProperty().isNull());
             } else {
-                buttonsBox.getChildren().remove(useClipButton);
+                buttonsPane.getChildren().remove(useClipButton);
                 copyToSystemClipboardButton.disableProperty().bind(tableView.getSelectionModel().selectedItemProperty().isNull());
             }
             refreshAction();
@@ -127,40 +130,40 @@ public class ControlImagesClipboard extends BaseDataTableController<ImageClipboa
     @Override
     public void loadContentInSystemClipboard() {
         synchronized (this) {
-            if (task != null && !task.isQuit()) {
-                return;
+            if (task != null) {
+                task.cancel();
             }
             Image clip = ImageClipboardTools.fetchImageInClipboard(false);
             if (clip == null) {
-                parentController.popInformation(Languages.message("NoImageInClipboard"));
+                popInformation(message("NoImageInClipboard"));
                 return;
             }
             lastSystemClip = clip;
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 private ImageClipboard clipData;
 
                 @Override
                 protected boolean handle() {
-                    if (lastSystemClip != null && FxImageTools.sameImage(lastSystemClip, clip)) {
-                        Platform.runLater(new Runnable() {
-                            @Override
-                            public void run() {
-                                parentController.popInformation(Languages.message("NoImageInClipboard"));
-                            }
-                        });
-                        return true;
-                    }
+//                    if (lastSystemClip != null && FxImageTools.sameImage(lastSystemClip, clip)) {
+//                        Platform.runLater(new Runnable() {
+//                            @Override
+//                            public void run() {
+//                                popInformation(message("NoImageInClipboard"));
+//                            }
+//                        });
+//                        return false;
+//                    }
                     clipData = ImageClipboard.add(lastSystemClip, ImageClipboard.ImageSource.SystemClipBoard);
                     return clipData != null;
                 }
 
+                @Override
+                protected void whenFailed() {
+                }
+
             };
-            parentController.handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
     }
 
@@ -172,47 +175,34 @@ public class ControlImagesClipboard extends BaseDataTableController<ImageClipboa
     }
 
     @Override
-    public void selectSourceFile(final File file) {
-        try {
-            if (file == null) {
-                return;
+    public void selectSourceFile(File file) {
+        if (file == null) {
+            return;
+        }
+        synchronized (this) {
+            if (task != null) {
+                task.cancel();
             }
-            synchronized (this) {
-                if (task != null && !task.isQuit()) {
-                    return;
+            task = new SingletonTask<Void>(this) {
+
+                private ImageClipboard clip;
+
+                @Override
+                protected boolean handle() {
+                    clip = ImageClipboard.add(file);
+                    return clip != null;
                 }
-                task = new SingletonTask<Void>() {
 
-                    private ImageClipboard clip;
-
-                    @Override
-                    protected boolean handle() {
-                        clip = ImageClipboard.add(file);
-                        return clip != null;
-                    }
-
-                };
-                if (parentController != null) {
-                    parentController.handling(task);
-                } else {
-                    handling(task);
-                }
-                task.setSelf(task);
-                Thread thread = new Thread(task);
-                thread.setDaemon(false);
-                thread.start();
-            }
-
-        } catch (Exception e) {
-            MyBoxLog.error(e.toString());
+            };
+            start(task);
         }
     }
 
     @Override
-    public List<ImageClipboard> readPageData() {
-        try ( Connection conn = DerbyBase.getConnection()) {
-            ((TableImageClipboard) tableDefinition).validateData(conn);
-            return tableDefinition.queryConditions(conn, queryConditions, currentPageStart - 1, currentPageSize);
+    public List<ImageClipboard> readPageData(Connection conn) {
+        try {
+            ((TableImageClipboard) tableDefinition).clearInvalid(conn);
+            return tableDefinition.queryConditions(conn, queryConditions, orderColumns, startRowOfCurrentPage, pageSize);
         } catch (Exception e) {
             MyBoxLog.error(e);
             return new ArrayList<>();
@@ -233,8 +223,8 @@ public class ControlImagesClipboard extends BaseDataTableController<ImageClipboa
 
     @Override
     protected void afterClear() {
-        FileDeleteTools.clearDir(new File(AppVariables.getImageClipboardPath()));
-        refreshAction();
+        super.afterClear();
+        FileDeleteTools.clearDir(new File(AppPaths.getImageClipboardPath()));
     }
 
     @FXML
@@ -244,17 +234,18 @@ public class ControlImagesClipboard extends BaseDataTableController<ImageClipboa
         updateStatus();
     }
 
+    @Override
     public void updateStatus() {
         if (ImageClipboardTools.isMonitoring()) {
-            bottomLabel.setText(Languages.message("MonitoringImageInSystemClipboard"));
+            bottomLabel.setText(message("MonitoringImageInSystemClipboard"));
         } else {
-            bottomLabel.setText(Languages.message("NotMonitoringImageInSystemClipboard"));
+            bottomLabel.setText(message("NotMonitoringImageInSystemClipboard"));
         }
     }
 
     @FXML
     @Override
-    public void editAction(ActionEvent event) {
+    public void editAction() {
         ImageClipboard clip = tableView.getSelectionModel().getSelectedItem();
         if (clip == null) {
             return;
@@ -263,7 +254,7 @@ public class ControlImagesClipboard extends BaseDataTableController<ImageClipboa
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 private Image selectedImage;
 
@@ -280,15 +271,7 @@ public class ControlImagesClipboard extends BaseDataTableController<ImageClipboa
                     controller.loadImage(selectedImage);
                 }
             };
-            if (parentController != null) {
-                parentController.handling(task);
-            } else {
-                handling(task);
-            }
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
     }
 
@@ -303,7 +286,7 @@ public class ControlImagesClipboard extends BaseDataTableController<ImageClipboa
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 private Image selectedImage;
 
@@ -318,17 +301,13 @@ public class ControlImagesClipboard extends BaseDataTableController<ImageClipboa
                     ImageClipboardTools.copyToSystemClipboard(parentController, selectedImage);
                 }
             };
-            parentController.handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            parentController.start(task);
         }
     }
 
     @FXML
     public void clipsPath() {
-        File path = new File(AppVariables.getImageClipboardPath());
+        File path = new File(AppPaths.getImageClipboardPath());
         browseURI(path.toURI());
     }
 
@@ -338,24 +317,16 @@ public class ControlImagesClipboard extends BaseDataTableController<ImageClipboa
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 private List<ImageClipboard> clips;
 
                 @Override
                 protected boolean handle() {
-                    List<Image> examples = Arrays.asList(
-                            new Image("img/ww1.png"), new Image("img/ww2.png"), new Image("img/ww5.png"),
-                            new Image("img/ww3.png"), new Image("img/ww4.png"), new Image("img/ww6.png"),
-                            new Image("img/ww7.png"), new Image("img/ww8.png"), new Image("img/ww9.png"),
-                            new Image("img/About.png"), new Image("img/MyBox.png"), new Image("img/DataTools.png"),
-                            new Image("img/RecentAccess.png"), new Image("img/FileTools.png"), new Image("img/ImageTools.png"),
-                            new Image("img/DocumentTools.png"), new Image("img/MediaTools.png"), new Image("img/NetworkTools.png"),
-                            new Image("img/Settings.png"), new Image("img/zz1.png"), new Image("img/jade.png")
-                    );
+                    List<Image> predefinedItems = ImageItem.internalImages();
                     clips = new ArrayList<>();
-                    for (int i = examples.size() - 1; i >= 0; --i) {
-                        ImageClipboard clip = ImageClipboard.create(examples.get(i), ImageClipboard.ImageSource.Example);
+                    for (Image image : predefinedItems) {
+                        ImageClipboard clip = ImageClipboard.create(image, ImageClipboard.ImageSource.Example);
                         if (clip == null) {
                             continue;
                         }
@@ -370,11 +341,7 @@ public class ControlImagesClipboard extends BaseDataTableController<ImageClipboa
                     refreshAction();
                 }
             };
-            parentController.handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
     }
 

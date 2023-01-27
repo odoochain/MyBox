@@ -1,17 +1,15 @@
 package mara.mybox.controller;
 
-import java.awt.image.BufferedImage;
-import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import javafx.beans.binding.Bindings;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
+import javafx.collections.ListChangeListener;
 import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
-import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.RadioButton;
@@ -29,13 +27,10 @@ import mara.mybox.bufferedimage.ImageCombine.ArrayType;
 import mara.mybox.bufferedimage.ImageCombine.CombineSizeType;
 import mara.mybox.bufferedimage.ImageInformation;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fximage.FxImageTools;
 import mara.mybox.fxml.ControllerTools;
-import mara.mybox.fxml.NodeStyleTools;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.fxml.ValidationTools;
 import mara.mybox.fxml.WindowTools;
-import mara.mybox.imagefile.ImageFileWriters;
-import mara.mybox.tools.FileNameTools;
 import mara.mybox.value.Fxmls;
 import mara.mybox.value.Languages;
 import mara.mybox.value.UserConfig;
@@ -65,8 +60,6 @@ public class ImagesSpliceController extends ImageViewerController {
     @FXML
     protected ColorSet colorSetController;
     @FXML
-    protected Button newWindowButton;
-    @FXML
     protected HBox opBox;
     @FXML
     protected CheckBox openCheck;
@@ -86,6 +79,12 @@ public class ImagesSpliceController extends ImageViewerController {
 
             tableData = tableController.tableData;
             tableView = tableController.tableView;
+
+            tableData.addListener((ListChangeListener.Change<? extends ImageInformation> change) -> {
+                if (!tableController.hasSampled()) {
+                    okAction();
+                }
+            });
 
             initArraySection();
             initSizeSection();
@@ -108,7 +107,6 @@ public class ImagesSpliceController extends ImageViewerController {
                         if (columnsValue > 0) {
                             imageCombine.setColumnsValue(columnsValue);
                             UserConfig.setString(baseName + "Columns", columnsValue + "");
-                            combineImages();
                             ValidationTools.setEditorNormal(columnsBox);
                         } else {
                             imageCombine.setColumnsValue(-1);
@@ -134,7 +132,6 @@ public class ImagesSpliceController extends ImageViewerController {
                             imageCombine.setIntervalValue(intervalValue);
                             UserConfig.setString(baseName + "Interval", intervalValue + "");
                             ValidationTools.setEditorNormal(intervalBox);
-                            combineImages();
                         } else {
                             ValidationTools.setEditorBadStyle(intervalBox);
                         }
@@ -157,7 +154,6 @@ public class ImagesSpliceController extends ImageViewerController {
                             imageCombine.setMarginsValue(MarginsValue);
                             UserConfig.setString(baseName + "Margin", MarginsValue + "");
                             ValidationTools.setEditorNormal(MarginsBox);
-                            combineImages();
                         } else {
                             ValidationTools.setEditorBadStyle(MarginsBox);
                         }
@@ -176,7 +172,6 @@ public class ImagesSpliceController extends ImageViewerController {
                 public void changed(ObservableValue<? extends Paint> observable,
                         Paint oldValue, Paint newValue) {
                     imageCombine.setBgColor((Color) newValue);
-                    combineImages();
                 }
             });
 
@@ -197,7 +192,6 @@ public class ImagesSpliceController extends ImageViewerController {
                         columnsBox.setDisable(false);
                         UserConfig.setString(baseName + "ArrayType", "ColumnsNumber");
                     }
-                    combineImages();
                 }
             });
             String arraySelect = UserConfig.getString(baseName + "ArrayType", "SingleColumn");
@@ -272,15 +266,12 @@ public class ImagesSpliceController extends ImageViewerController {
                     if (Languages.message("KeepSize").equals(selected.getText())) {
                         imageCombine.setSizeType(CombineSizeType.KeepSize);
                         UserConfig.setString(baseName + "SizeType", "KeepSize");
-                        combineImages();
                     } else if (Languages.message("AlignAsBigger").equals(selected.getText())) {
                         imageCombine.setSizeType(CombineSizeType.AlignAsBigger);
                         UserConfig.setString(baseName + "SizeType", "AlignAsBigger");
-                        combineImages();
                     } else if (Languages.message("AlignAsSmaller").equals(selected.getText())) {
                         imageCombine.setSizeType(CombineSizeType.AlignAsSmaller);
                         UserConfig.setString(baseName + "SizeType", "AlignAsSmaller");
-                        combineImages();
                     } else if (Languages.message("EachWidth").equals(selected.getText())) {
                         imageCombine.setSizeType(CombineSizeType.EachWidth);
                         eachWidthInput.setDisable(false);
@@ -341,14 +332,13 @@ public class ImagesSpliceController extends ImageViewerController {
                 imageCombine.setEachWidthValue(eachWidthValue);
                 eachWidthInput.setStyle(null);
                 UserConfig.setString(baseName + "EachWidth", eachWidthValue + "");
-                combineImages();
             } else {
                 imageCombine.setEachWidthValue(-1);
-                eachWidthInput.setStyle(NodeStyleTools.badStyle);
+                eachWidthInput.setStyle(UserConfig.badStyle());
             }
         } catch (Exception e) {
             imageCombine.setEachWidthValue(-1);
-            eachWidthInput.setStyle(NodeStyleTools.badStyle);
+            eachWidthInput.setStyle(UserConfig.badStyle());
         }
     }
 
@@ -359,14 +349,13 @@ public class ImagesSpliceController extends ImageViewerController {
                 imageCombine.setEachHeightValue(eachHeightValue);
                 eachHeightInput.setStyle(null);
                 UserConfig.setString(baseName + "EachHeight", eachHeightValue + "");
-                combineImages();
             } else {
                 imageCombine.setEachHeightValue(-1);
-                eachHeightInput.setStyle(NodeStyleTools.badStyle);
+                eachHeightInput.setStyle(UserConfig.badStyle());
             }
         } catch (Exception e) {
             imageCombine.setEachHeightValue(-1);
-            eachHeightInput.setStyle(NodeStyleTools.badStyle);
+            eachHeightInput.setStyle(UserConfig.badStyle());
         }
     }
 
@@ -377,14 +366,13 @@ public class ImagesSpliceController extends ImageViewerController {
                 imageCombine.setTotalWidthValue(totalWidthValue);
                 totalWidthInput.setStyle(null);
                 UserConfig.setString(baseName + "TotalWidth", totalWidthValue + "");
-                combineImages();
             } else {
                 imageCombine.setTotalWidthValue(-1);
-                totalWidthInput.setStyle(NodeStyleTools.badStyle);
+                totalWidthInput.setStyle(UserConfig.badStyle());
             }
         } catch (Exception e) {
             imageCombine.setTotalWidthValue(-1);
-            totalWidthInput.setStyle(NodeStyleTools.badStyle);
+            totalWidthInput.setStyle(UserConfig.badStyle());
         }
     }
 
@@ -395,14 +383,13 @@ public class ImagesSpliceController extends ImageViewerController {
                 imageCombine.setTotalHeightValue(totalHeightValue);
                 totalHeightInput.setStyle(null);
                 UserConfig.setString(baseName + "TotalHeight", totalHeightValue + "");
-                combineImages();
             } else {
                 imageCombine.setTotalHeightValue(-1);
-                totalHeightInput.setStyle(NodeStyleTools.badStyle);
+                totalHeightInput.setStyle(UserConfig.badStyle());
             }
         } catch (Exception e) {
             imageCombine.setTotalHeightValue(-1);
-            totalHeightInput.setStyle(NodeStyleTools.badStyle);
+            totalHeightInput.setStyle(UserConfig.badStyle());
         }
     }
 
@@ -417,25 +404,14 @@ public class ImagesSpliceController extends ImageViewerController {
         }
     }
 
-    @Override
-    public void dataChanged() {
-        super.dataChanged();
-        if (!tableController.hasSampled()) {
-            combineImages();
-        }
-    }
-
     @FXML
-    protected void newWindow(ActionEvent event) {
-        ControllerTools.openImageViewer(image);
-    }
-
-    private void combineImages() {
+    @Override
+    public void okAction() {
         if (tableData == null || tableData.isEmpty()
-                || totalWidthInput.getStyle().equals(NodeStyleTools.badStyle)
-                || totalHeightInput.getStyle().equals(NodeStyleTools.badStyle)
-                || eachWidthInput.getStyle().equals(NodeStyleTools.badStyle)
-                || eachHeightInput.getStyle().equals(NodeStyleTools.badStyle)) {
+                || totalWidthInput.getStyle().equals(UserConfig.badStyle())
+                || totalHeightInput.getStyle().equals(UserConfig.badStyle())
+                || eachWidthInput.getStyle().equals(UserConfig.badStyle())
+                || eachHeightInput.getStyle().equals(UserConfig.badStyle())) {
             image = null;
             imageView.setImage(null);
             imageLabel.setText("");
@@ -445,7 +421,7 @@ public class ImagesSpliceController extends ImageViewerController {
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
                 @Override
                 protected boolean handle() {
                     if (imageCombine.getArrayType() == ArrayType.SingleColumn) {
@@ -470,13 +446,8 @@ public class ImagesSpliceController extends ImageViewerController {
                 }
 
             };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
-
     }
 
     private Image combineImagesColumns(List<ImageInformation> imageInfos) {
@@ -507,48 +478,8 @@ public class ImagesSpliceController extends ImageViewerController {
     }
 
     @FXML
-    @Override
-    public void saveAsAction() {
-        if (image == null) {
-            return;
-        }
-        final File file = chooseSaveFile(UserConfig.getPath(baseName + "TargetPath"),
-                null, targetExtensionFilter);
-        if (file == null) {
-            return;
-        }
-        recordFileWritten(file);
-        targetFile = file;
-
-        synchronized (this) {
-            if (task != null && !task.isQuit()) {
-                return;
-            }
-            task = new SingletonTask<Void>() {
-
-                private String filename;
-
-                @Override
-                protected boolean handle() {
-                    filename = targetFile.getAbsolutePath();
-                    String format = FileNameTools.getFileSuffix(filename);
-                    final BufferedImage bufferedImage = FxImageTools.toBufferedImage(image);
-                    return ImageFileWriters.writeImageFile(bufferedImage, format, filename);
-                }
-
-                @Override
-                protected void whenSucceeded() {
-                    popSuccessful();
-                    ControllerTools.openImageViewer(targetFile);
-                }
-
-            };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
-        }
+    protected void newWindow(ActionEvent event) {
+        ControllerTools.openImageViewer(image);
     }
 
     @FXML

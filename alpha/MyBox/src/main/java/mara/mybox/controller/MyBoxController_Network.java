@@ -5,11 +5,7 @@ import javafx.fxml.FXML;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.SeparatorMenuItem;
-import javafx.scene.image.Image;
 import javafx.scene.input.MouseEvent;
-import mara.mybox.value.AppVariables;
-import static mara.mybox.value.Languages.message;
-
 import mara.mybox.value.Fxmls;
 import mara.mybox.value.Languages;
 
@@ -61,7 +57,7 @@ public abstract class MyBoxController_Network extends MyBoxController_File {
             loadScene(Fxmls.NetworkQueryDNSBatchFxml);
         });
 
-        MenuItem DownloadFirstLevelLinks = new MenuItem(Languages.message("DownloadFirstLevelLinks"));
+        MenuItem DownloadFirstLevelLinks = new MenuItem(Languages.message("DownloadHtmls"));
         DownloadFirstLevelLinks.setOnAction((ActionEvent event1) -> {
             loadScene(Fxmls.DownloadFirstLevelLinksFxml);
         });
@@ -74,9 +70,9 @@ public abstract class MyBoxController_Network extends MyBoxController_File {
         popMenu = new ContextMenu();
         popMenu.setAutoHide(true);
         popMenu.getItems().addAll(
-                DownloadFirstLevelLinks, weiboSnap, new SeparatorMenuItem(),
                 webBrowserHtml, WebFavorites, WebHistories, new SeparatorMenuItem(),
                 QueryAddress, QueryDNSBatch, ConvertUrl, new SeparatorMenuItem(),
+                DownloadFirstLevelLinks, weiboSnap, new SeparatorMenuItem(),
                 SecurityCertificates
         );
 
@@ -90,10 +86,6 @@ public abstract class MyBoxController_Network extends MyBoxController_File {
         popMenu.getItems().add(closeMenu);
 
         showMenu(networkBox, event);
-
-        view.setImage(new Image("img/NetworkTools.png"));
-        text.setText(Languages.message("NetworkToolsImageTips"));
-        locateImage(networkBox, true);
 
     }
 

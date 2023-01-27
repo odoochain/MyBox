@@ -3,13 +3,15 @@ package mara.mybox.db.table;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
-import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import mara.mybox.db.DerbyBase;
+import static mara.mybox.db.DerbyBase.stringValue;
+import mara.mybox.db.data.ColumnDefinition;
 import mara.mybox.db.data.StringValues;
+import static mara.mybox.db.table.BaseTable.StringMaxLength;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.tools.DateTools;
 
@@ -18,23 +20,26 @@ import mara.mybox.tools.DateTools;
  * @CreateDate 2019-8-21
  * @License Apache License Version 2.0
  */
-public class TableStringValues extends DerbyBase {
+public class TableStringValues extends BaseTable<StringValues> {
 
     public TableStringValues() {
-        Table_Name = "String_Values";
-        Keys = new ArrayList<>() {
-            {
-                add("key_name");
-                add("string_value");
-            }
-        };
-        Create_Table_Statement
-                = " CREATE TABLE String_Values ( "
-                + "  key_name  VARCHAR(1024) NOT NULL, "
-                + "  string_value VARCHAR(32672)  NOT NULL, "
-                + "  create_time TIMESTAMP NOT NULL, "
-                + "  PRIMARY KEY (key_name, string_value)"
-                + " )";
+        tableName = "String_Values";
+        defineColumns();
+    }
+
+    public TableStringValues(boolean defineColumns) {
+        tableName = "String_Values";
+        if (defineColumns) {
+            defineColumns();
+        }
+    }
+
+    public final TableStringValues defineColumns() {
+        addColumn(new ColumnDefinition("key_name", ColumnDefinition.ColumnType.String, true, true).setLength(StringMaxLength));
+        addColumn(new ColumnDefinition("string_value", ColumnDefinition.ColumnType.String, true, true).setLength(StringMaxLength));
+        addColumn(new ColumnDefinition("create_time", ColumnDefinition.ColumnType.Datetime, true));
+        orderColumns = "create_time DESC";
+        return this;
     }
 
     public static List<String> read(String name) {
@@ -152,29 +157,23 @@ public class TableStringValues extends DerbyBase {
         try ( Statement statement = conn.createStatement()) {
             String sql = " SELECT * FROM String_Values WHERE key_name='"
                     + stringValue(name) + "' ORDER BY create_time DESC";
-            int count = 0;
-            List<Timestamp> times = new ArrayList<>();
+            List<String> invalid = new ArrayList<>();
             try ( ResultSet results = statement.executeQuery(sql)) {
                 while (results.next()) {
-                    if (++count > max) {
-                        break;
+                    String value = results.getString("string_value");
+                    if (records.size() >= max) {
+                        invalid.add(value);
+                    } else {
+                        records.add(value);
                     }
-                    records.add(results.getString("string_value"));
-                    times.add(results.getTimestamp("create_time"));
                 }
             }
-            if (count > max) {
-                conn.setAutoCommit(false);
-                sql = "DELETE FROM String_Values WHERE key_name='" + stringValue(name) + "'";
+            for (String v : invalid) {
+                sql = "DELETE FROM String_Values WHERE key_name='" + stringValue(name)
+                        + "' AND string_value='" + stringValue(v) + "'";
                 statement.executeUpdate(sql);
-                for (int i = 0; i < records.size(); i++) {
-                    sql = "INSERT INTO String_Values(key_name, string_value , create_time) VALUES('"
-                            + stringValue(name) + "', '" + stringValue(records.get(i)) + "', '"
-                            + DateTools.datetimeToString(times.get(i)) + "')";
-                    statement.executeUpdate(sql);
-                }
-                conn.commit();
             }
+            conn.commit();
         } catch (Exception e) {
             MyBoxLog.error(e);
         }
@@ -317,7 +316,7 @@ public class TableStringValues extends DerbyBase {
         if (conn == null || name == null || name.trim().isEmpty()) {
             return -1;
         }
-        String sql = " SELECT count(string_value) FROM String_Values WHERE key_name='" + stringValue(name) + "'";
+        String sql = " SELECT count(*) FROM String_Values WHERE key_name='" + stringValue(name) + "'";
         return DerbyBase.size(conn, sql);
     }
 

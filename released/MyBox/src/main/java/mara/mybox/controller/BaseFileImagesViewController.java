@@ -2,12 +2,12 @@ package mara.mybox.controller;
 
 import java.io.File;
 import java.text.MessageFormat;
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Map;
+import java.util.List;
 import javafx.beans.binding.Bindings;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
-import javafx.concurrent.Task;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.scene.control.CheckBox;
@@ -20,13 +20,12 @@ import javafx.scene.image.ImageView;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.VBox;
-import javafx.stage.Modality;
 import mara.mybox.data.DoubleRectangle;
 import mara.mybox.db.data.VisitHistory;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.NodeStyleTools;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.fxml.ValidationTools;
-import mara.mybox.value.Languages;
+import static mara.mybox.value.Languages.message;
 import mara.mybox.value.UserConfig;
 
 /**
@@ -38,7 +37,7 @@ public abstract class BaseFileImagesViewController extends ImageViewerController
 
     protected final int ThumbWidth = 200;
     protected int percent;
-    protected Task thumbTask;
+    protected SingletonTask thumbTask;
     protected LoadingController loading;
     protected Process process;
 
@@ -223,11 +222,11 @@ public abstract class BaseFileImagesViewController extends ImageViewerController
                 pageSelector.getEditor().setStyle(null);
                 return true;
             } else {
-                pageSelector.getEditor().setStyle(NodeStyleTools.badStyle);
+                pageSelector.getEditor().setStyle(UserConfig.badStyle());
                 return false;
             }
         } catch (Exception e) {
-            pageSelector.getEditor().setStyle(NodeStyleTools.badStyle);
+            pageSelector.getEditor().setStyle(UserConfig.badStyle());
             return false;
         }
     }
@@ -293,7 +292,7 @@ public abstract class BaseFileImagesViewController extends ImageViewerController
         imageView.setPreserveRatio(true);
         imageView.setImage(image);
         this.image = image;
-        getMyStage().setTitle(getBaseTitle() + " " + sourceFile.getAbsolutePath() + " - " + Languages.message("Page") + " " + frameIndex);
+        getMyStage().setTitle(getBaseTitle() + " " + sourceFile.getAbsolutePath() + " - " + message("Page") + " " + frameIndex);
         if (percent == 0) {
             paneSize();
         } else {
@@ -331,6 +330,10 @@ public abstract class BaseFileImagesViewController extends ImageViewerController
             bottomLabel.setText("");
             pageLabel.setText("");
             setSourceFile(file);
+            if (thumbTask != null) {
+                thumbTask.cancel();
+                thumbTask = null;
+            }
 
             if (file == null) {
                 getMyStage().setTitle(getBaseTitle());
@@ -371,7 +374,7 @@ public abstract class BaseFileImagesViewController extends ImageViewerController
             if (task != null && !task.isQuit()) {
                 task.cancel();
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 private Image image;
 
@@ -386,11 +389,7 @@ public abstract class BaseFileImagesViewController extends ImageViewerController
                     setImage(image, percent);
                 }
             };
-            handling(task, Modality.WINDOW_MODAL, MessageFormat.format(Languages.message("LoadingPageNumber"), (frameIndex + 1) + ""));
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task, MessageFormat.format(message("LoadingPageNumber"), (frameIndex + 1) + ""));
         }
     }
 
@@ -399,73 +398,66 @@ public abstract class BaseFileImagesViewController extends ImageViewerController
         return null;
     }
 
-    protected Map<Integer, Image> readThumbs(int pos, int end) {
-        return null;
-    }
-
     protected void loadThumbs() {
         synchronized (this) {
-            if (thumbTask != null) {
-                thumbTask.cancel();
+            if (thumbTask != null && !thumbTask.isQuit()) {
+                return;
             }
             if (thumbBox.getChildren().isEmpty()) {
                 for (int i = 0; i < framesNumber; ++i) {
                     ImageView view = new ImageView();
                     view.setFitHeight(50);
                     view.setPreserveRatio(true);
+                    final int p = i;
+                    view.setOnMouseClicked(new EventHandler<MouseEvent>() {
+                        @Override
+                        public void handle(MouseEvent event) {
+                            loadPage(p);
+                        }
+                    });
                     thumbBox.getChildren().add(view);
-                    thumbBox.getChildren().add(new Label((i + 1) + ""));
+                    Label label = new Label((i + 1) + "");
+                    label.setOnMouseClicked(new EventHandler<MouseEvent>() {
+                        @Override
+                        public void handle(MouseEvent event) {
+                            loadPage(p);
+                        }
+                    });
+                    thumbBox.getChildren().add(label);
                 }
             }
             int pos = Math.max(0, (int) (framesNumber * thumbScrollPane.getVvalue() / thumbScrollPane.getVmax()) - 1);
-            if (pos >= framesNumber) {
-                return;
-            }
-            ImageView view = (ImageView) thumbBox.getChildren().get(pos * 2);
-            if (view.getImage() != null) {
-                return;
-            }
             int end = Math.min(pos + 20, framesNumber);
-            thumbTask = new SingletonTask<Void>() {
-
-                protected Map<Integer, Image> images;
+            List<Integer> missed = new ArrayList<>();
+            for (int i = pos; i < end; ++i) {
+                ImageView view = (ImageView) thumbBox.getChildren().get(2 * i);
+                if (view.getImage() == null) {
+                    missed.add(i);
+                }
+            }
+            if (missed.isEmpty()) {
+                return;
+            }
+            thumbTask = new SingletonTask<Void>(this) {
 
                 @Override
                 protected boolean handle() {
-                    images = readThumbs(pos, end);
-                    return images != null;
+                    return loadThumbs(missed);
                 }
 
                 @Override
                 protected void whenSucceeded() {
-                    for (int i = pos; i < end; ++i) {
-                        if (i >= images.size()) {
-                            break;
-                        }
-                        ImageView view = (ImageView) thumbBox.getChildren().get(2 * i);
-                        if (view.getImage() != null) {
-                            continue;
-                        }
-                        view.setImage(images.get(i));
-                        view.setFitHeight(view.getImage().getHeight());
-                        final int p = i;
-                        view.setOnMouseClicked(new EventHandler<MouseEvent>() {
-                            @Override
-                            public void handle(MouseEvent event) {
-                                loadPage(p);
-                            }
-                        });
-                    }
                     thumbBox.layout();
                     adjustSplitPane();
                 }
 
             };
-            handling(thumbTask);
-            Thread thread = new Thread(thumbTask);
-            thread.setDaemon(false);
-            thread.start();
+            start(thumbTask, false);
         }
+    }
+
+    protected boolean loadThumbs(List<Integer> missed) {
+        return true;
     }
 
     @FXML

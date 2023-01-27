@@ -17,20 +17,20 @@ import java.util.List;
 import java.util.Map;
 import javax.xml.parsers.DocumentBuilderFactory;
 import mara.mybox.controller.LoadingController;
-import mara.mybox.data.CoordinateSystem;
-import static mara.mybox.data.CoordinateSystem.Value.GCJ_02;
+import mara.mybox.data.GeoCoordinateSystem;
+import static mara.mybox.data.GeoCoordinateSystem.Value.GCJ_02;
 import mara.mybox.db.DerbyBase;
 import mara.mybox.db.table.TableGeographyCode;
 import mara.mybox.dev.MyBoxLog;
+import mara.mybox.tools.CsvTools;
 import mara.mybox.tools.DoubleTools;
+import mara.mybox.tools.FileTools;
 import mara.mybox.tools.HtmlReadTools;
 import mara.mybox.tools.TextFileTools;
 import mara.mybox.tools.TmpFileTools;
 import mara.mybox.value.AppValues;
-
 import mara.mybox.value.Languages;
 import mara.mybox.value.UserConfig;
-import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
 import org.w3c.dom.Document;
@@ -49,12 +49,12 @@ public class GeographyCodeTools {
     /*
         Query codes by web service
      */
-    public static GeographyCode geoCode(CoordinateSystem coordinateSystem, String address) {
+    public static GeographyCode geoCode(GeoCoordinateSystem coordinateSystem, String address) {
         try {
             if (coordinateSystem == null) {
                 return null;
             }
-            if (coordinateSystem.getValue() == CoordinateSystem.Value.GCJ_02) {
+            if (coordinateSystem.getValue() == GeoCoordinateSystem.Value.GCJ_02) {
                 // GaoDe Map only supports info codes of China
                 String urlString = "https://restapi.amap.com/v3/geocode/geo?address="
                         + URLEncoder.encode(address, "UTF-8") + "&output=xml&key="
@@ -63,7 +63,7 @@ public class GeographyCodeTools {
                 geographyCode.setChineseName(address);
                 geographyCode.setCoordinateSystem(coordinateSystem);
                 return gaodeCode(urlString, geographyCode);
-            } else if (coordinateSystem.getValue() == CoordinateSystem.Value.CGCS2000) {
+            } else if (coordinateSystem.getValue() == GeoCoordinateSystem.Value.CGCS2000) {
                 //  http://api.tianditu.gov.cn/geocoder?ds={"keyWord":"泰山"}&tk=0ddeb917def62b4691500526cc30a9b1
                 String urlString = "http://api.tianditu.gov.cn/geocoder?ds="
                         + URLEncoder.encode("{\"keyWord\":\""
@@ -123,7 +123,7 @@ public class GeographyCodeTools {
         }
     }
 
-    public static GeographyCode geoCode(CoordinateSystem coordinateSystem, double longitude, double latitude, boolean decodeAncestors) {
+    public static GeographyCode geoCode(GeoCoordinateSystem coordinateSystem, double longitude, double latitude, boolean decodeAncestors) {
         try {
             GeographyCode geographyCode = TableGeographyCode.readCode(coordinateSystem, longitude, latitude, decodeAncestors);
             if (geographyCode != null) {
@@ -135,12 +135,12 @@ public class GeographyCodeTools {
         }
     }
 
-    public static GeographyCode geoCode(CoordinateSystem coordinateSystem, double longitude, double latitude) {
+    public static GeographyCode geoCode(GeoCoordinateSystem coordinateSystem, double longitude, double latitude) {
         try {
             if (coordinateSystem == null) {
                 return null;
             }
-            if (coordinateSystem.getValue() == CoordinateSystem.Value.GCJ_02) {
+            if (coordinateSystem.getValue() == GeoCoordinateSystem.Value.GCJ_02) {
                 String urlString = "https://restapi.amap.com/v3/geocode/regeo?location="
                         + longitude + "," + latitude + "&output=xml&key="
                         + UserConfig.getString("GaoDeMapServiceKey", AppValues.GaoDeMapServiceKey);
@@ -149,7 +149,7 @@ public class GeographyCodeTools {
                 geographyCode.setLatitude(latitude);
                 geographyCode.setCoordinateSystem(coordinateSystem);
                 return gaodeCode(urlString, geographyCode);
-            } else if (coordinateSystem.getValue() == CoordinateSystem.Value.CGCS2000) {
+            } else if (coordinateSystem.getValue() == GeoCoordinateSystem.Value.CGCS2000) {
                 String urlString = "http://api.tianditu.gov.cn/geocoder?postStr={'lon':"
                         + longitude + ",'lat':" + latitude
                         + ",'ver':1}&type=geocode&tk="
@@ -638,8 +638,8 @@ public class GeographyCodeTools {
                     countryCode.setChineseName(country);
                     countryCode.setEnglishName(country);
                     if (continentCode != null) {
-                        countryCode.setContinent(continentCode.getId());
-                        countryCode.setOwner(continentCode.getId());
+                        countryCode.setContinent(continentCode.getGcid());
+                        countryCode.setOwner(continentCode.getGcid());
                     }
                     msg += "country :" + country + ", " + longitude + "," + latitude;
                     if (create) {
@@ -664,7 +664,7 @@ public class GeographyCodeTools {
             if (province != null) {
                 if (countryCode != null && create) {
                     sql = "SELECT * FROM Geography_Code WHERE " + " level=4 AND country="
-                            + countryCode.getId() + " AND (" + TableGeographyCode.nameEqual(province) + ")";
+                            + countryCode.getGcid() + " AND (" + TableGeographyCode.nameEqual(province) + ")";
                     provinceCode = TableGeographyCode.queryCode(conn, sql, decodeAncestors);
                 } else {
                     provinceCode = TableGeographyCode.readCode(conn, 4, province, decodeAncestors);
@@ -678,11 +678,11 @@ public class GeographyCodeTools {
                     provinceCode.setEnglishName(province);
                     if (countryCode != null) {
                         provinceCode.setContinent(countryCode.getContinent());
-                        provinceCode.setCountry(countryCode.getId());
+                        provinceCode.setCountry(countryCode.getGcid());
                         msg += "\nprovince :" + country + "," + province + "," + longitude + "," + latitude;
                     } else if (continentCode != null) {
-                        provinceCode.setContinent(continentCode.getId());
-                        provinceCode.setOwner(continentCode.getId());
+                        provinceCode.setContinent(continentCode.getGcid());
+                        provinceCode.setOwner(continentCode.getGcid());
                         msg += "\nprovince :" + continent + ", " + province + "," + longitude + "," + latitude;
                     } else {
                         msg += "\nprovince :" + province + "," + longitude + "," + latitude;
@@ -709,10 +709,10 @@ public class GeographyCodeTools {
             if (city != null) {
                 sql = "SELECT * FROM Geography_Code WHERE " + " (level=5 OR level=6 ) AND ";
                 if (countryCode != null) {
-                    sql += " country=" + countryCode.getId() + " AND ";
+                    sql += " country=" + countryCode.getGcid() + " AND ";
                 }
                 if (provinceCode != null) {
-                    sql += " province=" + provinceCode.getId() + " AND ";
+                    sql += " province=" + provinceCode.getGcid() + " AND ";
                 }
                 sql += " ( " + TableGeographyCode.nameEqual(city) + " )";
                 cityCode = TableGeographyCode.queryCode(conn, sql, decodeAncestors);
@@ -726,15 +726,15 @@ public class GeographyCodeTools {
                     if (provinceCode != null) {
                         cityCode.setContinent(provinceCode.getContinent());
                         cityCode.setCountry(provinceCode.getCountry());
-                        cityCode.setProvince(provinceCode.getId());
+                        cityCode.setProvince(provinceCode.getGcid());
                         msg += "\ncity :" + province + "," + city + "," + longitude + "," + latitude;
                     } else if (countryCode != null) {
                         cityCode.setContinent(countryCode.getContinent());
-                        cityCode.setCountry(countryCode.getId());
+                        cityCode.setCountry(countryCode.getGcid());
                         msg += "\ncity :" + country + ", " + city + "," + longitude + "," + latitude;
                     } else if (continentCode != null) {
-                        cityCode.setContinent(continentCode.getId());
-                        cityCode.setOwner(continentCode.getId());
+                        cityCode.setContinent(continentCode.getGcid());
+                        cityCode.setOwner(continentCode.getGcid());
                         msg += "\ncity :" + continent + ", " + city + "," + longitude + "," + latitude;
                     }
                     if (create) {
@@ -759,13 +759,13 @@ public class GeographyCodeTools {
             if (county != null) {
                 sql = "SELECT * FROM Geography_Code WHERE level=6 AND ";
                 if (countryCode != null) {
-                    sql += " country=" + countryCode.getId() + " AND ";
+                    sql += " country=" + countryCode.getGcid() + " AND ";
                 }
                 if (provinceCode != null) {
-                    sql += " province=" + provinceCode.getId() + " AND ";
+                    sql += " province=" + provinceCode.getGcid() + " AND ";
                 }
                 if (cityCode != null) {
-                    sql += " city=" + cityCode.getId() + " AND ";
+                    sql += " city=" + cityCode.getGcid() + " AND ";
                 }
                 sql += " ( " + TableGeographyCode.nameEqual(county) + " )";
                 countyCode = TableGeographyCode.queryCode(conn, sql, decodeAncestors);
@@ -780,20 +780,20 @@ public class GeographyCodeTools {
                         countyCode.setContinent(cityCode.getContinent());
                         countyCode.setCountry(cityCode.getCountry());
                         countyCode.setProvince(cityCode.getProvince());
-                        countyCode.setCity(cityCode.getId());
+                        countyCode.setCity(cityCode.getGcid());
                         msg += "\ncounty :" + city + ", " + county + "," + longitude + "," + latitude;
                     } else if (provinceCode != null) {
                         countyCode.setContinent(provinceCode.getContinent());
                         countyCode.setCountry(provinceCode.getCountry());
-                        countyCode.setProvince(provinceCode.getId());
+                        countyCode.setProvince(provinceCode.getGcid());
                         msg += "\ncounty :" + province + ", " + county + "," + longitude + "," + latitude;
                     } else if (countryCode != null) {
                         countyCode.setContinent(countryCode.getContinent());
-                        countyCode.setCountry(countryCode.getId());
+                        countyCode.setCountry(countryCode.getGcid());
                         msg += "\ncounty :" + country + ", " + county + "," + longitude + "," + latitude;
                     } else if (continentCode != null) {
-                        countyCode.setContinent(continentCode.getId());
-                        countyCode.setOwner(continentCode.getId());
+                        countyCode.setContinent(continentCode.getGcid());
+                        countyCode.setOwner(continentCode.getGcid());
                         msg += "\ncounty :" + continent + ", " + county + "," + longitude + "," + latitude;
                     }
                     if (create) {
@@ -818,16 +818,16 @@ public class GeographyCodeTools {
             if (town != null) {
                 sql = "SELECT * FROM Geography_Code WHERE level=7 AND ";
                 if (countryCode != null) {
-                    sql += " country=" + countryCode.getId() + " AND ";
+                    sql += " country=" + countryCode.getGcid() + " AND ";
                 }
                 if (provinceCode != null) {
-                    sql += " province=" + provinceCode.getId() + " AND ";
+                    sql += " province=" + provinceCode.getGcid() + " AND ";
                 }
                 if (cityCode != null) {
-                    sql += " city=" + cityCode.getId() + " AND ";
+                    sql += " city=" + cityCode.getGcid() + " AND ";
                 }
                 if (countyCode != null) {
-                    sql += " county=" + countyCode.getId() + " AND ";
+                    sql += " county=" + countyCode.getGcid() + " AND ";
                 }
                 sql += "  ( " + TableGeographyCode.nameEqual(county) + " )";
                 townCode = TableGeographyCode.queryCode(conn, sql, decodeAncestors);
@@ -843,26 +843,26 @@ public class GeographyCodeTools {
                         townCode.setCountry(countyCode.getCountry());
                         townCode.setProvince(countyCode.getProvince());
                         townCode.setCity(countyCode.getCity());
-                        townCode.setCounty(countyCode.getId());
+                        townCode.setCounty(countyCode.getGcid());
                         msg += "\ntown :" + county + ", " + town + "," + longitude + "," + latitude;
                     } else if (cityCode != null) {
                         townCode.setContinent(cityCode.getContinent());
                         townCode.setCountry(cityCode.getCountry());
                         townCode.setProvince(cityCode.getProvince());
-                        townCode.setCity(cityCode.getId());
+                        townCode.setCity(cityCode.getGcid());
                         msg += "\ntown :" + city + ", " + town + "," + longitude + "," + latitude;
                     } else if (provinceCode != null) {
                         townCode.setContinent(provinceCode.getContinent());
                         townCode.setCountry(provinceCode.getCountry());
-                        townCode.setProvince(provinceCode.getId());
+                        townCode.setProvince(provinceCode.getGcid());
                         msg += "\ntown :" + province + ", " + town + "," + longitude + "," + latitude;
                     } else if (countryCode != null) {
                         townCode.setContinent(countryCode.getContinent());
-                        townCode.setCountry(countryCode.getId());
+                        townCode.setCountry(countryCode.getGcid());
                         msg += "\ntown :" + county + ", " + town + "," + longitude + "," + latitude;
                     } else if (continentCode != null) {
-                        townCode.setContinent(continentCode.getId());
-                        townCode.setOwner(continentCode.getId());
+                        townCode.setContinent(continentCode.getGcid());
+                        townCode.setOwner(continentCode.getGcid());
                         msg += "\ntown :" + continent + ", " + town + "," + longitude + "," + latitude;
                     }
                     if (create) {
@@ -887,19 +887,19 @@ public class GeographyCodeTools {
             if (village != null) {
                 sql = "SELECT * FROM Geography_Code WHERE level=8 AND ";
                 if (countryCode != null) {
-                    sql += " country=" + countryCode.getId() + " AND ";
+                    sql += " country=" + countryCode.getGcid() + " AND ";
                 }
                 if (provinceCode != null) {
-                    sql += " province=" + provinceCode.getId() + " AND ";
+                    sql += " province=" + provinceCode.getGcid() + " AND ";
                 }
                 if (cityCode != null) {
-                    sql += " city=" + cityCode.getId() + " AND ";
+                    sql += " city=" + cityCode.getGcid() + " AND ";
                 }
                 if (countyCode != null) {
-                    sql += " county=" + countyCode.getId() + " AND ";
+                    sql += " county=" + countyCode.getGcid() + " AND ";
                 }
                 if (townCode != null) {
-                    sql += " town=" + townCode.getId() + " AND ";
+                    sql += " town=" + townCode.getGcid() + " AND ";
                 }
                 sql += " ( " + TableGeographyCode.nameEqual(village) + " )";
                 villageCode = TableGeographyCode.queryCode(conn, sql, decodeAncestors);
@@ -916,33 +916,33 @@ public class GeographyCodeTools {
                         villageCode.setProvince(townCode.getProvince());
                         villageCode.setCity(townCode.getCity());
                         villageCode.setCounty(townCode.getCounty());
-                        villageCode.setTown(townCode.getId());
+                        villageCode.setTown(townCode.getGcid());
                         msg += "\nvillage :" + town + ", " + village + "," + longitude + "," + latitude;
                     } else if (countyCode != null) {
                         villageCode.setContinent(countyCode.getContinent());
                         villageCode.setCountry(countyCode.getCountry());
                         villageCode.setProvince(countyCode.getProvince());
                         villageCode.setCity(countyCode.getCity());
-                        villageCode.setCounty(countyCode.getId());
+                        villageCode.setCounty(countyCode.getGcid());
                         msg += "\nvillage :" + county + ", " + village + "," + longitude + "," + latitude;
                     } else if (cityCode != null) {
                         villageCode.setContinent(cityCode.getContinent());
                         villageCode.setCountry(cityCode.getCountry());
                         villageCode.setProvince(cityCode.getProvince());
-                        villageCode.setCity(cityCode.getId());
+                        villageCode.setCity(cityCode.getGcid());
                         msg += "\nvillage :" + city + ", " + village + "," + longitude + "," + latitude;
                     } else if (provinceCode != null) {
                         villageCode.setContinent(provinceCode.getContinent());
                         villageCode.setCountry(provinceCode.getCountry());
-                        villageCode.setProvince(provinceCode.getId());
+                        villageCode.setProvince(provinceCode.getGcid());
                         msg += "\nvillage :" + province + ", " + village + "," + longitude + "," + latitude;
                     } else if (countryCode != null) {
                         villageCode.setContinent(countryCode.getContinent());
-                        villageCode.setCountry(countryCode.getId());
+                        villageCode.setCountry(countryCode.getGcid());
                         msg += "\nvillage :" + county + ", " + village + "," + longitude + "," + latitude;
                     } else if (continentCode != null) {
-                        villageCode.setContinent(continentCode.getId());
-                        villageCode.setOwner(continentCode.getId());
+                        villageCode.setContinent(continentCode.getGcid());
+                        villageCode.setOwner(continentCode.getGcid());
                         msg += "\nvillage :" + continent + ", " + village + "," + longitude + "," + latitude;
                     }
                     if (create) {
@@ -967,22 +967,22 @@ public class GeographyCodeTools {
             if (building != null) {
                 sql = "SELECT * FROM Geography_Code WHERE level=9 AND ";
                 if (countryCode != null) {
-                    sql += " country=" + countryCode.getId() + " AND ";
+                    sql += " country=" + countryCode.getGcid() + " AND ";
                 }
                 if (provinceCode != null) {
-                    sql += " province=" + provinceCode.getId() + " AND ";
+                    sql += " province=" + provinceCode.getGcid() + " AND ";
                 }
                 if (cityCode != null) {
-                    sql += " city=" + cityCode.getId() + " AND ";
+                    sql += " city=" + cityCode.getGcid() + " AND ";
                 }
                 if (countyCode != null) {
-                    sql += " county=" + countyCode.getId() + " AND ";
+                    sql += " county=" + countyCode.getGcid() + " AND ";
                 }
                 if (townCode != null) {
-                    sql += " town=" + townCode.getId() + " AND ";
+                    sql += " town=" + townCode.getGcid() + " AND ";
                 }
                 if (villageCode != null) {
-                    sql += " village=" + villageCode.getId() + " AND ";
+                    sql += " village=" + villageCode.getGcid() + " AND ";
                 }
                 sql += " ( " + TableGeographyCode.nameEqual(building) + " )";
                 buildingCode = TableGeographyCode.queryCode(conn, sql, decodeAncestors);
@@ -1000,7 +1000,7 @@ public class GeographyCodeTools {
                         buildingCode.setCity(villageCode.getCity());
                         buildingCode.setCounty(villageCode.getCounty());
                         buildingCode.setTown(villageCode.getTown());
-                        buildingCode.setVillage(villageCode.getId());
+                        buildingCode.setVillage(villageCode.getGcid());
                         msg += "\nbuilding :" + village + ", " + building + "," + longitude + "," + latitude;
                     } else if (townCode != null) {
                         buildingCode.setContinent(townCode.getContinent());
@@ -1008,33 +1008,33 @@ public class GeographyCodeTools {
                         buildingCode.setProvince(townCode.getProvince());
                         buildingCode.setCity(townCode.getCity());
                         buildingCode.setCounty(townCode.getCounty());
-                        buildingCode.setTown(townCode.getId());
+                        buildingCode.setTown(townCode.getGcid());
                         msg += "\nbuilding :" + town + ", " + building + "," + longitude + "," + latitude;
                     } else if (countyCode != null) {
                         buildingCode.setContinent(countyCode.getContinent());
                         buildingCode.setCountry(countyCode.getCountry());
                         buildingCode.setProvince(countyCode.getProvince());
                         buildingCode.setCity(countyCode.getCity());
-                        buildingCode.setCounty(countyCode.getId());
+                        buildingCode.setCounty(countyCode.getGcid());
                         msg += "\nbuilding :" + county + ", " + building + "," + longitude + "," + latitude;
                     } else if (cityCode != null) {
                         buildingCode.setContinent(cityCode.getContinent());
                         buildingCode.setCountry(cityCode.getCountry());
                         buildingCode.setProvince(cityCode.getProvince());
-                        buildingCode.setCity(cityCode.getId());
+                        buildingCode.setCity(cityCode.getGcid());
                         msg += "\nbuilding :" + city + ", " + building + "," + longitude + "," + latitude;
                     } else if (provinceCode != null) {
                         buildingCode.setContinent(provinceCode.getContinent());
                         buildingCode.setCountry(provinceCode.getCountry());
-                        buildingCode.setProvince(provinceCode.getId());
+                        buildingCode.setProvince(provinceCode.getGcid());
                         msg += "\nbuilding :" + province + ", " + building + "," + longitude + "," + latitude;
                     } else if (countryCode != null) {
                         buildingCode.setContinent(countryCode.getContinent());
-                        buildingCode.setCountry(countryCode.getId());
+                        buildingCode.setCountry(countryCode.getGcid());
                         msg += "\nbuilding :" + country + ", " + building + "," + longitude + "," + latitude;
                     } else if (continentCode != null) {
-                        buildingCode.setContinent(continentCode.getId());
-                        buildingCode.setOwner(continentCode.getId());
+                        buildingCode.setContinent(continentCode.getGcid());
+                        buildingCode.setOwner(continentCode.getGcid());
                         msg += "\nbuilding :" + continent + ", " + building + "," + longitude + "," + latitude;
                     }
                     if (create) {
@@ -1059,25 +1059,25 @@ public class GeographyCodeTools {
             if (poi != null) {
                 sql = "SELECT * FROM Geography_Code WHERE ";
                 if (countryCode != null) {
-                    sql += " country=" + countryCode.getId() + " AND ";
+                    sql += " country=" + countryCode.getGcid() + " AND ";
                 }
                 if (provinceCode != null) {
-                    sql += " province=" + provinceCode.getId() + " AND ";
+                    sql += " province=" + provinceCode.getGcid() + " AND ";
                 }
                 if (cityCode != null) {
-                    sql += " city=" + cityCode.getId() + " AND ";
+                    sql += " city=" + cityCode.getGcid() + " AND ";
                 }
                 if (countyCode != null) {
-                    sql += " county=" + countyCode.getId() + " AND ";
+                    sql += " county=" + countyCode.getGcid() + " AND ";
                 }
                 if (townCode != null) {
-                    sql += " town=" + townCode.getId() + " AND ";
+                    sql += " town=" + townCode.getGcid() + " AND ";
                 }
                 if (villageCode != null) {
-                    sql += " village=" + villageCode.getId() + " AND ";
+                    sql += " village=" + villageCode.getGcid() + " AND ";
                 }
                 if (buildingCode != null) {
-                    sql += " building=" + buildingCode.getId() + " AND ";
+                    sql += " building=" + buildingCode.getGcid() + " AND ";
                 }
                 sql += " ( " + TableGeographyCode.nameEqual(poi) + " )";
                 poiCode = TableGeographyCode.queryCode(conn, sql, decodeAncestors);
@@ -1096,8 +1096,8 @@ public class GeographyCodeTools {
                         poiCode.setCounty(buildingCode.getCounty());
                         poiCode.setTown(buildingCode.getTown());
                         poiCode.setVillage(buildingCode.getVillage());
-                        poiCode.setBuilding(buildingCode.getId());
-                        poiCode.setOwner(buildingCode.getId());
+                        poiCode.setBuilding(buildingCode.getGcid());
+                        poiCode.setOwner(buildingCode.getGcid());
                         msg += "\npoi :" + building + ", " + poi + "," + longitude + "," + latitude;
                     } else if (villageCode != null) {
                         poiCode.setContinent(villageCode.getContinent());
@@ -1106,8 +1106,8 @@ public class GeographyCodeTools {
                         poiCode.setCity(villageCode.getCity());
                         poiCode.setCounty(villageCode.getCounty());
                         poiCode.setTown(villageCode.getTown());
-                        poiCode.setVillage(villageCode.getId());
-                        poiCode.setOwner(villageCode.getId());
+                        poiCode.setVillage(villageCode.getGcid());
+                        poiCode.setOwner(villageCode.getGcid());
                         msg += "\npoi :" + village + ", " + poi + "," + longitude + "," + latitude;
                     } else if (townCode != null) {
                         poiCode.setContinent(townCode.getContinent());
@@ -1115,38 +1115,38 @@ public class GeographyCodeTools {
                         poiCode.setProvince(townCode.getProvince());
                         poiCode.setCity(townCode.getCity());
                         poiCode.setCounty(townCode.getCounty());
-                        poiCode.setTown(townCode.getId());
-                        poiCode.setOwner(townCode.getId());
+                        poiCode.setTown(townCode.getGcid());
+                        poiCode.setOwner(townCode.getGcid());
                         msg += "\npoi :" + town + ", " + poi + "," + longitude + "," + latitude;
                     } else if (countyCode != null) {
                         poiCode.setContinent(countyCode.getContinent());
                         poiCode.setCountry(countyCode.getCountry());
                         poiCode.setProvince(countyCode.getProvince());
                         poiCode.setCity(countyCode.getCity());
-                        poiCode.setCounty(countyCode.getId());
-                        poiCode.setOwner(countyCode.getId());
+                        poiCode.setCounty(countyCode.getGcid());
+                        poiCode.setOwner(countyCode.getGcid());
                         msg += "\npoi :" + county + ", " + poi + "," + longitude + "," + latitude;
                     } else if (cityCode != null) {
                         poiCode.setContinent(cityCode.getContinent());
                         poiCode.setCountry(cityCode.getCountry());
                         poiCode.setProvince(cityCode.getProvince());
-                        poiCode.setCity(cityCode.getId());
-                        poiCode.setOwner(cityCode.getId());
+                        poiCode.setCity(cityCode.getGcid());
+                        poiCode.setOwner(cityCode.getGcid());
                         msg += "\npoi :" + city + ", " + poi + "," + longitude + "," + latitude;
                     } else if (provinceCode != null) {
                         poiCode.setContinent(provinceCode.getContinent());
                         poiCode.setCountry(provinceCode.getCountry());
-                        poiCode.setProvince(provinceCode.getId());
-                        poiCode.setOwner(provinceCode.getId());
+                        poiCode.setProvince(provinceCode.getGcid());
+                        poiCode.setOwner(provinceCode.getGcid());
                         msg += "\npoi :" + province + ", " + poi + "," + longitude + "," + latitude;
                     } else if (countryCode != null) {
                         poiCode.setContinent(countryCode.getContinent());
-                        poiCode.setCountry(countryCode.getId());
-                        poiCode.setOwner(countryCode.getId());
+                        poiCode.setCountry(countryCode.getGcid());
+                        poiCode.setOwner(countryCode.getGcid());
                         msg += "\npoi :" + country + ", " + poi + "," + longitude + "," + latitude;
                     } else if (continentCode != null) {
-                        poiCode.setContinent(continentCode.getId());
-                        poiCode.setOwner(continentCode.getId());
+                        poiCode.setContinent(continentCode.getGcid());
+                        poiCode.setOwner(continentCode.getGcid());
                         msg += "\npoi :" + continent + ", " + poi + "," + longitude + "," + latitude;
                     }
                     if (create) {
@@ -1195,9 +1195,9 @@ public class GeographyCodeTools {
         }
         try {
             conn.setAutoCommit(false);
-            File file = mara.mybox.fxml.FxFileTools.getInternalFile("/data/db/Geography_Code_global_internal.csv", "data", "Geography_Code_global_internal.csv");
+            File file = mara.mybox.fxml.FxFileTools.getInternalFile("/data/examples/Geography_Code_global_internal.csv", "data", "Geography_Code_global_internal.csv");
             importInternalCSV(conn, loading, file, true);
-            file = mara.mybox.fxml.FxFileTools.getInternalFile("/data/db/Geography_Code_countries_internal.csv", "data", "Geography_Code_countries_internal.csv");
+            file = mara.mybox.fxml.FxFileTools.getInternalFile("/data/examples/Geography_Code_countries_internal.csv", "data", "Geography_Code_countries_internal.csv");
             importInternalCSV(conn, loading, file, true);
             if (!Languages.isChinese()) {
                 try {
@@ -1207,13 +1207,13 @@ public class GeographyCodeTools {
                     MyBoxLog.debug(e.toString());
                 }
             }
-            file = mara.mybox.fxml.FxFileTools.getInternalFile("/data/db/Geography_Code_china_provinces_internal.csv", "data", "Geography_Code_china_provinces_internal.csv");
+            file = mara.mybox.fxml.FxFileTools.getInternalFile("/data/examples/Geography_Code_china_provinces_internal.csv", "data", "Geography_Code_china_provinces_internal.csv");
             importInternalCSV(conn, loading, file, true);
-            file = mara.mybox.fxml.FxFileTools.getInternalFile("/data/db/Geography_Code_china_cities_internal.csv", "data", "Geography_Code_china_cities_internal.csv");
+            file = mara.mybox.fxml.FxFileTools.getInternalFile("/data/examples/Geography_Code_china_cities_internal.csv", "data", "Geography_Code_china_cities_internal.csv");
             importInternalCSV(conn, loading, file, true);
-            file = mara.mybox.fxml.FxFileTools.getInternalFile("/data/db/Geography_Code_china_counties_internal.csv", "data", "Geography_Code_china_counties_internal.csv");
+            file = mara.mybox.fxml.FxFileTools.getInternalFile("/data/examples/Geography_Code_china_counties_internal.csv", "data", "Geography_Code_china_counties_internal.csv");
             importInternalCSV(conn, loading, file, true);
-            file = mara.mybox.fxml.FxFileTools.getInternalFile("/data/db/Geography_Code_special.csv", "data", "Geography_Code_special.csv");
+            file = mara.mybox.fxml.FxFileTools.getInternalFile("/data/examples/Geography_Code_special.csv", "data", "Geography_Code_special.csv");
             importInternalCSV(conn, loading, file, true);
             conn.commit();
         } catch (Exception e) {
@@ -1239,8 +1239,8 @@ public class GeographyCodeTools {
         long insertCount = 0;
         long updateCount = 0;
         long failedCount = 0;
-        try (final CSVParser parser = CSVParser.parse(file, StandardCharsets.UTF_8,
-                CSVFormat.DEFAULT.withFirstRecordAsHeader().withDelimiter(',').withTrim().withNullString(""))) {
+        File validFile = FileTools.removeBOM(file);
+        try (final CSVParser parser = CSVParser.parse(validFile, StandardCharsets.UTF_8, CsvTools.csvFormat())) {
             conn.setAutoCommit(false);
             List<String> names = parser.getHeaderNames();
             if (loading != null) {
@@ -1258,7 +1258,7 @@ public class GeographyCodeTools {
                     } else {
                         code.setSource(GeographyCode.AddressSource.ImportedData);
                     }
-                    gcidQeury.setLong(1, code.getId());
+                    gcidQeury.setLong(1, code.getGcid());
                     try (final ResultSet results = gcidQeury.executeQuery()) {
                         exist = results.next();
                     }
@@ -1303,7 +1303,8 @@ public class GeographyCodeTools {
 
     public static List<GeographyCode> readInternalCSV(File file) {
         List<GeographyCode> codes = new ArrayList();
-        try (final CSVParser parser = CSVParser.parse(file, StandardCharsets.UTF_8, CSVFormat.DEFAULT.withFirstRecordAsHeader().withDelimiter(',').withTrim().withNullString(""))) {
+        File validFile = FileTools.removeBOM(file);
+        try (final CSVParser parser = CSVParser.parse(validFile, StandardCharsets.UTF_8, CsvTools.csvFormat())) {
             List<String> names = parser.getHeaderNames();
             for (CSVRecord record : parser) {
                 GeographyCode code = GeographyCodeTools.readIntenalRecord(names, record);
@@ -1321,9 +1322,9 @@ public class GeographyCodeTools {
         try {
             GeographyCode code = new GeographyCode();
             if (names.contains("gcid")) {
-                code.setId(Long.valueOf(record.get("gcid")));
+                code.setGcid(Long.valueOf(record.get("gcid")));
             } else {
-                code.setId(Long.valueOf(record.get("dataid")));
+                code.setGcid(Long.valueOf(record.get("dataid")));
             }
             code.setLevelCode(new GeographyCodeLevel(Short.valueOf(record.get("levelid"))));
             try {
@@ -1344,9 +1345,9 @@ public class GeographyCodeTools {
                 }
             }
             if (names.contains("coordinate_system")) {
-                code.setCoordinateSystem(new CoordinateSystem(record.get("coordinate_system")));
+                code.setCoordinateSystem(new GeoCoordinateSystem(record.get("coordinate_system")));
             } else {
-                code.setCoordinateSystem(CoordinateSystem.defaultCode());
+                code.setCoordinateSystem(GeoCoordinateSystem.defaultCode());
             }
             if (names.contains("chinese_name")) {
                 code.setChineseName(record.get("chinese_name"));
@@ -1505,11 +1506,11 @@ public class GeographyCodeTools {
                 }
             }
             if (names.contains("coordinate_system")) {
-                code.setCoordinateSystem(new CoordinateSystem(record.get("coordinate_system")));
+                code.setCoordinateSystem(new GeoCoordinateSystem(record.get("coordinate_system")));
             } else if (names.contains(Languages.message(lang, "CoordinateSystem"))) {
-                code.setCoordinateSystem(new CoordinateSystem(record.get(Languages.message(lang, "CoordinateSystem"))));
+                code.setCoordinateSystem(new GeoCoordinateSystem(record.get(Languages.message(lang, "CoordinateSystem"))));
             } else {
-                code.setCoordinateSystem(CoordinateSystem.defaultCode());
+                code.setCoordinateSystem(GeoCoordinateSystem.defaultCode());
             }
             if (names.contains("chinese_name")) {
                 code.setChineseName(record.get("chinese_name"));
@@ -1623,7 +1624,7 @@ public class GeographyCodeTools {
                 continentC = TableGeographyCode.readCode(conn, 2, continent, false);
             }
             if (continentC != null) {
-                continentid = continentC.getId();
+                continentid = continentC.getGcid();
             } else {
                 continentid = -1;
             }
@@ -1638,7 +1639,7 @@ public class GeographyCodeTools {
                 }
             }
             if (countryC != null) {
-                countryid = countryC.getId();
+                countryid = countryC.getGcid();
             } else {
                 countryid = -1;
             }
@@ -1654,7 +1655,7 @@ public class GeographyCodeTools {
                 }
             }
             if (provinceC != null) {
-                provinceid = provinceC.getId();
+                provinceid = provinceC.getGcid();
             } else {
                 provinceid = -1;
             }
@@ -1671,7 +1672,7 @@ public class GeographyCodeTools {
                 }
             }
             if (cityC != null) {
-                cityid = cityC.getId();
+                cityid = cityC.getGcid();
             } else {
                 cityid = -1;
             }
@@ -1689,7 +1690,7 @@ public class GeographyCodeTools {
                 }
             }
             if (countyC != null) {
-                countyid = countyC.getId();
+                countyid = countyC.getGcid();
             } else {
                 countyid = -1;
             }
@@ -1708,7 +1709,7 @@ public class GeographyCodeTools {
                 }
             }
             if (townC != null) {
-                townid = townC.getId();
+                townid = townC.getGcid();
             } else {
                 townid = -1;
             }
@@ -1728,7 +1729,7 @@ public class GeographyCodeTools {
                 }
             }
             if (villageC != null) {
-                villageid = villageC.getId();
+                villageid = villageC.getGcid();
             } else {
                 villageid = -1;
             }
@@ -1749,7 +1750,7 @@ public class GeographyCodeTools {
                 }
             }
             if (buildingC != null) {
-                buildingid = buildingC.getId();
+                buildingid = buildingC.getGcid();
             } else {
                 buildingid = -1;
             }
@@ -1777,7 +1778,7 @@ public class GeographyCodeTools {
     public static GeographyCode toCGCS2000(GeographyCode code, boolean setCS) {
         GeographyCode converted = toWGS84(code);
         if (converted != null && setCS) {
-            converted.setCoordinateSystem(CoordinateSystem.CGCS2000());
+            converted.setCoordinateSystem(GeoCoordinateSystem.CGCS2000());
         }
         return converted;
     }
@@ -1805,7 +1806,7 @@ public class GeographyCodeTools {
                     || code.getCoordinateSystem() == null) {
                 return code;
             }
-            CoordinateSystem cs = code.getCoordinateSystem();
+            GeoCoordinateSystem cs = code.getCoordinateSystem();
             double[] coordinate;
             switch (cs.getValue()) {
                 case GCJ_02:
@@ -1826,9 +1827,10 @@ public class GeographyCodeTools {
                     return code;
             }
             GeographyCode newCode = (GeographyCode) code.clone();
+            newCode.setGcid(-1);
             newCode.setLongitude(coordinate[0]);
             newCode.setLatitude(coordinate[1]);
-            newCode.setCoordinateSystem(CoordinateSystem.WGS84());
+            newCode.setCoordinateSystem(GeoCoordinateSystem.WGS84());
             return newCode;
         } catch (Exception e) {
             return null;
@@ -1858,7 +1860,7 @@ public class GeographyCodeTools {
                     || code.getCoordinateSystem() == null) {
                 return code;
             }
-            CoordinateSystem cs = code.getCoordinateSystem();
+            GeoCoordinateSystem cs = code.getCoordinateSystem();
             double[] coordinate;
             switch (cs.getValue()) {
                 case CGCS2000:
@@ -1877,9 +1879,10 @@ public class GeographyCodeTools {
                     return code;
             }
             GeographyCode newCode = (GeographyCode) code.clone();
+            newCode.setGcid(-1);
             newCode.setLongitude(coordinate[0]);
             newCode.setLatitude(coordinate[1]);
-            newCode.setCoordinateSystem(CoordinateSystem.GCJ02());
+            newCode.setCoordinateSystem(GeoCoordinateSystem.GCJ02());
             return newCode;
         } catch (Exception e) {
             return null;
@@ -1903,7 +1906,7 @@ public class GeographyCodeTools {
         return newCodes;
     }
 
-    public static List<GeographyCode> toGCJ02ByWebService(CoordinateSystem sourceCS, List<GeographyCode> codes) {
+    public static List<GeographyCode> toGCJ02ByWebService(GeoCoordinateSystem sourceCS, List<GeographyCode> codes) {
         try {
             if (codes == null || codes.isEmpty()) {
                 return null;
@@ -1924,13 +1927,14 @@ public class GeographyCodeTools {
                 }
                 String results = toGCJ02ByWebService(sourceCS, locationsString);
                 String[] locationsValues = results.split(";");
-                CoordinateSystem GCJ02 = CoordinateSystem.GCJ02();
+                GeoCoordinateSystem GCJ02 = GeoCoordinateSystem.GCJ02();
                 for (int i = 0; i < locationsValues.length; i++) {
                     String locationValue = locationsValues[i];
                     String[] values = locationValue.split(",");
                     double longitudeC = Double.parseDouble(values[0]);
                     double latitudeC = Double.parseDouble(values[1]);
                     GeographyCode newCode = (GeographyCode) codes.get(i).clone();
+                    newCode.setGcid(-1);
                     newCode.setLongitude(longitudeC);
                     newCode.setLatitude(latitudeC);
                     newCode.setCoordinateSystem(GCJ02);
@@ -1943,25 +1947,27 @@ public class GeographyCodeTools {
         }
     }
 
-    public static double[] toGCJ02ByWebService(CoordinateSystem sourceCS, double longitude, double latitude) {
+    public static double[] toGCJ02ByWebService(GeoCoordinateSystem sourceCS, double longitude, double latitude) {
         try {
 
             if (sourceCS == null || sourceCS.getValue() == GCJ_02) {
-                double[] coordinate = {DoubleTools.scale(longitude, 6), DoubleTools.scale(latitude, 6)};
+                double[] coordinate = {DoubleTools.scale(longitude, 6),
+                    DoubleTools.scale(latitude, 6)};
                 return coordinate;
             }
             String results = toGCJ02ByWebService(sourceCS, DoubleTools.scale(longitude, 6) + "," + DoubleTools.scale(latitude, 6));
             String[] values = results.split(",");
             double longitudeC = Double.parseDouble(values[0]);
             double latitudeC = Double.parseDouble(values[1]);
-            double[] coordinate = {DoubleTools.scale(longitudeC, 6), DoubleTools.scale(latitudeC, 6)};
+            double[] coordinate = {DoubleTools.scale(longitudeC, 6),
+                DoubleTools.scale(latitudeC, 6)};
             return coordinate;
         } catch (Exception e) {
             return null;
         }
     }
 
-    public static String toGCJ02ByWebService(CoordinateSystem sourceCS, String locationsString) {
+    public static String toGCJ02ByWebService(GeoCoordinateSystem sourceCS, String locationsString) {
         try {
             if (sourceCS == null || sourceCS.getValue() == GCJ_02) {
                 return locationsString;
@@ -1996,11 +2002,12 @@ public class GeographyCodeTools {
         Others
      */
     public static boolean validCoordinate(GeographyCode code) {
-        if (code == null) {
-            return false;
-        }
-        return (code.getLongitude() >= -180) && (code.getLongitude() <= 180)
-                && (code.getLatitude() >= -90) && (code.getLatitude() <= 90);
+        return code != null && validCoordinate(code.getLongitude(), code.getLatitude());
+    }
+
+    public static boolean validCoordinate(double longitude, double latitude) {
+        return (longitude >= -180) && (longitude <= 180)
+                && (latitude >= -90) && (latitude <= 90);
     }
 
 }

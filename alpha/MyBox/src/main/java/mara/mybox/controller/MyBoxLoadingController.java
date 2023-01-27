@@ -4,7 +4,6 @@ import java.io.File;
 import java.net.URL;
 import java.text.MessageFormat;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Locale;
 import java.util.ResourceBundle;
 import javafx.application.Platform;
@@ -30,6 +29,7 @@ import mara.mybox.fxml.TextClipboardTools;
 import mara.mybox.tools.ConfigTools;
 import mara.mybox.tools.FileDeleteTools;
 import mara.mybox.tools.MicrosoftDocumentTools;
+import mara.mybox.value.AppPaths;
 import mara.mybox.value.AppValues;
 import mara.mybox.value.AppVariables;
 import static mara.mybox.value.Languages.message;
@@ -44,6 +44,7 @@ public class MyBoxLoadingController implements Initializable {
     protected String lang;
     protected Stage myStage;
     protected Scene myScene;
+    protected MyBoxLoadingController loadingController;
 
     @FXML
     protected Pane thisPane;
@@ -75,24 +76,18 @@ public class MyBoxLoadingController implements Initializable {
             }
             myStage = (Stage) myScene.getWindow();
             myStage.setUserData(this);
+            loadingController = this;
             infoLabel.setText(message(lang, "Initializing..."));
             MyBoxLog.console("MyBox Config file:" + AppVariables.MyboxConfigFile);
             Task task = new Task<Void>() {
                 @Override
                 protected Void call() {
                     try {
-                        Platform.runLater(() -> {
-                            infoLabel.setText(MessageFormat.format(message(lang,
-                                    "InitializeDataUnder"), AppVariables.MyboxDataPath));
-                        });
+                        info(MessageFormat.format(message(lang, "InitializeDataUnder"), AppVariables.MyboxDataPath));
                         if (!initFiles(myStage)) {
                             return null;
                         }
-
-                        Platform.runLater(() -> {
-                            infoLabel.setText(MessageFormat.format(message(lang,
-                                    "LoadingDatabase"), AppVariables.MyBoxDerbyPath));
-                        });
+                        info(MessageFormat.format(message(lang, "LoadingDatabase"), AppVariables.MyBoxDerbyPath));
                         DerbyBase.status = DerbyBase.DerbyStatus.NotConnected;
                         String initDB = DerbyBase.startDerby();
                         if (DerbyBase.status != DerbyBase.DerbyStatus.Embedded
@@ -104,25 +99,19 @@ public class MyBoxLoadingController implements Initializable {
                             AppVariables.initAppVaribles();
                         } else {
                             // The following statements should be executed in this order
-                            Platform.runLater(() -> {
-                                infoLabel.setText(message(lang, "InitializingTables"));
-                            });
-                            DerbyBase.initTables();
-                            Platform.runLater(() -> {
-                                infoLabel.setText(message(lang, "InitializingVariables"));
-                            });
+                            info(message(lang, "InitializingTables"));
+                            DerbyBase.initTables(loadingController);
+
+                            info(message(lang, "InitializingVariables"));
                             AppVariables.initAppVaribles();
-                            Platform.runLater(() -> {
-                                infoLabel.setText(message(lang, "CheckingMigration"));
-                            });
+
+                            info(message(lang, "CheckingMigration"));
                             MyBoxLog.console(message(lang, "CheckingMigration"));
                             if (!DataMigration.checkUpdates()) {
                                 cancel();
                                 return null;
                             }
-                            Platform.runLater(() -> {
-                                infoLabel.setText(message(lang, "InitializingTableValues"));
-                            });
+                            info(message(lang, "InitializingTableValues"));
                             DerbyBase.initTableValues();
                         }
 
@@ -140,24 +129,14 @@ public class MyBoxLoadingController implements Initializable {
 
                 protected void initEnv() {
                     try {
-                        Platform.runLater(() -> {
-                            infoLabel.setText(message(lang, "InitializingEnv"));
-                        });
+                        info(message(lang, "InitializingEnv"));
 
                         ImageColorSpace.registrySupportedImageFormats();
                         ImageIO.setUseCache(true);
                         ImageIO.setCacheDirectory(AppVariables.MyBoxTempPath);
 
                         MicrosoftDocumentTools.registryFactories();
-
-                        List<AlarmClock> alarms = AlarmClock.readAlarmClocks();
-                        if (alarms != null) {
-                            for (AlarmClock alarm : alarms) {
-                                if (alarm.isIsActive()) {
-                                    AlarmClock.scheduleAlarmClock(alarm);
-                                }
-                            }
-                        }
+                        AlarmClock.scheduleAll();
 
                     } catch (Exception e) {
                         Platform.runLater(() -> {
@@ -190,7 +169,7 @@ public class MyBoxLoadingController implements Initializable {
                                     inFile = arg;
                                     break;
                                 } else {
-                                    PopTools.alertError(MessageFormat.format(message("FilepathNonAscii"), arg));
+                                    PopTools.alertError(null, MessageFormat.format(message("FilepathNonAscii"), arg));
                                 }
                             }
                         }
@@ -202,6 +181,7 @@ public class MyBoxLoadingController implements Initializable {
                         } else {
                             ControllerTools.openMyBox(myStage);
                         }
+
                     });
                 }
 
@@ -249,7 +229,7 @@ public class MyBoxLoadingController implements Initializable {
             if (!currentDataPath.exists()) {
                 if (!currentDataPath.mkdirs()) {
                     Platform.runLater(() -> {
-                        PopTools.alertError(MessageFormat.format(message(lang,
+                        PopTools.alertError(null, MessageFormat.format(message(lang,
                                 "UserPathFail"), AppVariables.MyboxDataPath));
                     });
                     return false;
@@ -283,7 +263,7 @@ public class MyBoxLoadingController implements Initializable {
             if (!AppVariables.MyBoxLogsPath.exists()) {
                 if (!AppVariables.MyBoxLogsPath.mkdirs()) {
                     Platform.runLater(() -> {
-                        PopTools.alertError(MessageFormat.format(message(lang, "UserPathFail"), AppVariables.MyBoxLogsPath));
+                        PopTools.alertError(null, MessageFormat.format(message(lang, "UserPathFail"), AppVariables.MyBoxLogsPath));
                     });
                     return false;
                 }
@@ -296,33 +276,17 @@ public class MyBoxLoadingController implements Initializable {
             if (!AppVariables.MyBoxLanguagesPath.exists()) {
                 if (!AppVariables.MyBoxLanguagesPath.mkdirs()) {
                     Platform.runLater(() -> {
-                        PopTools.alertError(MessageFormat.format(message(lang, "UserPathFail"), AppVariables.MyBoxLanguagesPath));
-                    });
-                    return false;
-                }
-            }
-
-            AppVariables.MyBoxDownloadsPath = new File(AppVariables.MyboxDataPath + File.separator + "downloads");
-            if (!AppVariables.MyBoxDownloadsPath.exists()) {
-                if (!AppVariables.MyBoxDownloadsPath.mkdirs()) {
-                    Platform.runLater(() -> {
-                        PopTools.alertError(MessageFormat.format(message(lang, "UserPathFail"), AppVariables.MyBoxDownloadsPath));
+                        PopTools.alertError(null, MessageFormat.format(message(lang, "UserPathFail"), AppVariables.MyBoxLanguagesPath));
                     });
                     return false;
                 }
             }
 
             AppVariables.MyBoxTempPath = new File(AppVariables.MyboxDataPath + File.separator + "AppTemp");
-            if (AppVariables.MyBoxTempPath.exists()) {
-                try {
-                    FileDeleteTools.clearDir(AppVariables.MyBoxTempPath);
-                } catch (Exception e) {
-                    MyBoxLog.error(e.toString());
-                }
-            } else {
+            if (!AppVariables.MyBoxTempPath.exists()) {
                 if (!AppVariables.MyBoxTempPath.mkdirs()) {
                     Platform.runLater(() -> {
-                        PopTools.alertError(MessageFormat.format(message(lang, "UserPathFail"), AppVariables.MyBoxTempPath));
+                        PopTools.alertError(null, MessageFormat.format(message(lang, "UserPathFail"), AppVariables.MyBoxTempPath));
                     });
                     return false;
                 }
@@ -335,7 +299,7 @@ public class MyBoxLoadingController implements Initializable {
                     add(AppVariables.MyBoxTempPath);
                     add(AppVariables.MyBoxDerbyPath);
                     add(AppVariables.MyBoxLanguagesPath);
-                    add(AppVariables.MyBoxDownloadsPath);
+                    add(new File(AppPaths.getDownloadsPath()));
                     add(AppVariables.MyBoxLogsPath);
                 }
             };
@@ -345,6 +309,12 @@ public class MyBoxLoadingController implements Initializable {
             MyBoxLog.error(e.toString());
             return false;
         }
+    }
+
+    public void info(String info) {
+        Platform.runLater(() -> {
+            infoLabel.setText(info);
+        });
     }
 
 }

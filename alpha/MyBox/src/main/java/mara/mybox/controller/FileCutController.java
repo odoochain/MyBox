@@ -14,15 +14,11 @@ import javafx.scene.control.Toggle;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.Tooltip;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.NodeStyleTools;
-import mara.mybox.fxml.NodeTools;
-import static mara.mybox.fxml.NodeStyleTools.badStyle;
+import mara.mybox.fxml.style.NodeStyleTools;
 import mara.mybox.tools.ByteTools;
 import mara.mybox.tools.FileSplitTools;
-import mara.mybox.tools.FileTools;
-import mara.mybox.value.AppVariables;
-import static mara.mybox.value.Languages.message;
 import mara.mybox.value.Languages;
+import mara.mybox.value.UserConfig;
 
 /**
  * @Author Mara
@@ -127,11 +123,11 @@ public class FileCutController extends BaseBatchFileController {
                 filesNumber = v;
                 filesNumberInput.setStyle(null);
             } else {
-                filesNumberInput.setStyle(NodeStyleTools.badStyle);
+                filesNumberInput.setStyle(UserConfig.badStyle());
             }
         } catch (Exception e) {
             filesNumber = 0;
-            filesNumberInput.setStyle(NodeStyleTools.badStyle);
+            filesNumberInput.setStyle(UserConfig.badStyle());
         }
     }
 
@@ -142,10 +138,10 @@ public class FileCutController extends BaseBatchFileController {
                 bytesNumber = v;
                 bytesNumberInput.setStyle(null);
             } else {
-                bytesNumberInput.setStyle(NodeStyleTools.badStyle);
+                bytesNumberInput.setStyle(UserConfig.badStyle());
             }
         } catch (Exception e) {
-            bytesNumberInput.setStyle(NodeStyleTools.badStyle);
+            bytesNumberInput.setStyle(UserConfig.badStyle());
         }
     }
 
@@ -172,24 +168,23 @@ public class FileCutController extends BaseBatchFileController {
                 }
             }
             if (startEndList.isEmpty()) {
-                listInput.setStyle(NodeStyleTools.badStyle);
+                listInput.setStyle(UserConfig.badStyle());
             } else {
                 listInput.setStyle(null);
             }
         } catch (Exception e) {
-            listInput.setStyle(NodeStyleTools.badStyle);
+            listInput.setStyle(UserConfig.badStyle());
         }
     }
 
     @Override
     public void initTargetSection() {
 
-        startButton.disableProperty().bind(Bindings.isEmpty(targetPathInput.textProperty())
-                .or(targetPathInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+        startButton.disableProperty().bind(targetPathController.valid.not()
                 .or(Bindings.isEmpty(tableData))
-                .or(filesNumberInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
-                .or(bytesNumberInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
-                .or(listInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                .or(filesNumberInput.styleProperty().isEqualTo(UserConfig.badStyle()))
+                .or(bytesNumberInput.styleProperty().isEqualTo(UserConfig.badStyle()))
+                .or(listInput.styleProperty().isEqualTo(UserConfig.badStyle()))
         );
 
     }

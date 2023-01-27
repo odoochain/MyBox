@@ -10,9 +10,10 @@ import com.vladsch.flexmark.parser.Parser;
 import com.vladsch.flexmark.parser.ParserEmulationProfile;
 import com.vladsch.flexmark.util.ast.Node;
 import com.vladsch.flexmark.util.data.MutableDataSet;
-import java.util.ArrayList;
+import java.io.File;
 import java.util.Arrays;
-import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
@@ -21,17 +22,13 @@ import javafx.fxml.FXML;
 import javafx.geometry.Point2D;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
-import javafx.scene.control.Tab;
-import javafx.scene.control.TabPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.input.ContextMenuEvent;
-import javafx.scene.web.WebEngine;
-import javafx.scene.web.WebView;
 import mara.mybox.dev.MyBoxLog;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.tools.HtmlWriteTools;
-import mara.mybox.value.HtmlStyles;
-import mara.mybox.value.Languages;
+import static mara.mybox.value.Languages.message;
 import mara.mybox.value.UserConfig;
 
 /**
@@ -41,30 +38,38 @@ import mara.mybox.value.UserConfig;
  */
 public class MarkdownEditorController extends TextEditorController {
 
-    protected WebEngine webEngine;
     protected MutableDataSet htmlOptions;
     protected Parser htmlParser;
     protected HtmlRenderer htmlRenderer;
     protected int indentSize = 4;
+    protected long htmlPage, codesPage;
+    protected double htmlScrollLeft, htmlScrollTop;
 
-    @FXML
-    protected TabPane tabPane;
-    @FXML
-    protected Tab markdownTab, htmlTab, codesTab;
     @FXML
     protected TextArea codesArea;
     @FXML
-    protected ComboBox<String> emulationSelector, indentSelector, styleSelector;
+    protected ComboBox<String> emulationSelector, indentSelector;
     @FXML
-    protected CheckBox trimCheck, appendCheck, discardCheck, linesCheck, wrapCheck;
+    protected CheckBox trimCheck, appendCheck, discardCheck, linesCheck, wrapCodesCheck,
+            refreshChangeHtmlCheck, refreshChangeCodesCheck;
     @FXML
     protected TextField titleInput;
     @FXML
-    protected WebView webView;
+    protected ControlWebView webViewController;
 
     public MarkdownEditorController() {
-        baseTitle = Languages.message("MarkdownEditer");
+        baseTitle = message("MarkdownEditer");
         TipsLabelKey = "MarkdownEditerTips";
+    }
+
+    @Override
+    public void initValues() {
+        try {
+            super.initValues();
+            webViewController.setParent(this);
+        } catch (Exception e) {
+            MyBoxLog.error(e);
+        }
     }
 
     @Override
@@ -93,24 +98,28 @@ public class MarkdownEditorController extends TextEditorController {
     @Override
     protected void initPairBox() {
         try {
-            tabPane.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<Tab>() {
+            refreshChangeHtmlCheck.setSelected(UserConfig.getBoolean(baseName + "RefreshChangeHtml", true));
+            refreshChangeHtmlCheck.selectedProperty().addListener(new ChangeListener<Boolean>() {
                 @Override
-                public void changed(ObservableValue Tab, Tab oldValue, Tab newValue) {
-                    if (isSettingValues || oldValue != markdownTab || !fileChanged.get()) {
-                        return;
-                    }
-                    markdown2html();
+                public void changed(ObservableValue ov, Boolean oldValue, Boolean newValue) {
+                    UserConfig.setBoolean(baseName + "RefreshChangeHtml", newValue);
                 }
             });
 
-            webEngine = webView.getEngine();
-
-            wrapCheck.setSelected(UserConfig.getBoolean(baseName + "Wrap", true));
-            wrapCheck.selectedProperty().addListener((ObservableValue<? extends Boolean> v, Boolean oldV, Boolean newV) -> {
-                UserConfig.setBoolean(baseName + "Wrap", wrapCheck.isSelected());
-                codesArea.setWrapText(wrapCheck.isSelected());
+            wrapCodesCheck.setSelected(UserConfig.getBoolean(baseName + "Wrap", true));
+            wrapCodesCheck.selectedProperty().addListener((ObservableValue<? extends Boolean> v, Boolean oldV, Boolean newV) -> {
+                UserConfig.setBoolean(baseName + "Wrap", wrapCodesCheck.isSelected());
+                codesArea.setWrapText(wrapCodesCheck.isSelected());
             });
-            codesArea.setWrapText(wrapCheck.isSelected());
+            codesArea.setWrapText(wrapCodesCheck.isSelected());
+
+            refreshChangeCodesCheck.setSelected(UserConfig.getBoolean(baseName + "RefreshChangeCodes", true));
+            refreshChangeCodesCheck.selectedProperty().addListener(new ChangeListener<Boolean>() {
+                @Override
+                public void changed(ObservableValue ov, Boolean oldValue, Boolean newValue) {
+                    UserConfig.setBoolean(baseName + "RefreshChangeCodes", newValue);
+                }
+            });
 
             codesArea.setOnContextMenuRequested(new EventHandler<ContextMenuEvent>() {
                 @Override
@@ -196,23 +205,16 @@ public class MarkdownEditorController extends TextEditorController {
                 }
             });
 
-            List<String> styles = new ArrayList<>();
-            for (HtmlStyles.HtmlStyle style : HtmlStyles.HtmlStyle.values()) {
-                styles.add(Languages.message(style.name()));
-            }
-            styleSelector.getItems().addAll(styles);
-            styleSelector.getSelectionModel().select(UserConfig.getString(baseName + "HtmlStyle", Languages.message("Default")));
-            styleSelector.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<String>() {
-                @Override
-                public void changed(ObservableValue ov, String oldValue, String newValue) {
-                    UserConfig.setString(baseName + "HtmlStyle", newValue);
-                    updateHtmlConverter();
-                }
-            });
-
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
         }
+    }
+
+    @Override
+    protected void initPage(File file) {
+        super.initPage(file);
+        htmlPage = -1;
+        codesPage = -1;
     }
 
     @FXML
@@ -231,9 +233,13 @@ public class MarkdownEditorController extends TextEditorController {
 
     @Override
     protected void clearPairArea() {
-        codesArea.setText("");
-        if (webEngine != null) {
-            webEngine.loadContent("");
+        try {
+            codesArea.setText("");
+            if (webViewController != null) {
+                webViewController.loadContents(null);
+            }
+        } catch (Exception e) {
+            MyBoxLog.error(e);
         }
     }
 
@@ -277,24 +283,29 @@ public class MarkdownEditorController extends TextEditorController {
     }
 
     protected void markdown2html() {
-        webEngine.getLoadWorker().cancel();
-        webEngine.loadContent("");
-        codesArea.clear();
-        if (mainArea.getText().isEmpty()) {
+        markdown2html(refreshChangeHtmlCheck.isSelected(), refreshChangeCodesCheck.isSelected());
+    }
+
+    protected void markdown2html(boolean updateHtml, boolean updateCodes) {
+        if (webViewController == null || !updateHtml && !updateCodes) {
             return;
         }
         synchronized (this) {
             if (task != null && !task.isQuit()) {
                 return;
             }
-            double htmlScrollLeft = codesArea.getScrollLeft();
-            double htmlScrollTop = codesArea.getScrollTop();
-            int htmlAnchor = codesArea.getAnchor();
-            int htmlCaretPosition = codesArea.getCaretPosition();
-            double htmlWidth = (Integer) webEngine.executeScript("document.documentElement.scrollWidth || document.body.scrollWidth;");
-            double htmlHeight = (Integer) webEngine.executeScript("document.documentElement.scrollHeight || document.body.scrollHeight;");
-
-            task = new SingletonTask<Void>() {
+            if (updateHtml) {
+                webViewController.loadContents(null);
+            }
+            htmlScrollLeft = codesArea.getScrollLeft();
+            htmlScrollTop = codesArea.getScrollTop();
+            if (updateCodes) {
+                codesArea.clear();
+            }
+            if (mainArea.getText().isEmpty()) {
+                return;
+            }
+            task = new SingletonTask<Void>(this) {
 
                 private String html;
 
@@ -307,8 +318,7 @@ public class MarkdownEditorController extends TextEditorController {
                         Node document = htmlParser.parse(mainArea.getText());
                         html = htmlRenderer.render(document);
 
-                        String style = UserConfig.getString(baseName + "HtmlStyle", Languages.message("Default"));
-                        html = HtmlWriteTools.html(titleInput.getText(), style, html);
+                        html = HtmlWriteTools.html(titleInput.getText(), html);
                         return html != null;
                     } catch (Exception e) {
                         error = e.toString();
@@ -319,29 +329,32 @@ public class MarkdownEditorController extends TextEditorController {
                 @Override
                 protected void whenSucceeded() {
                     try {
-                        Platform.runLater(() -> {
-                            codesArea.setText(html);
-                            codesArea.setScrollLeft(htmlScrollLeft);
-                            codesArea.setScrollTop(htmlScrollTop);
-                            codesArea.selectRange(htmlAnchor, htmlCaretPosition);
-                        });
-                        Platform.runLater(() -> {
-                            webEngine.loadContent(html);
-                            webEngine.executeScript("window.scrollTo(" + htmlWidth + "," + htmlHeight + ");");
-                        });
-
+                        if (updateHtml) {
+                            Platform.runLater(() -> {
+                                webViewController.loadContents(html);
+                                htmlPage = sourceInformation.getCurrentPage();
+                            });
+                        }
+                        if (updateCodes) {
+                            Platform.runLater(() -> {
+                                codesArea.setText(html);
+                                codesPage = sourceInformation.getCurrentPage();
+                                new Timer().schedule(new TimerTask() {
+                                    @Override
+                                    public void run() {
+                                        codesArea.setScrollLeft(htmlScrollLeft);
+                                        codesArea.setScrollTop(htmlScrollTop);
+                                    }
+                                }, 300);
+                            });
+                        }
                     } catch (Exception e) {
-                        MyBoxLog.debug(e.toString());
-                        webEngine.getLoadWorker().cancel();
+                        MyBoxLog.error(e);
                     }
-
                 }
 
             };
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task, false);
         }
     }
 
@@ -353,27 +366,25 @@ public class MarkdownEditorController extends TextEditorController {
     }
 
     @FXML
+    public void editHtmlAction() {
+        webViewController.editAction();
+    }
+
+    @FXML
+    public void refreshHtml() {
+        markdown2html(true, false);
+    }
+
+    @FXML
+    public void refreshCodes() {
+        markdown2html(false, true);
+    }
+
+    @FXML
     @Override
     public boolean popAction() {
-        try {
-            Tab tab = tabPane.getSelectionModel().getSelectedItem();
-            if (tab == markdownTab) {
-                MarkdownPopController.open(this, mainArea.getText());
-                return true;
-
-            } else if (tab == htmlTab) {
-                HtmlPopController.html(myController, webView);
-                return true;
-
-            } else if (tab == codesTab) {
-                HtmlCodesPopController.open(myController, codesArea.getText());
-                return true;
-
-            }
-        } catch (Exception e) {
-            MyBoxLog.debug(e.toString());
-        }
-        return false;
+        MarkdownPopController.open(this, mainArea);
+        return true;
     }
 
     @FXML
@@ -381,23 +392,26 @@ public class MarkdownEditorController extends TextEditorController {
     public boolean menuAction() {
         try {
             closePopup();
-            Tab tab = tabPane.getSelectionModel().getSelectedItem();
-            if (tab == markdownTab) {
-                Point2D localToScreen = mainArea.localToScreen(mainArea.getWidth() - 80, 80);
-                MenuMarkdownEditController.open(myController, mainArea, localToScreen.getX(), localToScreen.getY());
-                return true;
+            Point2D localToScreen = mainArea.localToScreen(mainArea.getWidth() - 80, 80);
+            MenuMarkdownEditController.open(myController, mainArea, localToScreen.getX(), localToScreen.getY());
+            return true;
+        } catch (Exception e) {
+            MyBoxLog.debug(e.toString());
+        }
+        return false;
+    }
 
-            } else if (tab == htmlTab) {
-                Point2D localToScreen = webView.localToScreen(webView.getWidth() - 80, 80);
-                MenuWebviewController.pop(webView, null, localToScreen.getX(), localToScreen.getY());
-                return true;
+    @FXML
+    public boolean menuHtmlAction() {
+        return webViewController.menuAction();
+    }
 
-            } else if (tab == codesTab) {
-                Point2D localToScreen = codesArea.localToScreen(codesArea.getWidth() - 80, 80);
-                MenuHtmlCodesController.open(myController, codesArea, localToScreen.getX(), localToScreen.getY());
-                return true;
-
-            }
+    @FXML
+    public boolean menuCodesAction() {
+        try {
+            Point2D localToScreen = codesArea.localToScreen(codesArea.getWidth() - 80, 80);
+            MenuHtmlCodesController.open(this, codesArea, localToScreen.getX(), localToScreen.getY());
+            return true;
         } catch (Exception e) {
             MyBoxLog.debug(e.toString());
         }

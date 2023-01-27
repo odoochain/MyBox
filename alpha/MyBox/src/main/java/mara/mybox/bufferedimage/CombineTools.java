@@ -10,6 +10,7 @@ import javafx.embed.swing.SwingFXUtils;
 import javafx.scene.image.Image;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fximage.FxColorTools;
+import mara.mybox.value.AppVariables;
 
 /**
  * @Author Mara
@@ -18,19 +19,20 @@ import mara.mybox.fximage.FxColorTools;
  */
 public class CombineTools {
 
-    public static Image combineSingleRow(ImageCombine imageCombine, List<ImageInformation> images, boolean isPart, boolean careTotal) {
+    public static Image combineSingleRow(ImageCombine imageCombine, List<ImageInformation> images,
+            boolean isPart, boolean careTotal) {
         if (imageCombine == null || images == null) {
             return null;
         }
         try {
             int x = imageCombine.getMarginsValue();
             int y = imageCombine.getMarginsValue();
-            int imageWidth;
-            int imageHeight;
-            int totalWidth = 0;
-            int totalHeight = 0;
-            int maxHeight = 0;
-            int minHeight = Integer.MAX_VALUE;
+            double imageWidth;
+            double imageHeight;
+            double totalWidth = 0;
+            double totalHeight = 0;
+            double maxHeight = 0;
+            double minHeight = Integer.MAX_VALUE;
             int sizeType = imageCombine.getSizeType();
             if (isPart) {
                 y = 0;
@@ -54,10 +56,13 @@ public class CombineTools {
             List<Integer> ys = new ArrayList<>();
             List<Integer> widths = new ArrayList<>();
             List<Integer> heights = new ArrayList<>();
-            for (ImageInformation imageInfo : images) {
+            for (int i = 0; i < images.size(); i++) {
+                ImageInformation imageInfo = images.get(i);
                 imageWidth = imageInfo.getWidth();
                 imageHeight = imageInfo.getHeight();
-                if (sizeType == ImageCombine.CombineSizeType.KeepSize || sizeType == ImageCombine.CombineSizeType.TotalWidth || sizeType == ImageCombine.CombineSizeType.TotalHeight) {
+                if (sizeType == ImageCombine.CombineSizeType.KeepSize
+                        || sizeType == ImageCombine.CombineSizeType.TotalWidth
+                        || sizeType == ImageCombine.CombineSizeType.TotalHeight) {
                 } else if (sizeType == ImageCombine.CombineSizeType.EachWidth) {
                     imageHeight = (imageHeight * imageCombine.getEachWidthValue()) / imageWidth;
                     imageWidth = imageCombine.getEachWidthValue();
@@ -73,8 +78,8 @@ public class CombineTools {
                 }
                 xs.add(x);
                 ys.add(y);
-                widths.add(imageWidth);
-                heights.add(imageHeight);
+                widths.add((int) imageWidth);
+                heights.add((int) imageHeight);
                 x += imageWidth + imageCombine.getIntervalValue();
                 if (imageHeight > totalHeight) {
                     totalHeight = imageHeight;
@@ -84,9 +89,11 @@ public class CombineTools {
             if (!isPart) {
                 totalHeight += 2 * imageCombine.getMarginsValue();
             }
-            Image newImage = combineImages(images, totalWidth, totalHeight,
-                    FxColorTools.toAwtColor(imageCombine.getBgColor()), xs, ys, widths, heights, imageCombine.getTotalWidthValue(), imageCombine.getTotalHeightValue(),
-                    careTotal && (sizeType == ImageCombine.CombineSizeType.TotalWidth), careTotal && (sizeType == ImageCombine.CombineSizeType.TotalHeight));
+            Image newImage = combineImages(images, (int) totalWidth, (int) totalHeight,
+                    FxColorTools.toAwtColor(imageCombine.getBgColor()), xs, ys, widths, heights,
+                    imageCombine.getTotalWidthValue(), imageCombine.getTotalHeightValue(),
+                    careTotal && (sizeType == ImageCombine.CombineSizeType.TotalWidth),
+                    careTotal && (sizeType == ImageCombine.CombineSizeType.TotalHeight));
             return newImage;
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
@@ -112,6 +119,9 @@ public class CombineTools {
             }
             BufferedImage target = new BufferedImage(totalWidth, totalHeight, BufferedImage.TYPE_INT_ARGB);
             Graphics2D g = target.createGraphics();
+            if (AppVariables.imageRenderHints != null) {
+                g.addRenderingHints(AppVariables.imageRenderHints);
+            }
             int x = 0;
             int y = 0;
             for (Image image : images) {
@@ -128,19 +138,20 @@ public class CombineTools {
         }
     }
 
-    public static Image combineSingleColumn(ImageCombine imageCombine, List<ImageInformation> imageInfos, boolean isPart, boolean careTotal) {
+    public static Image combineSingleColumn(ImageCombine imageCombine,
+            List<ImageInformation> imageInfos, boolean isPart, boolean careTotal) {
         if (imageCombine == null || imageInfos == null) {
             return null;
         }
         try {
             int x = imageCombine.getMarginsValue();
             int y = x;
-            int imageWidth;
-            int imageHeight;
-            int totalWidth = 0;
-            int totalHeight = 0;
-            int maxWidth = 0;
-            int minWidth = Integer.MAX_VALUE;
+            double imageWidth;
+            double imageHeight;
+            double totalWidth = 0;
+            double totalHeight = 0;
+            double maxWidth = 0;
+            double minWidth = Integer.MAX_VALUE;
             int sizeType = imageCombine.getSizeType();
             if (sizeType == ImageCombine.CombineSizeType.AlignAsBigger) {
                 for (ImageInformation imageInfo : imageInfos) {
@@ -164,7 +175,9 @@ public class CombineTools {
             for (ImageInformation imageInfo : imageInfos) {
                 imageWidth = imageInfo.getWidth();
                 imageHeight = imageInfo.getHeight();
-                if (sizeType == ImageCombine.CombineSizeType.KeepSize || sizeType == ImageCombine.CombineSizeType.TotalWidth || sizeType == ImageCombine.CombineSizeType.TotalHeight) {
+                if (sizeType == ImageCombine.CombineSizeType.KeepSize
+                        || sizeType == ImageCombine.CombineSizeType.TotalWidth
+                        || sizeType == ImageCombine.CombineSizeType.TotalHeight) {
                 } else if (sizeType == ImageCombine.CombineSizeType.EachWidth) {
                     if (!isPart) {
                         imageHeight = (imageHeight * imageCombine.getEachWidthValue()) / imageWidth;
@@ -184,8 +197,8 @@ public class CombineTools {
                 }
                 xs.add(x);
                 ys.add(y);
-                widths.add(imageWidth);
-                heights.add(imageHeight);
+                widths.add((int) imageWidth);
+                heights.add((int) imageHeight);
                 x = imageCombine.getMarginsValue();
                 y += imageHeight + imageCombine.getIntervalValue();
                 if (imageWidth > totalWidth) {
@@ -194,9 +207,11 @@ public class CombineTools {
             }
             totalWidth += 2 * imageCombine.getMarginsValue();
             totalHeight = y + imageCombine.getMarginsValue() - imageCombine.getIntervalValue();
-            Image newImage = combineImages(imageInfos, totalWidth, totalHeight,
-                    FxColorTools.toAwtColor(imageCombine.getBgColor()), xs, ys, widths, heights, imageCombine.getTotalWidthValue(), imageCombine.getTotalHeightValue(),
-                    careTotal && (sizeType == ImageCombine.CombineSizeType.TotalWidth), careTotal && (sizeType == ImageCombine.CombineSizeType.TotalHeight));
+            Image newImage = combineImages(imageInfos, (int) totalWidth, (int) totalHeight,
+                    FxColorTools.toAwtColor(imageCombine.getBgColor()), xs, ys,
+                    widths, heights, imageCombine.getTotalWidthValue(), imageCombine.getTotalHeightValue(),
+                    careTotal && (sizeType == ImageCombine.CombineSizeType.TotalWidth),
+                    careTotal && (sizeType == ImageCombine.CombineSizeType.TotalHeight));
             return newImage;
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
@@ -213,6 +228,9 @@ public class CombineTools {
         try {
             BufferedImage target = new BufferedImage(totalWidth, totalHeight, BufferedImage.TYPE_INT_ARGB);
             Graphics2D g = target.createGraphics();
+            if (AppVariables.imageRenderHints != null) {
+                g.addRenderingHints(AppVariables.imageRenderHints);
+            }
             g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER));
             g.setColor(bgColor);
             g.fillRect(0, 0, totalWidth, totalHeight);

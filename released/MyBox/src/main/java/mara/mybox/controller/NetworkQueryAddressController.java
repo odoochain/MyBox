@@ -14,28 +14,29 @@ import javafx.scene.control.CheckBox;
 import javafx.scene.control.RadioButton;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TextArea;
+import javafx.scene.control.TextField;
 import javafx.scene.control.Toggle;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.input.MouseEvent;
-import javafx.stage.Modality;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocket;
 import mara.mybox.db.data.VisitHistory;
+import mara.mybox.db.table.TableStringValues;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.TextClipboardTools;
 import mara.mybox.fxml.ControllerTools;
+import mara.mybox.fxml.PopTools;
 import mara.mybox.fxml.RecentVisitMenu;
-import mara.mybox.fxml.WindowTools;
-import mara.mybox.tools.FileTools;
-
+import mara.mybox.fxml.SingletonTask;
+import mara.mybox.fxml.TextClipboardTools;
+import mara.mybox.fxml.style.HtmlStyles;
+import mara.mybox.tools.HtmlReadTools;
+import mara.mybox.tools.HtmlWriteTools;
 import mara.mybox.tools.NetworkTools;
 import mara.mybox.tools.TextFileTools;
 import mara.mybox.tools.UrlTools;
 import mara.mybox.value.AppValues;
 import mara.mybox.value.AppVariables;
 import static mara.mybox.value.Languages.message;
-
-import mara.mybox.value.Languages;
 import mara.mybox.value.UserConfig;
 
 /**
@@ -45,11 +46,11 @@ import mara.mybox.value.UserConfig;
  */
 public class NetworkQueryAddressController extends HtmlTableController {
 
-    protected String host;
+    protected String host, key;
     protected Certificate[] chain;
 
     @FXML
-    protected ControlStringSelector addressController;
+    protected TextField addressInput;
     @FXML
     protected ToggleGroup typeGroup;
     @FXML
@@ -60,9 +61,11 @@ public class NetworkQueryAddressController extends HtmlTableController {
     protected TextArea certArea;
     @FXML
     protected Tab certTab;
+    @FXML
+    protected ControlWebView headerController;
 
     public NetworkQueryAddressController() {
-        baseTitle = Languages.message("QueryNetworkAddress");
+        baseTitle = message("QueryNetworkAddress");
     }
 
     @Override
@@ -70,7 +73,8 @@ public class NetworkQueryAddressController extends HtmlTableController {
         try {
             super.initControls();
 
-            addressController.init(this, baseName + "URL", "https://sourceforge.net", 20);
+            key = "NetworkQueryURLHistories";
+            addressInput.setText("https://sourceforge.net");
 
             typeGroup.selectedToggleProperty().addListener(new ChangeListener<Toggle>() {
                 @Override
@@ -84,78 +88,93 @@ public class NetworkQueryAddressController extends HtmlTableController {
         }
     }
 
+    @FXML
+    protected void popAddressHistories(MouseEvent mouseEvent) {
+        PopTools.popStringValues(this, addressInput, mouseEvent, key, true);
+    }
+
     protected void checkType() {
         if (isSettingValues) {
             return;
         }
         if (urlRadio.isSelected()) {
-            addressController.refreshList(baseName + "URL", "https://sourceforge.net");
+            addressInput.setText("https://sourceforge.net");
+            key = "NetworkQueryURLHistories";
         } else if (hostRadio.isSelected()) {
-            addressController.refreshList(baseName + "Host", "github.com");
+            addressInput.setText("github.com");
+            key = "NetworkQueryHostHistories";
         } else if (ipRadio.isSelected()) {
-            addressController.refreshList(baseName + "IP", "210.75.225.254");
+            addressInput.setText("210.75.225.254");
+            key = "NetworkQueryIPHistories";
         }
     }
 
     public void queryUrl(String address) {
         isSettingValues = true;
-        urlRadio.fire();
-        addressController.setName(baseName + "URL");
-        addressController.set(address);
+        urlRadio.setSelected(true);
+        key = "NetworkQueryURLHistories";
+        addressInput.setText(address);
         isSettingValues = false;
         query(address);
     }
 
     @FXML
     public void queryAction() {
-        query(addressController.value());
+        query(addressInput.getText());
     }
 
     public void query(String address) {
         if (address == null || address.isBlank()) {
-            popError(Languages.message("InvalidData"));
+            popError(message("InvalidData"));
             return;
         }
         synchronized (this) {
             if (task != null) {
                 task.cancel();
             }
-            webView.getEngine().loadContent("");
+            loadContents(null);
             certArea.clear();
             host = null;
             chain = null;
-            addressController.refreshList();
-            task = new SingletonTask<Void>() {
+            TableStringValues.add(key, address);
+            headerController.loadContents(null);
+            task = new SingletonTask<Void>(this) {
 
-                private String certString;
+                private String certString, headerTable;
 
                 @Override
                 protected boolean handle() {
-                    certString = null;
-                    LinkedHashMap<String, String> values = null;
-                    if (hostRadio.isSelected()) {
-                        values = NetworkTools.queryHost(address,
-                                localCheck.isSelected(), iptaobaoCheck.isSelected(), ipaddressCheck.isSelected());
-                    } else if (urlRadio.isSelected()) {
-                        values = NetworkTools.queryURL(address,
-                                localCheck.isSelected(), iptaobaoCheck.isSelected(), ipaddressCheck.isSelected());
-                    } else if (ipRadio.isSelected()) {
-                        values = NetworkTools.queryIP(address,
-                                localCheck.isSelected(), iptaobaoCheck.isSelected(), ipaddressCheck.isSelected());
-                    }
-                    initTable(address);
-                    if (values != null) {
-                        for (String name : values.keySet()) {
-                            addData(name, values.get(name));
+                    try {
+                        certString = null;
+                        LinkedHashMap<String, String> values = null;
+                        if (hostRadio.isSelected()) {
+                            values = NetworkTools.queryHost(address,
+                                    localCheck.isSelected(), iptaobaoCheck.isSelected(), ipaddressCheck.isSelected());
+                        } else if (urlRadio.isSelected()) {
+                            values = NetworkTools.queryURL(address,
+                                    localCheck.isSelected(), iptaobaoCheck.isSelected(), ipaddressCheck.isSelected());
+                        } else if (ipRadio.isSelected()) {
+                            values = NetworkTools.queryIP(address,
+                                    localCheck.isSelected(), iptaobaoCheck.isSelected(), ipaddressCheck.isSelected());
                         }
+                        initTable(address);
+                        if (values != null) {
+                            for (String name : values.keySet()) {
+                                addData(name, values.get(name));
+                            }
+                        }
+
+                        URL url = new URL(UrlTools.checkURL(address, Charset.defaultCharset()));
+                        certString = readCert(url);
+                        headerTable = HtmlReadTools.requestHeadTable(url);
+                    } catch (Exception e) {
+                        MyBoxLog.debug(e);
                     }
-                    certString = readCert();
                     return true;
                 }
 
-                protected String readCert() {
+                protected String readCert(URL url) {
                     try {
-                        URL url = new URL(UrlTools.checkURL(address, Charset.defaultCharset()));
                         host = url.getHost();
 
                         SSLContext context = SSLContext.getInstance(AppValues.HttpsProtocal);
@@ -186,13 +205,12 @@ public class NetworkQueryAddressController extends HtmlTableController {
                 protected void whenSucceeded() {
                     displayHtml();
                     certArea.setText(certString);
+                    if (headerTable != null) {
+                        headerController.loadContents(HtmlWriteTools.html(null, HtmlStyles.styleValue("Default"), headerTable));
+                    }
                 }
             };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
     }
 
@@ -201,7 +219,7 @@ public class NetworkQueryAddressController extends HtmlTableController {
     public void pasteAction() {
         String string = TextClipboardTools.getSystemClipboardString();
         if (string != null && !string.isBlank()) {
-            addressController.set(string);
+            addressInput.setText(string);
             queryAction();
         }
     }
@@ -209,7 +227,7 @@ public class NetworkQueryAddressController extends HtmlTableController {
     @FXML
     public void saveCert() {
         if (chain == null || host == null) {
-            popError(Languages.message("NoData"));
+            popError(message("NoData"));
             return;
         }
         File file = chooseSaveFile(VisitHistory.FileType.Cert, host + ".crt");
@@ -220,7 +238,7 @@ public class NetworkQueryAddressController extends HtmlTableController {
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 @Override
                 protected boolean handle() {
@@ -255,11 +273,7 @@ public class NetworkQueryAddressController extends HtmlTableController {
                 }
 
             };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
     }
 

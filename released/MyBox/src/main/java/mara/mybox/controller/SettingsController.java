@@ -4,7 +4,9 @@ import com.sun.management.OperatingSystemMXBean;
 import java.io.File;
 import java.lang.management.ManagementFactory;
 import java.text.MessageFormat;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
@@ -17,7 +19,6 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ListView;
 import javafx.scene.control.RadioButton;
 import javafx.scene.control.Tab;
-import javafx.scene.control.TabPane;
 import javafx.scene.control.TextField;
 import javafx.scene.control.Toggle;
 import javafx.scene.control.ToggleGroup;
@@ -27,30 +28,31 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.paint.Paint;
 import javafx.stage.DirectoryChooser;
+import javafx.stage.Window;
 import mara.mybox.MyBox;
+import mara.mybox.db.Database;
 import mara.mybox.db.DerbyBase;
 import mara.mybox.db.DerbyBase.DerbyStatus;
 import mara.mybox.db.table.TableImageEditHistory;
 import mara.mybox.db.table.TableVisitHistory;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.NodeStyleTools;
-import mara.mybox.fxml.NodeTools;
-import static mara.mybox.fxml.NodeStyleTools.badStyle;
 import mara.mybox.fxml.PopTools;
-import mara.mybox.fxml.StyleTools;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.fxml.ValidationTools;
+import mara.mybox.fxml.WindowTools;
 import static mara.mybox.fxml.WindowTools.refreshInterfaceAll;
 import static mara.mybox.fxml.WindowTools.reloadAll;
 import static mara.mybox.fxml.WindowTools.styleAll;
+import mara.mybox.fxml.style.NodeStyleTools;
+import mara.mybox.fxml.style.StyleTools;
 import mara.mybox.tools.ConfigTools;
 import mara.mybox.tools.FileCopyTools;
 import mara.mybox.tools.FileDeleteTools;
-import mara.mybox.tools.FileTools;
 import mara.mybox.value.AppValues;
 import mara.mybox.value.AppVariables;
-import static mara.mybox.value.Languages.message;
-
+import mara.mybox.value.Fxmls;
 import mara.mybox.value.Languages;
+import static mara.mybox.value.Languages.message;
 import mara.mybox.value.UserConfig;
 
 /**
@@ -64,46 +66,46 @@ public class SettingsController extends BaseController {
     protected int recentFileNumber, newJVM;
 
     @FXML
-    protected TabPane tabPane;
-    @FXML
     protected Tab interfaceTab, baseTab, pdfTab, imageTab, dataTab, mapTab;
     @FXML
     protected ToggleGroup langGroup, pdfMemGroup, controlColorGroup, derbyGroup, splitPanesGroup;
     @FXML
-    protected CheckBox stopAlarmCheck, newWindowCheck, restoreStagesSizeCheck,
+    protected CheckBox stopAlarmCheck, closeCurrentCheck, recordWindowsSizeLocationCheck,
             anchorSolidCheck, controlsTextCheck, hidpiIconsCheck,
             clearCurrentRootCheck, splitPaneSensitiveCheck,
             mousePassControlPanesCheck, popColorSetCheck;
     @FXML
-    protected TextField jvmInput, dataDirInput, fileRecentInput, thumbnailWidthInput,
+    protected TextField jvmInput, dataDirInput, batchInput, fileRecentInput, thumbnailWidthInput,
             tiandituWebKeyInput, gaodeWebKeyInput, gaodeServiceKeyInput,
             webConnectTimeoutInput, webReadTimeoutInput;
     @FXML
     protected VBox localBox, dataBox;
     @FXML
-    protected ComboBox<String> styleBox, imageWidthBox, fontSizeBox, iconSizeBox,
-            strokeWidthBox, anchorWidthBox, popSizeSelector, popDurationSelector;
+    protected ComboBox<String> styleBox, fontSizeBox, iconSizeBox,
+            strokeWidthBox, anchorWidthBox, gridWidthSelector, gridIntervalSelector, gridOpacitySelector,
+            popSizeSelector, popDurationSelector;
     @FXML
     protected HBox pdfMemBox, imageHisBox, derbyBox;
     @FXML
     protected Button settingsRecentOKButton, settingsChangeRootButton,
             settingsDataPathButton, settingsJVMButton;
     @FXML
-    protected RadioButton chineseRadio, englishRadio,
-            redRadio, orangeRadio, pinkRadio, lightBlueRadio, blueRadio, darkGreenRadio,
+    protected RadioButton chineseRadio, englishRadio, embeddedRadio, networkRadio,
             pdfMem500MRadio, pdfMem1GRadio, pdfMem2GRadio, pdfMemUnlimitRadio,
-            embeddedRadio, networkRadio;
+            redRadio, orangeRadio, pinkRadio, lightBlueRadio, blueRadio, darkGreenRadio;
     @FXML
-    protected ColorSet strokeColorSetController, anchorColorSetController, alphaColorSetController,
+    protected ColorSet strokeColorSetController, anchorColorSetController, gridColorSetController, alphaColorSetController,
             popBgColorController, popInfoColorController, popErrorColorController, popWarnColorController;
     @FXML
     protected ListView languageList;
     @FXML
     protected Label alphaLabel, currentJvmLabel, currentDataPathLabel, currentTempPathLabel,
             derbyStatus;
+    @FXML
+    protected ControlImageRender renderController;
 
     public SettingsController() {
-        baseTitle = Languages.message("Settings");
+        baseTitle = message("Settings");
 
     }
 
@@ -131,14 +133,14 @@ public class SettingsController extends BaseController {
     public void setControlsStyle() {
         try {
             super.setControlsStyle();
-            NodeStyleTools.setTooltip(hidpiIconsCheck, new Tooltip(Languages.message("HidpiIconsComments")));
-            NodeStyleTools.setTooltip(redRadio, new Tooltip(Languages.message("MyBoxDarkRed")));
-            NodeStyleTools.setTooltip(pinkRadio, new Tooltip(Languages.message("MyBoxDarkPink")));
-            NodeStyleTools.setTooltip(orangeRadio, new Tooltip(Languages.message("MyBoxOrange")));
-            NodeStyleTools.setTooltip(lightBlueRadio, new Tooltip(Languages.message("MyBoxDarkGreyBlue")));
-            NodeStyleTools.setTooltip(blueRadio, new Tooltip(Languages.message("MyBoxDarkBlue")));
-            NodeStyleTools.setTooltip(darkGreenRadio, new Tooltip(Languages.message("MyBoxDarkGreen")));
-            NodeStyleTools.setTooltip(imageHisBox, new Tooltip(Languages.message("ImageHisComments")));
+            NodeStyleTools.setTooltip(hidpiIconsCheck, new Tooltip(message("HidpiIconsComments")));
+            NodeStyleTools.setTooltip(redRadio, new Tooltip(message("MyBoxDarkRed")));
+            NodeStyleTools.setTooltip(pinkRadio, new Tooltip(message("MyBoxDarkPink")));
+            NodeStyleTools.setTooltip(orangeRadio, new Tooltip(message("MyBoxOrange")));
+            NodeStyleTools.setTooltip(lightBlueRadio, new Tooltip(message("MyBoxDarkGreyBlue")));
+            NodeStyleTools.setTooltip(blueRadio, new Tooltip(message("MyBoxDarkBlue")));
+            NodeStyleTools.setTooltip(darkGreenRadio, new Tooltip(message("MyBoxDarkGreen")));
+            NodeStyleTools.setTooltip(imageHisBox, new Tooltip(message("ImageHisComments")));
         } catch (Exception e) {
             MyBoxLog.debug(e.toString());
         }
@@ -147,9 +149,9 @@ public class SettingsController extends BaseController {
     protected void initSettingValues() {
         try {
             stopAlarmCheck.setSelected(UserConfig.getBoolean("StopAlarmsWhenExit"));
-            newWindowCheck.setSelected(AppVariables.openStageInNewWindow);
+            closeCurrentCheck.setSelected(AppVariables.closeCurrentWhenOpenTool);
 
-            thumbnailWidthInput.setText(UserConfig.getInt("ThumbnailWidth", 100) + "");
+            thumbnailWidthInput.setText(AppVariables.thumbnailWidth + "");
 
             recentFileNumber = UserConfig.getInt("FileRecentNumber", 20);
             fileRecentInput.setText(recentFileNumber + "");
@@ -157,31 +159,31 @@ public class SettingsController extends BaseController {
             String style = UserConfig.getString("InterfaceStyle", AppValues.DefaultStyle);
             switch (style) {
                 case AppValues.DefaultStyle:
-                    styleBox.getSelectionModel().select(Languages.message("DefaultStyle"));
+                    styleBox.getSelectionModel().select(message("DefaultStyle"));
                     break;
                 case AppValues.caspianStyle:
-                    styleBox.getSelectionModel().select(Languages.message("caspianStyle"));
+                    styleBox.getSelectionModel().select(message("caspianStyle"));
                     break;
                 case AppValues.WhiteOnBlackStyle:
-                    styleBox.getSelectionModel().select(Languages.message("WhiteOnBlackStyle"));
+                    styleBox.getSelectionModel().select(message("WhiteOnBlackStyle"));
                     break;
                 case AppValues.PinkOnBlackStyle:
-                    styleBox.getSelectionModel().select(Languages.message("PinkOnBlackStyle"));
+                    styleBox.getSelectionModel().select(message("PinkOnBlackStyle"));
                     break;
                 case AppValues.YellowOnBlackStyle:
-                    styleBox.getSelectionModel().select(Languages.message("YellowOnBlackStyle"));
+                    styleBox.getSelectionModel().select(message("YellowOnBlackStyle"));
                     break;
                 case AppValues.GreenOnBlackStyle:
-                    styleBox.getSelectionModel().select(Languages.message("GreenOnBlackStyle"));
+                    styleBox.getSelectionModel().select(message("GreenOnBlackStyle"));
                     break;
                 case AppValues.WhiteOnBlueStyle:
-                    styleBox.getSelectionModel().select(Languages.message("WhiteOnBlueStyle"));
+                    styleBox.getSelectionModel().select(message("WhiteOnBlueStyle"));
                     break;
                 case AppValues.WhiteOnGreenStyle:
-                    styleBox.getSelectionModel().select(Languages.message("WhiteOnGreenStyle"));
+                    styleBox.getSelectionModel().select(message("WhiteOnGreenStyle"));
                     break;
                 case AppValues.WhiteOnPurpleStyle:
-                    styleBox.getSelectionModel().select(Languages.message("WhiteOnVioletredStyle"));
+                    styleBox.getSelectionModel().select(message("WhiteOnVioletredStyle"));
                     break;
                 default:
                     break;
@@ -189,34 +191,32 @@ public class SettingsController extends BaseController {
 
             switch (AppVariables.ControlColor) {
                 case Pink:
-                    pinkRadio.fire();
+                    pinkRadio.setSelected(true);
                     break;
                 case Blue:
-                    blueRadio.fire();
+                    blueRadio.setSelected(true);
                     break;
                 case LightBlue:
-                    lightBlueRadio.fire();
+                    lightBlueRadio.setSelected(true);
                     break;
                 case Orange:
-                    orangeRadio.fire();
+                    orangeRadio.setSelected(true);
                     break;
                 case DarkGreen:
-                    darkGreenRadio.fire();
+                    darkGreenRadio.setSelected(true);
                     break;
                 case Red:
                 default:
-                    redRadio.fire();
+                    redRadio.setSelected(true);
 
             }
 
             controlsTextCheck.setSelected(AppVariables.controlDisplayText);
             hidpiIconsCheck.setSelected(AppVariables.hidpiIcons);
 
-            imageWidthBox.getSelectionModel().select(UserConfig.getInt("MaxImageSampleWidth", 4096) + "");
-
             splitPaneSensitiveCheck.setSelected(UserConfig.getBoolean("ControlSplitPanesSensitive", false));
             mousePassControlPanesCheck.setSelected(UserConfig.getBoolean("MousePassControlPanes", true));
-            popColorSetCheck.setSelected(UserConfig.getBoolean("PopColorSetWhenMousePassing", true));
+            popColorSetCheck.setSelected(UserConfig.getBoolean("PopColorSetWhenMouseHovering", true));
 
             checkLanguage();
             checkPdfMem();
@@ -287,25 +287,27 @@ public class SettingsController extends BaseController {
             });
             iconSizeBox.getSelectionModel().select(AppVariables.iconSize + "");
 
-            newWindowCheck.selectedProperty().addListener(new ChangeListener<Boolean>() {
+            closeCurrentCheck.selectedProperty().addListener(new ChangeListener<Boolean>() {
                 @Override
                 public void changed(ObservableValue<? extends Boolean> ov, Boolean old_val, Boolean new_val) {
-                    UserConfig.setOpenStageInNewWindow(newWindowCheck.isSelected());
+                    UserConfig.setBoolean("CloseCurrentWhenOpenTool", closeCurrentCheck.isSelected());
+                    AppVariables.closeCurrentWhenOpenTool = closeCurrentCheck.isSelected();
                 }
             });
 
-            restoreStagesSizeCheck.selectedProperty().addListener(new ChangeListener<Boolean>() {
+            recordWindowsSizeLocationCheck.selectedProperty().addListener(new ChangeListener<Boolean>() {
                 @Override
                 public void changed(ObservableValue<? extends Boolean> ov, Boolean old_val, Boolean new_val) {
-                    UserConfig.setRestoreStagesSize(restoreStagesSizeCheck.isSelected());
+                    UserConfig.setBoolean("RecordWindowsSizeLocation", recordWindowsSizeLocationCheck.isSelected());
+                    AppVariables.recordWindowsSizeLocation = recordWindowsSizeLocationCheck.isSelected();
                 }
             });
 
-            styleBox.getItems().addAll(Arrays.asList(Languages.message("DefaultStyle"), Languages.message("caspianStyle"),
-                    Languages.message("WhiteOnBlackStyle"), Languages.message("PinkOnBlackStyle"),
-                    Languages.message("YellowOnBlackStyle"), Languages.message("GreenOnBlackStyle"),
-                    Languages.message("WhiteOnBlueStyle"), Languages.message("WhiteOnGreenStyle"),
-                    Languages.message("WhiteOnVioletredStyle")));
+            styleBox.getItems().addAll(Arrays.asList(message("DefaultStyle"), message("caspianStyle"),
+                    message("WhiteOnBlackStyle"), message("PinkOnBlackStyle"),
+                    message("YellowOnBlackStyle"), message("GreenOnBlackStyle"),
+                    message("WhiteOnBlueStyle"), message("WhiteOnGreenStyle"),
+                    message("WhiteOnVioletredStyle")));
             styleBox.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<String>() {
                 @Override
                 public void changed(ObservableValue<? extends String> observable, String oldValue, String newValue) {
@@ -445,23 +447,23 @@ public class SettingsController extends BaseController {
 
     protected void checkStyle(String s) {
         try {
-            if (Languages.message("DefaultStyle").equals(s)) {
+            if (message("DefaultStyle").equals(s)) {
                 setStyle(AppValues.MyBoxStyle);
-            } else if (Languages.message("caspianStyle").equals(s)) {
+            } else if (message("caspianStyle").equals(s)) {
                 setStyle(AppValues.caspianStyle);
-            } else if (Languages.message("WhiteOnBlackStyle").equals(s)) {
+            } else if (message("WhiteOnBlackStyle").equals(s)) {
                 setStyle(AppValues.WhiteOnBlackStyle);
-            } else if (Languages.message("PinkOnBlackStyle").equals(s)) {
+            } else if (message("PinkOnBlackStyle").equals(s)) {
                 setStyle(AppValues.PinkOnBlackStyle);
-            } else if (Languages.message("YellowOnBlackStyle").equals(s)) {
+            } else if (message("YellowOnBlackStyle").equals(s)) {
                 setStyle(AppValues.YellowOnBlackStyle);
-            } else if (Languages.message("GreenOnBlackStyle").equals(s)) {
+            } else if (message("GreenOnBlackStyle").equals(s)) {
                 setStyle(AppValues.GreenOnBlackStyle);
-            } else if (Languages.message("WhiteOnBlueStyle").equals(s)) {
+            } else if (message("WhiteOnBlueStyle").equals(s)) {
                 setStyle(AppValues.WhiteOnBlueStyle);
-            } else if (Languages.message("WhiteOnGreenStyle").equals(s)) {
+            } else if (message("WhiteOnGreenStyle").equals(s)) {
                 setStyle(AppValues.WhiteOnGreenStyle);
-            } else if (Languages.message("WhiteOnVioletredStyle").equals(s)) {
+            } else if (message("WhiteOnVioletredStyle").equals(s)) {
                 setStyle(AppValues.WhiteOnPurpleStyle);
             }
         } catch (Exception e) {
@@ -523,7 +525,7 @@ public class SettingsController extends BaseController {
 
     @FXML
     protected void popColorSet() {
-        UserConfig.setBoolean("PopColorSetWhenMousePassing", popColorSetCheck.isSelected());
+        UserConfig.setBoolean("PopColorSetWhenMouseHovering", popColorSetCheck.isSelected());
     }
 
     @FXML
@@ -538,11 +540,11 @@ public class SettingsController extends BaseController {
         try {
             int mb = 1024 * 1024;
             OperatingSystemMXBean osmxb = (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
-            final long totalM = osmxb.getTotalPhysicalMemorySize() / mb;
-            String m = Languages.message("PhysicalMemory") + ": " + totalM + "MB";
+            final long totalM = osmxb.getTotalMemorySize() / mb;
+            String m = message("PhysicalMemory") + ": " + totalM + "MB";
             Runtime r = Runtime.getRuntime();
             final long jvmM = r.maxMemory() / mb;
-            m += "    " + Languages.message("JvmXmx") + ": " + jvmM + "MB";
+            m += "    " + message("JvmXmx") + ": " + jvmM + "MB";
             currentJvmLabel.setText(m);
             jvmInput.textProperty().addListener(new ChangeListener<String>() {
                 @Override
@@ -562,11 +564,11 @@ public class SettingsController extends BaseController {
                             newJVM = v;
                             settingsJVMButton.setDisable(false);
                         } else {
-                            jvmInput.setStyle(NodeStyleTools.badStyle);
+                            jvmInput.setStyle(UserConfig.badStyle());
                             settingsJVMButton.setDisable(true);
                         }
                     } catch (Exception e) {
-                        jvmInput.setStyle(NodeStyleTools.badStyle);
+                        jvmInput.setStyle(UserConfig.badStyle());
                         settingsJVMButton.setDisable(true);
                     }
                 }
@@ -634,10 +636,10 @@ public class SettingsController extends BaseController {
                     || newPath.trim().equals(AppVariables.MyboxDataPath)) {
                 return;
             }
-            if (!PopTools.askSure(getBaseTitle(), Languages.message("ChangeDataPathConfirm"))) {
+            if (!PopTools.askSure(this, getBaseTitle(), message("ChangeDataPathConfirm"))) {
                 return;
             }
-            popInformation(Languages.message("CopyingFilesFromTo"));
+            popInformation(message("CopyingFilesFromTo"));
             String oldPath = AppVariables.MyboxDataPath;
             if (FileCopyTools.copyWholeDirectory(new File(oldPath), new File(newPath), null, false)) {
                 File lckFile = new File(newPath + File.separator
@@ -658,12 +660,12 @@ public class SettingsController extends BaseController {
                 MyBox.restart();
             } else {
                 popFailed();
-                dataDirInput.setStyle(NodeStyleTools.badStyle);
+                dataDirInput.setStyle(UserConfig.badStyle());
             }
 
         } catch (Exception e) {
             popFailed();
-            dataDirInput.setStyle(NodeStyleTools.badStyle);
+            dataDirInput.setStyle(UserConfig.badStyle());
         }
     }
 
@@ -676,10 +678,10 @@ public class SettingsController extends BaseController {
                 webConnectTimeoutInput.setStyle(null);
                 popSuccessful();
             } else {
-                webConnectTimeoutInput.setStyle(NodeStyleTools.badStyle);
+                webConnectTimeoutInput.setStyle(UserConfig.badStyle());
             }
         } catch (Exception e) {
-            webConnectTimeoutInput.setStyle(NodeStyleTools.badStyle);
+            webConnectTimeoutInput.setStyle(UserConfig.badStyle());
         }
     }
 
@@ -692,10 +694,10 @@ public class SettingsController extends BaseController {
                 webReadTimeoutInput.setStyle(null);
                 popSuccessful();
             } else {
-                webReadTimeoutInput.setStyle(NodeStyleTools.badStyle);
+                webReadTimeoutInput.setStyle(UserConfig.badStyle());
             }
         } catch (Exception e) {
-            webReadTimeoutInput.setStyle(NodeStyleTools.badStyle);
+            webReadTimeoutInput.setStyle(UserConfig.badStyle());
         }
     }
 
@@ -726,8 +728,8 @@ public class SettingsController extends BaseController {
                 }
             });
             dataDirInput.setText(AppVariables.MyboxDataPath);
-            currentDataPathLabel.setText(MessageFormat.format(Languages.message("CurrentValue"), AppVariables.MyboxDataPath));
-            clearCurrentRootCheck.setText(MessageFormat.format(Languages.message("ClearPathWhenChange"), AppVariables.MyboxDataPath));
+            currentDataPathLabel.setText(MessageFormat.format(message("CurrentValue"), AppVariables.MyboxDataPath));
+            clearCurrentRootCheck.setText(MessageFormat.format(message("ClearPathWhenChange"), AppVariables.MyboxDataPath));
 
             setDerbyMode();
             derbyGroup.selectedToggleProperty().addListener(new ChangeListener<Toggle>() {
@@ -736,6 +738,28 @@ public class SettingsController extends BaseController {
                     checkDerbyMode();
                 }
             });
+
+            batchInput.textProperty().addListener(new ChangeListener<String>() {
+                @Override
+                public void changed(ObservableValue<? extends String> observable, String oldValue, String newValue) {
+                    if (isSettingValues) {
+                        return;
+                    }
+                    try {
+                        long v = Long.valueOf(batchInput.getText());
+                        if (v > 0) {
+                            batchInput.setStyle(null);
+                            Database.BatchSize = v;
+                            UserConfig.setLong("DatabaseBatchSize", v);
+                        } else {
+                            batchInput.setStyle(UserConfig.badStyle());
+                        }
+                    } catch (Exception e) {
+                        batchInput.setStyle(UserConfig.badStyle());
+                    }
+                }
+            });
+            batchInput.setText(Database.BatchSize + "");
 
             stopAlarmCheck.selectedProperty().addListener(new ChangeListener<Boolean>() {
                 @Override
@@ -758,7 +782,7 @@ public class SettingsController extends BaseController {
 
     @FXML
     protected void clearFileHistories(ActionEvent event) {
-        if (!PopTools.askSure(getBaseTitle(), Languages.message("SureClear"))) {
+        if (!PopTools.askSure(this, getBaseTitle(), message("SureClear"))) {
             return;
         }
         new TableVisitHistory().clear();
@@ -777,14 +801,14 @@ public class SettingsController extends BaseController {
         isSettingValues = true;
         if (DerbyStatus.Nerwork == DerbyBase.status) {
             networkRadio.setSelected(true);
-            derbyStatus.setText(MessageFormat.format(Languages.message("DerbyServerListening"), DerbyBase.port + ""));
+            derbyStatus.setText(MessageFormat.format(message("DerbyServerListening"), DerbyBase.port + ""));
         } else if (DerbyStatus.Embedded == DerbyBase.status) {
             embeddedRadio.setSelected(true);
-            derbyStatus.setText(Languages.message("DerbyEmbeddedMode"));
+            derbyStatus.setText(message("DerbyEmbeddedMode"));
         } else {
             networkRadio.setSelected(false);
             embeddedRadio.setSelected(false);
-            derbyStatus.setText(MessageFormat.format(Languages.message("DerbyNotAvalibale"), AppVariables.MyBoxDerbyPath));
+            derbyStatus.setText(MessageFormat.format(message("DerbyNotAvalibale"), AppVariables.MyBoxDerbyPath));
         }
         isSettingValues = false;
     }
@@ -800,7 +824,7 @@ public class SettingsController extends BaseController {
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
                 private String ret;
 
                 @Override
@@ -818,14 +842,11 @@ public class SettingsController extends BaseController {
                 @Override
                 protected void finalAction() {
                     derbyBox.setDisable(false);
+                    task = null;
                 }
 
             };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
     }
 
@@ -883,8 +904,8 @@ public class SettingsController extends BaseController {
      */
     public void initImageTab() {
         try {
-            strokeWidthBox.getItems().addAll(Arrays.asList(
-                    "1", "3", "5", "7", "9"));
+            strokeWidthBox.getItems().addAll(Arrays.asList("2", "1", "3", "4", "5", "6", "7", "8", "9", "10"));
+            strokeWidthBox.getSelectionModel().select(UserConfig.getInt("StrokeWidth", 2) + "");
             strokeWidthBox.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<String>() {
                 @Override
                 public void changed(ObservableValue<? extends String> observable, String oldValue, String newValue) {
@@ -894,11 +915,7 @@ public class SettingsController extends BaseController {
                             if (v > 0) {
                                 UserConfig.setInt("StrokeWidth", v);
                                 ValidationTools.setEditorNormal(strokeWidthBox);
-                                if (parentController instanceof BaseImageShapesController) {
-                                    ((BaseImageShapesController) parentController).setMaskStroke();
-                                } else if (parentController instanceof BaseImageController) {
-                                    ((BaseImageController) parentController).setMaskStroke();
-                                }
+                                BaseImageController.updateMaskStroke();
                             } else {
                                 ValidationTools.setEditorBadStyle(strokeWidthBox);
                             }
@@ -908,26 +925,19 @@ public class SettingsController extends BaseController {
                     }
                 }
             });
-            strokeWidthBox.getSelectionModel().select(UserConfig.getString("StrokeWidth", "3"));
 
-            strokeColorSetController.init(this, "StrokeColor", Color.web(BaseImageShapesController.DefaultStrokeColor));
+            strokeColorSetController.init(this, "StrokeColor", Color.web(BaseImageController.DefaultStrokeColor));
             strokeColorSetController.rect.fillProperty().addListener(new ChangeListener<Paint>() {
                 @Override
                 public void changed(ObservableValue<? extends Paint> observable,
                         Paint oldValue, Paint newValue) {
-                    if (parentController != null) {
-                        if (parentController instanceof BaseImageShapesController) {
-                            ((BaseImageShapesController) parentController).setMaskStroke();
-                        } else if (parentController instanceof BaseImageController) {
-                            ((BaseImageController) parentController).setMaskStroke();
-                        }
-                    }
+                    BaseImageController.updateMaskStroke();
                     popSuccessful();
                 }
             });
 
-            anchorWidthBox.getItems().addAll(Arrays.asList(
-                    "10", "15", "20", "25", "30", "40", "50"));
+            anchorWidthBox.getItems().addAll(Arrays.asList("10", "15", "20", "25", "30", "40", "50"));
+            anchorWidthBox.getSelectionModel().select(UserConfig.getInt("AnchorWidth", 10) + "");
             anchorWidthBox.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<String>() {
                 @Override
                 public void changed(ObservableValue<? extends String> observable, String oldValue, String newValue) {
@@ -937,11 +947,7 @@ public class SettingsController extends BaseController {
                             if (v > 0) {
                                 UserConfig.setInt("AnchorWidth", v);
                                 ValidationTools.setEditorNormal(anchorWidthBox);
-                                if (parentController instanceof BaseImageShapesController) {
-                                    ((BaseImageShapesController) parentController).setMaskStroke();
-                                } else if (parentController instanceof BaseImageController) {
-                                    ((BaseImageController) parentController).setMaskStroke();
-                                }
+                                BaseImageController.updateMaskStroke();
                             } else {
                                 ValidationTools.setEditorBadStyle(anchorWidthBox);
                             }
@@ -951,18 +957,13 @@ public class SettingsController extends BaseController {
                     }
                 }
             });
-            anchorWidthBox.getSelectionModel().select(UserConfig.getString("AnchorWidth", "10"));
 
-            anchorColorSetController.init(this, "AnchorColor", Color.web(BaseImageShapesController.DefaultAnchorColor));
+            anchorColorSetController.init(this, "AnchorColor", Color.web(BaseImageController.DefaultAnchorColor));
             anchorColorSetController.rect.fillProperty().addListener(new ChangeListener<Paint>() {
                 @Override
                 public void changed(ObservableValue<? extends Paint> observable,
                         Paint oldValue, Paint newValue) {
-                    if (parentController instanceof BaseImageShapesController) {
-                        ((BaseImageShapesController) parentController).setMaskStroke();
-                    } else if (parentController instanceof BaseImageController) {
-                        ((BaseImageController) parentController).setMaskStroke();
-                    }
+                    BaseImageController.updateMaskStroke();
                     popSuccessful();
                 }
             });
@@ -972,14 +973,75 @@ public class SettingsController extends BaseController {
                 public void changed(ObservableValue<? extends Boolean> ov,
                         Boolean old_toggle, Boolean new_toggle) {
                     UserConfig.setBoolean("AnchorSolid", new_toggle);
-                    if (parentController instanceof BaseImageShapesController) {
-                        ((BaseImageShapesController) parentController).setMaskStroke();
-                    } else if (parentController instanceof BaseImageController) {
+                    if (parentController instanceof BaseImageController) {
                         ((BaseImageController) parentController).setMaskStroke();
                     }
                 }
             });
             anchorSolidCheck.setSelected(UserConfig.getBoolean("AnchorSolid", true));
+
+            gridColorSetController.init(this, "GridLinesColor", Color.LIGHTGRAY);
+            gridColorSetController.rect.fillProperty().addListener(new ChangeListener<Paint>() {
+                @Override
+                public void changed(ObservableValue<? extends Paint> v, Paint ov, Paint nv) {
+                    BaseImageController.updateMaskGrid();
+                }
+            });
+
+            gridWidthSelector.getItems().addAll(Arrays.asList("2", "1", "3", "4", "5", "6", "7", "8", "9", "10"));
+            gridWidthSelector.getSelectionModel().select(UserConfig.getInt("GridLinesWidth", 1) + "");
+            gridWidthSelector.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<String>() {
+                @Override
+                public void changed(ObservableValue<? extends String> observable, String oldValue, String newValue) {
+                    if (newValue != null && !newValue.isEmpty()) {
+                        try {
+                            int v = Integer.valueOf(newValue);
+                            if (v > 0) {
+                                UserConfig.setInt("GridLinesWidth", v);
+                                ValidationTools.setEditorNormal(gridWidthSelector);
+                                BaseImageController.updateMaskGrid();
+                            } else {
+                                ValidationTools.setEditorBadStyle(gridWidthSelector);
+                            }
+                        } catch (Exception e) {
+                            ValidationTools.setEditorBadStyle(gridWidthSelector);
+                        }
+                    }
+                }
+            });
+
+            gridIntervalSelector.getItems().addAll(Arrays.asList(message("Automatic"), "10", "20", "25", "50", "100", "5", "1", "2", "200", "500"));
+            int gi = UserConfig.getInt("GridLinesInterval", -1);
+            gridIntervalSelector.getSelectionModel().select(gi <= 0 ? message("Automatic") : gi + "");
+            gridIntervalSelector.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<String>() {
+                @Override
+                public void changed(ObservableValue<? extends String> observable, String oldValue, String newValue) {
+                    int v = -1;
+                    try {
+                        if (!message("Automatic").equals(newValue)) {
+                            v = Integer.valueOf(newValue);
+                        }
+                    } catch (Exception e) {
+                    }
+                    UserConfig.setInt("GridLinesInterval", v);
+                    BaseImageController.updateMaskGrid();
+                }
+            });
+
+            gridOpacitySelector.getItems().addAll(Arrays.asList("0.5", "0.2", "1.0", "0.7", "0.1", "0.3", "0.8", "0.9", "0.6", "0.4"));
+            gridOpacitySelector.getSelectionModel().select(UserConfig.getString("GridLinesOpacity", "0.1"));
+            gridOpacitySelector.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<String>() {
+                @Override
+                public void changed(ObservableValue<? extends String> observable, String oldValue, String newValue) {
+                    float v = 0.1f;
+                    try {
+                        v = Float.valueOf(newValue);
+                    } catch (Exception e) {
+                    }
+                    UserConfig.setString("GridLinesOpacity", v + "");
+                    BaseImageController.updateMaskGrid();
+                }
+            });
 
             alphaColorSetController.init(this, "AlphaAsColor", Color.WHITE);
             alphaColorSetController.rect.fillProperty().addListener(new ChangeListener<Paint>() {
@@ -987,7 +1049,7 @@ public class SettingsController extends BaseController {
                 public void changed(ObservableValue<? extends Paint> observable,
                         Paint oldValue, Paint newValue) {
                     if (!Color.WHITE.equals((Color) newValue)) {
-                        alphaLabel.setText(Languages.message("AlphaReplaceComments"));
+                        alphaLabel.setText(message("AlphaReplaceComments"));
                         alphaLabel.setStyle(NodeStyleTools.darkRedText);
                     } else {
                         alphaLabel.setText("");
@@ -1003,38 +1065,19 @@ public class SettingsController extends BaseController {
                         int v = Integer.valueOf(thumbnailWidthInput.getText());
                         if (v > 0) {
                             UserConfig.setInt("ThumbnailWidth", v);
+                            AppVariables.thumbnailWidth = v;
                             thumbnailWidthInput.setStyle(null);
                             popSuccessful();
                         } else {
-                            thumbnailWidthInput.setStyle(NodeStyleTools.badStyle);
+                            thumbnailWidthInput.setStyle(UserConfig.badStyle());
                         }
                     } catch (Exception e) {
-                        thumbnailWidthInput.setStyle(NodeStyleTools.badStyle);
+                        thumbnailWidthInput.setStyle(UserConfig.badStyle());
                     }
                 }
             });
 
-            imageWidthBox.getItems().addAll(Arrays.asList(
-                    "4096", "2048", "8192", "1024", "10240", "6144", "512", "15360", "20480", "30720"));
-            imageWidthBox.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<String>() {
-                @Override
-                public void changed(ObservableValue<? extends String> observable, String oldValue, String newValue) {
-                    if (newValue != null && !newValue.isEmpty()) {
-                        try {
-                            int v = Integer.valueOf(newValue);
-                            if (v > 0) {
-                                UserConfig.setInt("MaxImageSampleWidth", v);
-                                ValidationTools.setEditorNormal(imageWidthBox);
-                            } else {
-                                ValidationTools.setEditorBadStyle(imageWidthBox);
-                            }
-                        } catch (Exception e) {
-                            ValidationTools.setEditorBadStyle(imageWidthBox);
-                        }
-                    }
-                }
-            });
-            imageWidthBox.getSelectionModel().select(UserConfig.getString("MaxImageSampleWidth", "4096"));
+            renderController.setParentController(this);
 
         } catch (Exception e) {
             MyBoxLog.debug(e.toString());
@@ -1049,18 +1092,18 @@ public class SettingsController extends BaseController {
                 fileRecentInput.setStyle(null);
                 settingsRecentOKButton.setDisable(false);
             } else {
-                fileRecentInput.setStyle(NodeStyleTools.badStyle);
+                fileRecentInput.setStyle(UserConfig.badStyle());
                 settingsRecentOKButton.setDisable(true);
             }
         } catch (Exception e) {
-            fileRecentInput.setStyle(NodeStyleTools.badStyle);
+            fileRecentInput.setStyle(UserConfig.badStyle());
             settingsRecentOKButton.setDisable(true);
         }
     }
 
     @FXML
     protected void clearImageHistories(ActionEvent event) {
-        if (!PopTools.askSure(getBaseTitle(), Languages.message("SureClear"))) {
+        if (!PopTools.askSure(this, getBaseTitle(), message("SureClear"))) {
             return;
         }
         new TableImageEditHistory().clear();
@@ -1088,7 +1131,7 @@ public class SettingsController extends BaseController {
         if (tiandituKey == null || tiandituKey.trim().isBlank()
                 || daodeWeb == null || daodeWeb.trim().isBlank()
                 || gaoServiceKey == null || gaoServiceKey.trim().isBlank()) {
-            popError(Languages.message("InvalidData"));
+            popError(message("InvalidData"));
             return;
         }
         UserConfig.setString("TianDiTuWebKey", tiandituKey);
@@ -1115,6 +1158,30 @@ public class SettingsController extends BaseController {
     @FXML
     public void closeAction(ActionEvent event) {
         closeStage();
+    }
+
+    /*
+        static methods
+     */
+    public static SettingsController oneOpen(BaseController parent) {
+        SettingsController controller = null;
+        List<Window> windows = new ArrayList<>();
+        windows.addAll(Window.getWindows());
+        for (Window window : windows) {
+            Object object = window.getUserData();
+            if (object != null && object instanceof SettingsController) {
+                try {
+                    controller = (SettingsController) object;
+                    controller.requestMouse();
+                    break;
+                } catch (Exception e) {
+                }
+            }
+        }
+        if (controller == null) {
+            controller = (SettingsController) WindowTools.openChildStage(parent.getMyWindow(), Fxmls.SettingsFxml, false);
+        }
+        return controller;
     }
 
 }

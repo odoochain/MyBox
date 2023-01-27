@@ -3,7 +3,9 @@ package mara.mybox.tools;
 import java.awt.MouseInfo;
 import java.awt.Point;
 import java.io.BufferedReader;
-import java.io.InputStreamReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -95,6 +97,16 @@ public class SystemTools {
         }
     }
 
+    // https://bugs.openjdk.org/browse/JDK-8266075
+    // https://docs.oracle.com/en/java/javase/18/docs/api/java.base/java/lang/Process.html#inputReader()
+    public static Charset ConsoleCharset() {
+        try {
+            return Charset.forName(System.getProperty("native.encoding"));
+        } catch (Exception e) {
+            return Charset.defaultCharset();
+        }
+    }
+
     public static String run(String cmd) {
         try {
             if (cmd == null || cmd.isBlank()) {
@@ -102,11 +114,25 @@ public class SystemTools {
             }
             List<String> p = new ArrayList<>();
             p.addAll(Arrays.asList(StringTools.splitBySpace(cmd)));
-            ProcessBuilder pb = new ProcessBuilder(p).redirectErrorStream(true);
+            return run(p, Charset.defaultCharset());
+        } catch (Exception e) {
+            return e.toString();
+        }
+    }
+
+    public static String run(List<String> command) {
+        return run(command, Charset.defaultCharset());
+    }
+
+    public static String run(List<String> command, Charset charset) {
+        try {
+            if (command == null || command.isEmpty()) {
+                return null;
+            }
+            ProcessBuilder pb = new ProcessBuilder(command).redirectErrorStream(true);
             final Process process = pb.start();
             StringBuilder s = new StringBuilder();
-            try ( BufferedReader inReader = new BufferedReader(
-                    new InputStreamReader(process.getInputStream(), Charset.defaultCharset()))) {
+            try ( BufferedReader inReader = process.inputReader(charset)) {
                 String line;
                 while ((line = inReader.readLine()) != null) {
                     s.append(line).append("\n");
@@ -118,4 +144,28 @@ public class SystemTools {
             return e.toString();
         }
     }
+
+    public static File runToFile(List<String> command, Charset charset, File file) {
+        try {
+            if (command == null || command.isEmpty() || file == null) {
+                return null;
+            }
+            ProcessBuilder pb = new ProcessBuilder(command).redirectErrorStream(true);
+            final Process process = pb.start();
+            try ( BufferedReader inReader = process.inputReader(charset);
+                     BufferedWriter writer = new BufferedWriter(new FileWriter(file, Charset.forName("UTF-8"), false))) {
+                String line;
+                while ((line = inReader.readLine()) != null) {
+                    writer.write(line + "\n");
+                }
+                writer.flush();
+            }
+            process.waitFor();
+            return file;
+        } catch (Exception e) {
+            MyBoxLog.error(e);
+            return null;
+        }
+    }
+
 }

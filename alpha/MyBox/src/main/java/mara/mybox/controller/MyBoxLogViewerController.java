@@ -8,15 +8,15 @@ import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.control.CheckBox;
 import javafx.stage.Window;
-import mara.mybox.db.table.DataFactory;
+import mara.mybox.db.data.BaseDataAdaptor;
 import mara.mybox.db.table.TableMyBoxLog;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fxml.NodeTools;
 import mara.mybox.fxml.WindowTools;
 import mara.mybox.value.AppVariables;
-
 import mara.mybox.value.Fxmls;
 import mara.mybox.value.Languages;
+import mara.mybox.value.UserConfig;
 
 /**
  * @Author Mara
@@ -50,10 +50,13 @@ public class MyBoxLogViewerController extends HtmlTableController {
         try {
             super.initControls();
 
+            AppVariables.popErrorLogs = UserConfig.getBoolean("PopErrorLogs", true);
+            popCheck.setSelected(AppVariables.popErrorLogs);
             popCheck.selectedProperty().addListener(new ChangeListener<Boolean>() {
                 @Override
                 public void changed(ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) {
                     AppVariables.popErrorLogs = popCheck.isSelected();
+                    UserConfig.setBoolean("PopErrorLogs", popCheck.isSelected());
                 }
             });
 
@@ -75,6 +78,11 @@ public class MyBoxLogViewerController extends HtmlTableController {
         } catch (Exception e) {
             System.out.println(e.toString());
         }
+    }
+
+    // Avoid interface blocked when logs flooding
+    @Override
+    public void toFront() {
     }
 
     @FXML
@@ -99,14 +107,14 @@ public class MyBoxLogViewerController extends HtmlTableController {
 
     public void addLog(MyBoxLog myboxLog) {
         body = (body != null ? body : "")
-                + "</br><hr></br>\n" + DataFactory.htmlData(logTable, myboxLog);
+                + "</br><hr></br>\n" + BaseDataAdaptor.htmlData(logTable, myboxLog);
         loadBody(body);
     }
 
     public void setLogs(List<MyBoxLog> logs) {
         body = "";
         for (MyBoxLog log : logs) {
-            body += "</br><hr></br>\n" + DataFactory.htmlData(logTable, log);
+            body += "</br><hr></br>\n" + BaseDataAdaptor.htmlData(logTable, log);
         }
         loadBody(body);
     }
@@ -120,7 +128,6 @@ public class MyBoxLogViewerController extends HtmlTableController {
             if (object != null && object instanceof MyBoxLogViewerController) {
                 try {
                     controller = (MyBoxLogViewerController) object;
-                    controller.toFront();
                     break;
                 } catch (Exception e) {
                 }

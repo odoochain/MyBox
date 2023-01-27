@@ -5,7 +5,6 @@ import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.InputStreamReader;
 import java.nio.charset.Charset;
 import java.text.MessageFormat;
 import java.util.ArrayList;
@@ -18,11 +17,6 @@ import javafx.fxml.FXML;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.layout.VBox;
-import mara.mybox.data.StringTable;
-import mara.mybox.db.data.ConvolutionKernel;
-import mara.mybox.dev.MyBoxLog;
-import static mara.mybox.fxml.NodeStyleTools.badStyle;
-import mara.mybox.bufferedimage.BufferedImageTools;
 import mara.mybox.bufferedimage.ImageBinary;
 import mara.mybox.bufferedimage.ImageContrast;
 import mara.mybox.bufferedimage.ImageConvolution;
@@ -30,15 +24,16 @@ import mara.mybox.bufferedimage.PixelsOperation;
 import mara.mybox.bufferedimage.PixelsOperationFactory;
 import mara.mybox.bufferedimage.ScaleTools;
 import mara.mybox.bufferedimage.TransformTools;
-import mara.mybox.fxml.NodeStyleTools;
+import mara.mybox.data.StringTable;
+import mara.mybox.db.data.ConvolutionKernel;
+import mara.mybox.db.data.VisitHistory;
+import mara.mybox.dev.MyBoxLog;
 import mara.mybox.imagefile.ImageFileReaders;
 import mara.mybox.tools.FileNameTools;
 import mara.mybox.tools.FileTools;
 import mara.mybox.tools.OCRTools;
 import mara.mybox.tools.TextFileTools;
 import mara.mybox.tools.TmpFileTools;
-import mara.mybox.value.AppVariables;
-import static mara.mybox.value.Languages.message;
 import mara.mybox.value.Languages;
 import mara.mybox.value.UserConfig;
 import net.sourceforge.tess4j.ITessAPI.TessPageIteratorLevel;
@@ -56,10 +51,10 @@ import net.sourceforge.tess4j.util.ImageHelper;
 public class ImageOCRBatchController extends BaseBatchImageController {
 
     protected float scale;
-    protected int threshold, rotate, regionLevel, wordLevel, tesseractVersion;
+    protected int threshold, rotate, tesseractVersion;
     protected ImageContrast.ContrastAlgorithm contrastAlgorithm;
     protected BufferedImage lastImage;
-    protected ITesseract OCRinstance;
+    protected Tesseract OCRinstance;
     protected List<File> textFiles;
     protected Process process;
     protected File configFile;
@@ -76,6 +71,11 @@ public class ImageOCRBatchController extends BaseBatchImageController {
     public ImageOCRBatchController() {
         baseTitle = Languages.message("ImageOCRBatch");
         browseTargets = false;
+    }
+
+    @Override
+    public void setFileType() {
+        setFileType(VisitHistory.FileType.Image, VisitHistory.FileType.Text);
     }
 
     @Override
@@ -100,10 +100,10 @@ public class ImageOCRBatchController extends BaseBatchImageController {
                             scale = f;
                             scaleSelector.getEditor().setStyle(null);
                         } else {
-                            scaleSelector.getEditor().setStyle(NodeStyleTools.badStyle);
+                            scaleSelector.getEditor().setStyle(UserConfig.badStyle());
                         }
                     } catch (Exception e) {
-                        scaleSelector.getEditor().setStyle(NodeStyleTools.badStyle);
+                        scaleSelector.getEditor().setStyle(UserConfig.badStyle());
                     }
                 }
             });
@@ -126,10 +126,10 @@ public class ImageOCRBatchController extends BaseBatchImageController {
                             threshold = i;
                             binarySelector.getEditor().setStyle(null);
                         } else {
-                            binarySelector.getEditor().setStyle(NodeStyleTools.badStyle);
+                            binarySelector.getEditor().setStyle(UserConfig.badStyle());
                         }
                     } catch (Exception e) {
-                        binarySelector.getEditor().setStyle(NodeStyleTools.badStyle);
+                        binarySelector.getEditor().setStyle(UserConfig.badStyle());
                     }
                 }
             });
@@ -208,13 +208,13 @@ public class ImageOCRBatchController extends BaseBatchImageController {
             if (ocrOptionsController.embedRadio.isSelected()) {
                 OCRinstance = new Tesseract();
                 // https://stackoverflow.com/questions/58286373/tess4j-pdf-to-tiff-to-tesseract-warning-invalid-resolution-0-dpi-using-70/58296472#58296472
-                OCRinstance.setTessVariable("user_defined_dpi", "96");
-                OCRinstance.setTessVariable("debug_file", "/dev/null");
+                OCRinstance.setVariable("user_defined_dpi", "96");
+                OCRinstance.setVariable("debug_file", "/dev/null");
                 OCRinstance.setPageSegMode(ocrOptionsController.psm);
                 Map<String, String> p = ocrOptionsController.checkParameters();
                 if (p != null && !p.isEmpty()) {
                     for (String key : p.keySet()) {
-                        OCRinstance.setTessVariable(key, p.get(key));
+                        OCRinstance.setVariable(key, p.get(key));
                     }
                 }
                 String path = UserConfig.getString(OCRTools.TessDataPath, null);
@@ -226,16 +226,16 @@ public class ImageOCRBatchController extends BaseBatchImageController {
                 }
             } else {
                 tesseractVersion = ocrOptionsController.tesseractVersion();
-                File tesseract = ocrOptionsController.tesseractPathController.file;
+                File tesseract = ocrOptionsController.tesseractPathController.file();
                 if (!tesseract.exists()) {
                     popError(Languages.message("InvalidParameters"));
-                    ocrOptionsController.tesseractPathController.fileInput.setStyle(NodeStyleTools.badStyle);
+                    ocrOptionsController.tesseractPathController.fileInput.setStyle(UserConfig.badStyle());
                     return false;
                 }
-                File dataPath = ocrOptionsController.dataPathController.file;
+                File dataPath = ocrOptionsController.dataPathController.file();
                 if (!dataPath.exists()) {
                     popError(Languages.message("InvalidParameters"));
-                    ocrOptionsController.dataPathController.fileInput.setStyle(NodeStyleTools.badStyle);
+                    ocrOptionsController.dataPathController.fileInput.setStyle(UserConfig.badStyle());
                     return false;
                 }
                 configFile = TmpFileTools.getTempFile();
@@ -425,10 +425,11 @@ public class ImageOCRBatchController extends BaseBatchImageController {
                 formats.add(ITesseract.RenderedFormat.PDF);
             }
             // Looks OCR engine does not support non-English file name
-            String actualPrefix = FileNameTools.getFilePrefix(targetFile.getAbsolutePath());
+            String actualPrefix = targetFile.getParent() + File.separator
+                    + FileNameTools.prefix(targetFile.getName());
             String tmpPrefix = TmpFileTools.getTempFile().getAbsolutePath();
 
-            OCRinstance.createDocumentsWithResults​(lastImage, null,
+            OCRinstance.createDocumentsWithResults​(lastImage, tmpPrefix,
                     tmpPrefix, formats, TessPageIteratorLevel.RIL_SYMBOL);
             File tmpTextFile = new File(tmpPrefix + ".txt");
             if (!tmpTextFile.exists()) {
@@ -456,8 +457,8 @@ public class ImageOCRBatchController extends BaseBatchImageController {
                 }
             }
 
-            if (wordLevel >= 0) {
-                List<Word> words = OCRinstance.getWords(lastImage, wordLevel);
+            if (ocrOptionsController.wordLevel >= 0) {
+                List<Word> words = OCRinstance.getWords(lastImage, ocrOptionsController.wordLevel);
                 List<String> names = new ArrayList<>();
                 names.addAll(Arrays.asList(Languages.message("Index"),
                         Languages.message("Contents"), Languages.message("Confidence"),
@@ -483,8 +484,8 @@ public class ImageOCRBatchController extends BaseBatchImageController {
                 }
             }
 
-            if (regionLevel >= 0) {
-                List<Rectangle> rectangles = OCRinstance.getSegmentedRegions(lastImage, regionLevel);
+            if (ocrOptionsController.regionLevel >= 0) {
+                List<Rectangle> rectangles = OCRinstance.getSegmentedRegions(lastImage, ocrOptionsController.regionLevel);
                 List<String> names = new ArrayList<>();
                 names.addAll(Arrays.asList(Languages.message("Index"),
                         Languages.message("CoordinateX"), Languages.message("CoordinateY"),
@@ -523,14 +524,15 @@ public class ImageOCRBatchController extends BaseBatchImageController {
         }
         try {
             // Looks OCR engine does not support non-English file name
-            String actualPrefix = FileNameTools.getFilePrefix(targetFile.getAbsolutePath());
+            String actualPrefix = targetFile.getParent() + File.separator
+                    + FileNameTools.prefix(targetFile.getName());
             String tmpPrefix = TmpFileTools.getTempFile().getAbsolutePath();
 
             List<String> parameters = new ArrayList<>();
             parameters.addAll(Arrays.asList(
-                    ocrOptionsController.tesseractPathController.file.getAbsolutePath(),
+                    ocrOptionsController.tesseractPathController.file().getAbsolutePath(),
                     srcFile.getAbsolutePath(), tmpPrefix,
-                    "--tessdata-dir", ocrOptionsController.dataPathController.file.getAbsolutePath(),
+                    "--tessdata-dir", ocrOptionsController.dataPathController.file().getAbsolutePath(),
                     tesseractVersion > 3 ? "--psm" : "-psm", ocrOptionsController.psm + ""
             ));
             if (ocrOptionsController.selectedLanguages != null) {
@@ -541,7 +543,7 @@ public class ImageOCRBatchController extends BaseBatchImageController {
             ProcessBuilder pb = new ProcessBuilder(parameters).redirectErrorStream(true);
             process = pb.start();
             String outputs = "", line;
-            try ( BufferedReader inReader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            try ( BufferedReader inReader = process.inputReader(Charset.defaultCharset())) {
                 while ((line = inReader.readLine()) != null) {
                     outputs += line + "\n";
                 }
@@ -589,7 +591,7 @@ public class ImageOCRBatchController extends BaseBatchImageController {
     @Override
     public File makeTargetFile(File srcFile, File targetPath) {
         try {
-            String namePrefix = FileNameTools.getFilePrefix(srcFile.getName());
+            String namePrefix = FileNameTools.prefix(srcFile.getName());
             namePrefix = namePrefix.replace(" ", "_");
             return makeTargetFile(namePrefix, ".txt", targetPath);
         } catch (Exception e) {
@@ -601,7 +603,7 @@ public class ImageOCRBatchController extends BaseBatchImageController {
     @Override
     public void donePost() {
         if (textFiles != null && textFiles.size() > 1 && mergeCheck.isSelected()) {
-            File mFile = new File(FileNameTools.appendName(textFiles.get(0).getAbsolutePath(), "_OCR_merged"));
+            File mFile = new File(FileNameTools.append(textFiles.get(0).getAbsolutePath(), "_OCR_merged"));
             if (TextFileTools.mergeTextFiles(textFiles, mFile)) {
                 popInformation(MessageFormat.format(Languages.message("FilesGenerated"), mFile.getAbsolutePath()));
                 targetFileGenerated(mFile);

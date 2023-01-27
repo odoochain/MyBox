@@ -16,24 +16,18 @@ import javafx.scene.control.TextField;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.Region;
 import javafx.scene.web.WebView;
-import mara.mybox.data.CoordinateSystem;
+import mara.mybox.data.GeoCoordinateSystem;
 import mara.mybox.data.StringTable;
 import mara.mybox.db.data.GeographyCode;
 import static mara.mybox.db.data.GeographyCodeTools.toGCJ02ByWebService;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fxml.LocateTools;
-import mara.mybox.fxml.NodeStyleTools;
-import mara.mybox.fxml.NodeTools;
-import static mara.mybox.fxml.NodeStyleTools.badStyle;
 import mara.mybox.tools.DoubleTools;
 import mara.mybox.tools.LocationTools;
 import static mara.mybox.tools.LocationTools.latitudeToDmsString;
 import static mara.mybox.tools.LocationTools.longitudeToDmsString;
-import mara.mybox.value.AppVariables;
-import static mara.mybox.value.Languages.message;
-
-import mara.mybox.value.Fxmls;
 import mara.mybox.value.Languages;
+import mara.mybox.value.UserConfig;
 import thridparty.CoordinateConverter;
 
 /**
@@ -102,10 +96,10 @@ public class ConvertCoordinateController extends BaseMapController {
                             decimalInput.setText(DoubleTools.scale(coordinate, 8) + "");
                             isSettingValues = false;
                         } else {
-                            degreesInput.setStyle(NodeStyleTools.badStyle);
+                            degreesInput.setStyle(UserConfig.badStyle());
                         }
                     } catch (Exception e) {
-                        degreesInput.setStyle(NodeStyleTools.badStyle);
+                        degreesInput.setStyle(UserConfig.badStyle());
                     }
                 }
             });
@@ -143,10 +137,10 @@ public class ConvertCoordinateController extends BaseMapController {
                             decimalInput.setText(DoubleTools.scale(coordinate, 8) + "");
                             isSettingValues = false;
                         } else {
-                            minutesInput.setStyle(NodeStyleTools.badStyle);
+                            minutesInput.setStyle(UserConfig.badStyle());
                         }
                     } catch (Exception e) {
-                        minutesInput.setStyle(NodeStyleTools.badStyle);
+                        minutesInput.setStyle(UserConfig.badStyle());
                     }
                 }
             });
@@ -184,10 +178,10 @@ public class ConvertCoordinateController extends BaseMapController {
                             decimalInput.setText(DoubleTools.scale(coordinate, 8) + "");
                             isSettingValues = false;
                         } else {
-                            secondsInput.setStyle(NodeStyleTools.badStyle);
+                            secondsInput.setStyle(UserConfig.badStyle());
                         }
                     } catch (Exception e) {
-                        secondsInput.setStyle(NodeStyleTools.badStyle);
+                        secondsInput.setStyle(UserConfig.badStyle());
                     }
                 }
             });
@@ -215,7 +209,7 @@ public class ConvertCoordinateController extends BaseMapController {
                     }
                     double[] v = LocationTools.parseDMS(newValue);
                     if (v[0] < -180) {
-                        dmsInput.setStyle(NodeStyleTools.badStyle);
+                        dmsInput.setStyle(UserConfig.badStyle());
                     } else {
                         dmsInput.setStyle(null);
                         coordinate = v[0];
@@ -272,11 +266,11 @@ public class ConvertCoordinateController extends BaseMapController {
                             secondsInput.setText(DoubleTools.scale(seconds, 4) + "");
                             isSettingValues = false;
                         } else {
-                            decimalInput.setStyle(NodeStyleTools.badStyle);
+                            decimalInput.setStyle(UserConfig.badStyle());
                         }
                     } catch (Exception e) {
 //                        MyBoxLog.debug(e.toString());
-                        decimalInput.setStyle(NodeStyleTools.badStyle);
+                        decimalInput.setStyle(UserConfig.badStyle());
                     }
                 }
             });
@@ -298,10 +292,10 @@ public class ConvertCoordinateController extends BaseMapController {
                                     longitude = v;
                                     longitudeInput.setStyle(null);
                                 } else {
-                                    longitudeInput.setStyle(NodeStyleTools.badStyle);
+                                    longitudeInput.setStyle(UserConfig.badStyle());
                                 }
                             } catch (Exception e) {
-                                longitudeInput.setStyle(NodeStyleTools.badStyle);
+                                longitudeInput.setStyle(UserConfig.badStyle());
                             }
                         }
                     });
@@ -323,17 +317,17 @@ public class ConvertCoordinateController extends BaseMapController {
                                     latitude = v;
                                     latitudeInput.setStyle(null);
                                 } else {
-                                    latitudeInput.setStyle(NodeStyleTools.badStyle);
+                                    latitudeInput.setStyle(UserConfig.badStyle());
                                 }
                             } catch (Exception e) {
-                                latitudeInput.setStyle(NodeStyleTools.badStyle);
+                                latitudeInput.setStyle(UserConfig.badStyle());
                             }
                         }
                     });
 
             equalCsButton.disableProperty().bind(
-                    longitudeInput.styleProperty().isEqualTo(NodeStyleTools.badStyle)
-                            .or(latitudeInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                    longitudeInput.styleProperty().isEqualTo(UserConfig.badStyle())
+                            .or(latitudeInput.styleProperty().isEqualTo(UserConfig.badStyle()))
             );
 
         } catch (Exception e) {
@@ -371,7 +365,7 @@ public class ConvertCoordinateController extends BaseMapController {
                 wgs84 = CoordinateConverter.GCJ02ToWGS84(gcj02[0], gcj02[1]);
             } else if (mapbarRadio.isSelected()) {
                 mapbar = inputted;
-                gcj02 = toGCJ02ByWebService(CoordinateSystem.Mapbar(), mapbar[0], mapbar[1]);
+                gcj02 = toGCJ02ByWebService(GeoCoordinateSystem.Mapbar(), mapbar[0], mapbar[1]);
                 wgs84 = CoordinateConverter.GCJ02ToWGS84(gcj02[0], gcj02[1]);
                 db09 = CoordinateConverter.GCJ02ToBD09(gcj02[0], gcj02[1]);
             } else if (wgs84Radio.isSelected()) {
@@ -577,14 +571,20 @@ public class ConvertCoordinateController extends BaseMapController {
     @FXML
     public void locationAction(ActionEvent event) {
         try {
-            LocationInMapController controller = (LocationInMapController) openStage(Fxmls.LocationInMapFxml);
-            controller.loadCoordinate(this, longitude, latitude);
+            CoordinatePickerController controller = CoordinatePickerController.open(this, longitude, latitude);
+            controller.notify.addListener(new ChangeListener<Boolean>() {
+                @Override
+                public void changed(ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) {
+                    setGeographyCode(controller.geographyCode);
+                    controller.closeStage();
+                }
+            });
+
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
         }
     }
 
-    @Override
     public void setGeographyCode(GeographyCode code) {
         try {
             if (code == null) {

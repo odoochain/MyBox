@@ -1,10 +1,9 @@
 package mara.mybox.bufferedimage;
 
+import java.awt.Color;
 import java.awt.Graphics2D;
-import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
-import mara.mybox.value.FileFilters;
-import mara.mybox.color.ColorBase;
+import mara.mybox.value.AppVariables;
 import mara.mybox.value.Colors;
 
 /**
@@ -14,48 +13,24 @@ import mara.mybox.value.Colors;
  */
 public class ScaleTools {
 
-    public static BufferedImage scaleImage(BufferedImage source, int width, int height, int dither, int antiAlias, int quality, int interpolation) {
+    public static BufferedImage scaleImage(BufferedImage source, int width, int height, Color bgColor) {
         if (width <= 0 || height <= 0 || (width == source.getWidth() && height == source.getHeight())) {
             return source;
         }
-        int imageType = source.getType();
-        if (imageType == BufferedImage.TYPE_CUSTOM) {
-            imageType = BufferedImage.TYPE_INT_ARGB;
-        }
+        int imageType = BufferedImage.TYPE_INT_ARGB;
         BufferedImage target = new BufferedImage(width, height, imageType);
         Graphics2D g = target.createGraphics();
-        if (antiAlias == 1) {
-            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        } else if (antiAlias == 0) {
-            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
+        if (AppVariables.imageRenderHints != null) {
+            g.addRenderingHints(AppVariables.imageRenderHints);
         }
-        if (quality == 1) {
-            g.setRenderingHint(RenderingHints.KEY_COLOR_RENDERING, RenderingHints.VALUE_COLOR_RENDER_QUALITY);
-            g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-        } else if (quality == 0) {
-            g.setRenderingHint(RenderingHints.KEY_COLOR_RENDERING, RenderingHints.VALUE_COLOR_RENDER_SPEED);
-            g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_SPEED);
-        }
-        if (dither == 1) {
-            g.setRenderingHint(RenderingHints.KEY_DITHERING, RenderingHints.VALUE_DITHER_ENABLE);
-        } else if (dither == 0) {
-            g.setRenderingHint(RenderingHints.KEY_DITHERING, RenderingHints.VALUE_DITHER_DISABLE);
-        }
-        switch (interpolation) {
-            case 1:
-                g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-                break;
-            case 4:
-                g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-                break;
-            case 9:
-                g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
-                break;
-        }
-        g.setBackground(Colors.TRANSPARENT);
+        g.setBackground(bgColor);
         g.drawImage(source, 0, 0, width, height, null);
         g.dispose();
         return target;
+    }
+
+    public static BufferedImage scaleImage(BufferedImage source, int width, int height) {
+        return scaleImage(source, width, height, Colors.TRANSPARENT);
     }
 
     public static BufferedImage scaleImage(BufferedImage source, int targetW, int targetH, boolean keepRatio, int keepType) {
@@ -111,42 +86,26 @@ public class ScaleTools {
     }
 
     public static BufferedImage scaleImageByScale(BufferedImage source, float xscale, float yscale) {
-        return scaleImageByScale(source, xscale, yscale, -1, -1, -1, -1);
-    }
-
-    public static BufferedImage scaleImageByScale(BufferedImage source, float scale, int dither, int antiAlias, int quality, int interpolation) {
-        return scaleImageByScale(source, scale, scale, dither, antiAlias, quality, interpolation);
-    }
-
-    public static BufferedImage scaleImageByScale(BufferedImage source, float xscale, float yscale, int dither, int antiAlias, int quality, int interpolation) {
         int width = (int) (source.getWidth() * xscale);
         int height = (int) (source.getHeight() * yscale);
-        return scaleImage(source, width, height, dither, antiAlias, quality, interpolation);
+        return scaleImage(source, width, height);
     }
 
     public static BufferedImage scaleImageHeightKeep(BufferedImage source, int height) {
-        return scaleImageHeightKeep(source, height, -1, -1, -1, -1);
-    }
-
-    public static BufferedImage scaleImageHeightKeep(BufferedImage source, int height, int dither, int antiAlias, int quality, int interpolation) {
         int width = source.getWidth() * height / source.getHeight();
-        return scaleImage(source, width, height, dither, antiAlias, quality, interpolation);
+        return scaleImage(source, width, height);
     }
 
     public static BufferedImage scaleImageBySize(BufferedImage source, int width, int height) {
-        return scaleImage(source, width, height, -1, -1, -1, -1);
+        return scaleImage(source, width, height);
     }
 
     public static BufferedImage scaleImageWidthKeep(BufferedImage source, int width) {
-        return scaleImageWidthKeep(source, width, -1, -1, -1, -1);
-    }
-
-    public static BufferedImage scaleImageWidthKeep(BufferedImage source, int width, int dither, int antiAlias, int quality, int interpolation) {
         if (width <= 0 || width == source.getWidth()) {
             return source;
         }
         int height = source.getHeight() * width / source.getWidth();
-        return scaleImage(source, width, height, dither, antiAlias, quality, interpolation);
+        return scaleImage(source, width, height);
     }
 
     public static BufferedImage scaleImageLess(BufferedImage source, int size) {
@@ -165,12 +124,12 @@ public class ScaleTools {
             int[] wh = ScaleTools.scaleValues(source.getWidth(), source.getHeight(), targetW, targetH, BufferedImageTools.KeepRatioType.BaseOnSmaller);
             int finalW = wh[0];
             int finalH = wh[1];
-            int imageType = source.getType();
-            if (imageType == BufferedImage.TYPE_CUSTOM) {
-                imageType = BufferedImage.TYPE_INT_ARGB;
-            }
+            int imageType = BufferedImage.TYPE_INT_ARGB;
             BufferedImage target = new BufferedImage(targetW, targetH, imageType);
             Graphics2D g = target.createGraphics();
+            if (AppVariables.imageRenderHints != null) {
+                g.addRenderingHints(AppVariables.imageRenderHints);
+            }
             g.setBackground(Colors.TRANSPARENT);
             g.drawImage(source, (targetW - finalW) / 2, (targetH - finalH) / 2, finalW, finalH, null);
             g.dispose();

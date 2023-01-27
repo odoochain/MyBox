@@ -18,6 +18,8 @@ import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.RadioButton;
+import javafx.scene.control.Tab;
+import javafx.scene.control.TabPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.control.Toggle;
@@ -27,6 +29,7 @@ import javafx.scene.image.Image;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.paint.Color;
 import javafx.scene.paint.Paint;
+import mara.mybox.bufferedimage.ImageColorSpace;
 import mara.mybox.color.CIEColorSpace;
 import mara.mybox.color.CIEData;
 import mara.mybox.color.CIEDataTools;
@@ -38,12 +41,13 @@ import mara.mybox.data.StringTable;
 import mara.mybox.db.data.VisitHistory;
 import mara.mybox.db.data.VisitHistoryTools;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.ControllerTools;
 import mara.mybox.fximage.FxImageTools;
-import mara.mybox.fxml.RecentVisitMenu;
-import mara.mybox.bufferedimage.ImageColorSpace;
 import mara.mybox.fximage.ImageViewTools;
-import mara.mybox.fxml.NodeStyleTools;
+import mara.mybox.fxml.ControllerTools;
+import mara.mybox.fxml.HelpTools;
+import mara.mybox.fxml.RecentVisitMenu;
+import mara.mybox.fxml.SingletonTask;
+import mara.mybox.fxml.style.NodeStyleTools;
 import mara.mybox.imagefile.ImageFileWriters;
 import static mara.mybox.tools.DoubleTools.scale;
 import mara.mybox.tools.FileNameTools;
@@ -57,7 +61,6 @@ import mara.mybox.value.UserConfig;
 /**
  * @Author Mara
  * @CreateDate 2019-5-20
- * @Description
  * @License Apache License Version 2.0
  */
 public class ChromaticityDiagramController extends ImageViewerController {
@@ -70,11 +73,15 @@ public class ChromaticityDiagramController extends ImageViewerController {
     protected double X, Y = 1, Z, x = 0.4, y = 0.5;
 
     @FXML
+    protected TabPane displayPane;
+    @FXML
+    protected Tab diaTab, cie21Tab, cie25Tab, cie101Tab, cie105Tab;
+    @FXML
     protected ComboBox<String> fontSelector;
     @FXML
     protected CheckBox cdProPhotoCheck, cdColorMatchCheck, cdNTSCCheck, cdPALCheck, cdAppleCheck, cdAdobeCheck,
             cdSRGBCheck, cdECICheck, cdCIECheck, cdSMPTECCheck, degree2Check, degree10Check,
-            waveCheck, whitePointsCheck, gridCheck, calculateCheck, inputCheck;
+            waveCheck, whitePointsCheck, cdGridCheck, calculateCheck, inputCheck;
     @FXML
     protected TextArea sourceInputArea, sourceDataArea;
     @FXML
@@ -178,7 +185,7 @@ public class ChromaticityDiagramController extends ImageViewerController {
                     displayChromaticityDiagram();
                 }
             });
-            gridCheck.selectedProperty().addListener(new ChangeListener<Boolean>() {
+            cdGridCheck.selectedProperty().addListener(new ChangeListener<Boolean>() {
                 @Override
                 public void changed(ObservableValue<? extends Boolean> ov,
                         Boolean old_val, Boolean new_val) {
@@ -281,8 +288,8 @@ public class ChromaticityDiagramController extends ImageViewerController {
             bgColor = null;
             isLine = true;
             dotSize = 4;
-            bgTransparentRadio.fire();
-            dotLine4pxRadio.fire();
+            bgTransparentRadio.setSelected(true);
+            dotLine4pxRadio.setSelected(true);
             fontSelector.getSelectionModel().select(0);
             isSettingValues = false;
         } catch (Exception e) {
@@ -342,7 +349,7 @@ public class ChromaticityDiagramController extends ImageViewerController {
                         X = Double.parseDouble(newValue);
                         XInput.setStyle(null);
                     } catch (Exception e) {
-                        XInput.setStyle(NodeStyleTools.badStyle);
+                        XInput.setStyle(UserConfig.badStyle());
                     }
                 }
             });
@@ -352,12 +359,12 @@ public class ChromaticityDiagramController extends ImageViewerController {
                     try {
                         Y = Double.parseDouble(newValue);
                         if (Y == 0) {
-                            YInput.setStyle(NodeStyleTools.badStyle);
+                            YInput.setStyle(UserConfig.badStyle());
                         } else {
                             YInput.setStyle(null);
                         }
                     } catch (Exception e) {
-                        YInput.setStyle(NodeStyleTools.badStyle);
+                        YInput.setStyle(UserConfig.badStyle());
                     }
                 }
             });
@@ -368,7 +375,7 @@ public class ChromaticityDiagramController extends ImageViewerController {
                         Z = Double.parseDouble(newValue);
                         ZInput.setStyle(null);
                     } catch (Exception e) {
-                        ZInput.setStyle(NodeStyleTools.badStyle);
+                        ZInput.setStyle(UserConfig.badStyle());
                     }
                 }
             });
@@ -381,12 +388,12 @@ public class ChromaticityDiagramController extends ImageViewerController {
                         x = Double.parseDouble(newValue);
                         double z = 1 - x - y;
                         if (x > 1 || x < 0 || z < 0 || z > 1) {
-                            xInput.setStyle(NodeStyleTools.badStyle);
+                            xInput.setStyle(UserConfig.badStyle());
                         } else {
                             xInput.setStyle(null);
                         }
                     } catch (Exception e) {
-                        xInput.setStyle(NodeStyleTools.badStyle);
+                        xInput.setStyle(UserConfig.badStyle());
                     }
                 }
             });
@@ -398,28 +405,28 @@ public class ChromaticityDiagramController extends ImageViewerController {
                         y = Double.parseDouble(newValue);
                         double z = 1 - x - y;
                         if (y > 1 || y <= 0 || z < 0 || z > 1) {
-                            yInput.setStyle(NodeStyleTools.badStyle);
+                            yInput.setStyle(UserConfig.badStyle());
                         } else {
                             yInput.setStyle(null);
                         }
                     } catch (Exception e) {
-                        yInput.setStyle(NodeStyleTools.badStyle);
+                        yInput.setStyle(UserConfig.badStyle());
                     }
                 }
             });
 
             calculateXYZButton.disableProperty().bind(Bindings.isEmpty(XInput.textProperty())
-                    .or(XInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                    .or(XInput.styleProperty().isEqualTo(UserConfig.badStyle()))
                     .or(Bindings.isEmpty(YInput.textProperty()))
-                    .or(YInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                    .or(YInput.styleProperty().isEqualTo(UserConfig.badStyle()))
                     .or(Bindings.isEmpty(ZInput.textProperty()))
-                    .or(ZInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                    .or(ZInput.styleProperty().isEqualTo(UserConfig.badStyle()))
             );
 
             calculateXYButton.disableProperty().bind(Bindings.isEmpty(xInput.textProperty())
-                    .or(xInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                    .or(xInput.styleProperty().isEqualTo(UserConfig.badStyle()))
                     .or(Bindings.isEmpty(yInput.textProperty()))
-                    .or(yInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                    .or(yInput.styleProperty().isEqualTo(UserConfig.badStyle()))
             );
 
             displayDataButton.disableProperty().bind(Bindings.isEmpty(sourceDataArea.textProperty())
@@ -524,10 +531,10 @@ public class ChromaticityDiagramController extends ImageViewerController {
                     displayChromaticityDiagram();
                 }
             } else {
-                fontSelector.getEditor().setStyle(NodeStyleTools.badStyle);
+                fontSelector.getEditor().setStyle(UserConfig.badStyle());
             }
         } catch (Exception e) {
-            fontSelector.getEditor().setStyle(NodeStyleTools.badStyle);
+            fontSelector.getEditor().setStyle(UserConfig.badStyle());
         }
     }
 
@@ -536,7 +543,7 @@ public class ChromaticityDiagramController extends ImageViewerController {
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
                 private StringTable degree2nm1Table, degree10nm1Table, degree2nm5Table, degree10nm5Table;
 
                 @Override
@@ -573,11 +580,7 @@ public class ChromaticityDiagramController extends ImageViewerController {
                 }
 
             };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
 
     }
@@ -595,7 +598,7 @@ public class ChromaticityDiagramController extends ImageViewerController {
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
                 private String texts;
 
                 @Override
@@ -623,11 +626,7 @@ public class ChromaticityDiagramController extends ImageViewerController {
                 }
 
             };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
     }
 
@@ -677,8 +676,7 @@ public class ChromaticityDiagramController extends ImageViewerController {
     }
 
     @FXML
-    @Override
-    public void clearAction() {
+    public void noElements() {
         isSettingValues = true;
 
         cdProPhotoCheck.setSelected(false);
@@ -704,8 +702,7 @@ public class ChromaticityDiagramController extends ImageViewerController {
     }
 
     @FXML
-    @Override
-    public void allAction() {
+    public void allElements() {
         isSettingValues = true;
 
         cdProPhotoCheck.setSelected(true);
@@ -856,7 +853,7 @@ public class ChromaticityDiagramController extends ImageViewerController {
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
                 private Image image;
 
                 @Override
@@ -869,7 +866,7 @@ public class ChromaticityDiagramController extends ImageViewerController {
                         selections.put(DataType.Calculate, calculateCheck.isSelected());
                         selections.put(DataType.Wave, waveCheck.isSelected());
                         selections.put(DataType.WhitePoints, whitePointsCheck.isSelected());
-                        selections.put(DataType.Grid, gridCheck.isSelected());
+                        selections.put(DataType.Grid, cdGridCheck.isSelected());
                         selections.put(DataType.CIELines, cdCIECheck.isSelected());
                         selections.put(DataType.ECILines, cdECICheck.isSelected());
                         selections.put(DataType.sRGBLines, cdSRGBCheck.isSelected());
@@ -906,11 +903,7 @@ public class ChromaticityDiagramController extends ImageViewerController {
                 }
 
             };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
 
     }
@@ -936,11 +929,11 @@ public class ChromaticityDiagramController extends ImageViewerController {
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 @Override
                 protected boolean handle() {
-                    String format = FileNameTools.getFileSuffix(file.getName());
+                    String format = FileNameTools.suffix(file.getName());
                     final BufferedImage bufferedImage = FxImageTools.toBufferedImage(imageView.getImage());
                     if (this == null || this.isCancelled()) {
                         return false;
@@ -955,17 +948,61 @@ public class ChromaticityDiagramController extends ImageViewerController {
                 }
 
             };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
     }
 
     @FXML
     public void aboutColor() {
-        openLink(ChromaticityBaseController.aboutColorHtml());
+        openLink(HelpTools.aboutColorHtml());
+    }
+
+    @FXML
+    @Override
+    public boolean popAction() {
+        Tab currentTab = displayPane.getSelectionModel().getSelectedItem();
+        if (currentTab == cie21Tab) {
+            d2n1Controller.webViewController.popAction();
+            return true;
+
+        } else if (currentTab == cie25Tab) {
+            d2n5Controller.webViewController.popAction();
+            return true;
+
+        } else if (currentTab == cie101Tab) {
+            d10n1Controller.webViewController.popAction();
+            return true;
+
+        } else if (currentTab == cie105Tab) {
+            d10n5Controller.webViewController.popAction();
+            return true;
+
+        }
+        return super.popAction();
+    }
+
+    @FXML
+    @Override
+    public boolean menuAction() {
+        Tab currentTab = displayPane.getSelectionModel().getSelectedItem();
+        if (currentTab == cie21Tab) {
+            d2n1Controller.webViewController.menuAction();
+            return true;
+
+        } else if (currentTab == cie25Tab) {
+            d2n5Controller.webViewController.menuAction();
+            return true;
+
+        } else if (currentTab == cie101Tab) {
+            d10n1Controller.webViewController.menuAction();
+            return true;
+
+        } else if (currentTab == cie105Tab) {
+            d10n5Controller.webViewController.menuAction();
+            return true;
+
+        }
+        return super.menuAction();
     }
 
 }

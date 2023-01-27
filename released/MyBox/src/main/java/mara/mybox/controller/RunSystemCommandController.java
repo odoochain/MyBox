@@ -1,22 +1,21 @@
 package mara.mybox.controller;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
+import java.io.BufferedWriter;
 import java.nio.charset.Charset;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import javafx.application.Platform;
+import javafx.beans.value.ChangeListener;
+import javafx.beans.value.ObservableValue;
 import javafx.fxml.FXML;
+import javafx.scene.control.Button;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.TextField;
+import javafx.scene.input.MouseEvent;
+import mara.mybox.db.table.TableStringValues;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.TextClipboardTools;
-import mara.mybox.fxml.StyleTools;
-import mara.mybox.tools.HtmlWriteTools;
-
-import mara.mybox.tools.StringTools;
-import mara.mybox.value.AppVariables;
+import mara.mybox.fxml.PopTools;
+import mara.mybox.fxml.style.StyleTools;
+import mara.mybox.tools.SystemTools;
+import mara.mybox.tools.TextTools;
 import static mara.mybox.value.Languages.message;
-import mara.mybox.value.Languages;
 import mara.mybox.value.UserConfig;
 
 /**
@@ -24,15 +23,22 @@ import mara.mybox.value.UserConfig;
  * @CreateDate 2021-3-27
  * @License Apache License Version 2.0
  */
-public class RunSystemCommandController extends HtmlTableController {
-
-    protected Process process;
+public class RunSystemCommandController extends RunCommandController {
 
     @FXML
-    protected ControlStringSelector cmdController;
+    protected TextField cmdInput;
+    @FXML
+    protected Button plusButton;
+    @FXML
+    protected ComboBox<String> charsetSelector;
 
     public RunSystemCommandController() {
-        baseTitle = Languages.message("RunSystemCommand");
+        baseTitle = message("RunSystemCommand");
+    }
+
+    @Override
+    public void setStageStatus() {
+        setAsNormal();
     }
 
     @Override
@@ -40,123 +46,94 @@ public class RunSystemCommandController extends HtmlTableController {
         try {
             super.initControls();
 
-            cmdController.init(this, baseName + "Saved", "ping github.com", 20);
+            cmdInput.setText(example());
+
+            outputs = "";
+            if (plusButton != null) {
+                plusButton.setDisable(true);
+            }
+
+            charsetSelector.getItems().addAll(TextTools.getCharsetNames());
+            Charset sc = SystemTools.ConsoleCharset();
+            try {
+                charset = Charset.forName(UserConfig.getString(baseName + "TextCharset", sc.name()));
+            } catch (Exception e) {
+                charset = sc;
+            }
+            charsetSelector.setValue(charset.name());
+            charsetSelector.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<String>() {
+                @Override
+                public void changed(ObservableValue ov, String oldValue, String newValue) {
+                    charset = Charset.forName(charsetSelector.getSelectionModel().getSelectedItem());
+                    UserConfig.setString(baseName + "TextCharset", charset.name());
+                }
+            });
 
         } catch (Exception e) {
             MyBoxLog.debug(e.toString());
         }
     }
 
+    public String example() {
+        return "ping sourceforge.net";
+    }
+
     @FXML
     @Override
     public void startAction() {
-        if (startButton.getUserData() != null) {
-            cancel();
+        if (process != null && process.isAlive()) {
+            cancelCommand();
             return;
         }
-        webView.getEngine().loadContent("");
-        String cmd = cmdController.value();
+        String cmd = cmdInput.getText();
         if (cmd == null || cmd.isBlank()) {
-            popError(Languages.message("InvalidData"));
+            popError(message("InvalidParameters") + ": " + message("Command"));
             return;
         }
-        synchronized (this) {
-            if (task != null && !task.isQuit()) {
-                return;
+        TableStringValues.add("RunSystemCommandHistories", cmd);
+        run(cmd);
+    }
+
+    @Override
+    public boolean beforeRun() {
+        StyleTools.setNameIcon(startButton, message("Stop"), "iconStop.png");
+        startButton.applyCss();
+        if (plusButton != null) {
+            plusButton.setDisable(false);
+        }
+        return true;
+    }
+
+    @FXML
+    public void plusAction() {
+        try {
+            if (process != null && process.isAlive()) {
+                try ( BufferedWriter writer = process.outputWriter()) {
+                    writer.append(cmdInput.getText());
+                } catch (Exception e) {
+                    popError(e.toString());
+                }
+            } else {
+                plusButton.setDisable(true);
             }
-            cmdController.disable(true);
-            cmdController.refreshList();
-            StyleTools.setNameIcon(startButton, Languages.message("Stop"), "iconStart.png");
-            startButton.applyCss();
-            startButton.setUserData("started");
-            task = new SingletonTask<Void>() {
-
-                private String lastText, htmlStyle;
-
-                @Override
-                protected boolean handle() {
-                    try {
-                        lastText = "";
-                        htmlStyle = UserConfig.getString(baseName + "HtmlStyle", "Default");
-                        List<String> p = new ArrayList<>();
-                        p.addAll(Arrays.asList(StringTools.splitBySpace(cmd)));
-                        ProcessBuilder pb = new ProcessBuilder(p).redirectErrorStream(true);
-                        process = pb.start();
-                        try ( BufferedReader inReader = new BufferedReader(
-                                new InputStreamReader(process.getInputStream(), Charset.defaultCharset()))) {
-                            String line;
-                            while ((line = inReader.readLine()) != null) {
-                                String msg = line + "\n";
-                                Platform.runLater(() -> {
-                                    lastText += msg;
-                                    String html = HtmlWriteTools.html(null, htmlStyle, "<body><PRE>" + lastText + "</PRE></body>");
-                                    displayHtml(html);
-                                });
-                            }
-                        }
-                        process.waitFor();
-                        return true;
-                    } catch (Exception e) {
-                        error = e.toString();
-                        return false;
-                    }
-                }
-
-                protected void setStatus(String msg) {
-                    String html = HtmlWriteTools.html(null, htmlStyle, "<body><PRE>" + lastText + "</PRE>"
-                            + "<br><hr>\n" + msg + "</body>");
-                    displayHtml(html);
-                }
-
-                @Override
-                protected void whenSucceeded() {
-                    setStatus(Languages.message("Completed"));
-                }
-
-                @Override
-                protected void whenCanceled() {
-                    setStatus(Languages.message("Canceled"));
-                }
-
-                @Override
-                protected void whenFailed() {
-                    setStatus(Languages.message("Failed") + "<br>\n" + error);
-                }
-
-                @Override
-                protected void finalAction() {
-                    cmdController.disable(false);
-                    cancel();
-                }
-            };
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+        } catch (Exception e) {
+            popError(e.toString());
         }
     }
 
-    public void cancel() {
-        StyleTools.setNameIcon(startButton, Languages.message("Start"), "iconStart.png");
+    @Override
+    public void cancelCommand() {
+        super.cancelCommand();
+        StyleTools.setNameIcon(startButton, message("Start"), "iconStart.png");
         startButton.applyCss();
-        startButton.setUserData(null);
-        if (process != null) {
-            process.destroyForcibly();
-            process = null;
-        }
-        if (task != null) {
-            task.cancel();
-            task = null;
+        if (plusButton != null) {
+            plusButton.setDisable(true);
         }
     }
 
     @FXML
-    @Override
-    public void pasteAction() {
-        String string = TextClipboardTools.getSystemClipboardString();
-        if (string != null && !string.isBlank()) {
-            cmdController.set(string);
-        }
+    protected void popCmdHistories(MouseEvent mouseEvent) {
+        PopTools.popStringValues(this, cmdInput, mouseEvent, "RunSystemCommandHistories", true);
     }
 
 }

@@ -23,7 +23,6 @@ import javafx.scene.control.MenuItem;
 import javafx.scene.control.RadioButton;
 import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.Tab;
-import javafx.scene.control.TabPane;
 import javafx.scene.control.TextField;
 import javafx.scene.effect.DropShadow;
 import javafx.scene.image.ImageView;
@@ -39,25 +38,20 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.shape.StrokeType;
-import javafx.scene.web.WebView;
 import mara.mybox.data.StringTable;
 import mara.mybox.db.data.StringValues;
 import mara.mybox.db.table.TableStringValues;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fxml.LocateTools;
-import mara.mybox.fxml.NodeStyleTools;
-import mara.mybox.fxml.StyleData;
-import mara.mybox.fxml.NodeTools;
-import static mara.mybox.fxml.NodeStyleTools.badStyle;
-import mara.mybox.fxml.PopTools;
-import mara.mybox.fxml.StyleTools;
-import mara.mybox.tools.DateTools;
-
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.fxml.SoundTools;
+import mara.mybox.fxml.style.HtmlStyles;
+import mara.mybox.fxml.style.NodeStyleTools;
+import mara.mybox.fxml.style.StyleTools;
+import mara.mybox.tools.DateTools;
 import mara.mybox.tools.HtmlWriteTools;
 import mara.mybox.value.AppVariables;
 import static mara.mybox.value.Languages.message;
-import mara.mybox.value.Languages;
 import mara.mybox.value.UserConfig;
 
 /**
@@ -65,7 +59,7 @@ import mara.mybox.value.UserConfig;
  * @CreateDate 2020-10-3
  * @License Apache License Version 2.0
  */
-public class GameMineController extends BaseController {
+public class GameMineController extends BaseWebViewController {
 
     protected int chessSize, vNumber, hNumber, spacing, minesNumber,
             total, disclosed, historiesNumber;
@@ -81,8 +75,6 @@ public class GameMineController extends BaseController {
         Disclosed, Closed, Marked, Suspected
     }
 
-    @FXML
-    protected TabPane tabPane;
     @FXML
     protected Tab playTab, optionsTab;
     @FXML
@@ -103,13 +95,11 @@ public class GameMineController extends BaseController {
     @FXML
     protected Label timeLabel, minesLabel;
     @FXML
-    protected WebView hisView;
-    @FXML
     protected CheckBox miaowCheck;
 
     public GameMineController() {
-        baseTitle = Languages.message("GameMine");
-        TipsLabelKey = "GameMineComments";
+        baseTitle = message("GameMine");
+        TipsLabelKey = "GameMineTips";
     }
 
     @Override
@@ -167,35 +157,13 @@ public class GameMineController extends BaseController {
     }
 
     @Override
-    public boolean keyFilter(KeyEvent event) {
-        KeyCode code = event.getCode();
-        if (code != null) {
-            switch (code) {
-                case H:
-                    helpMe();
-                    return true;
-                case N:
-                    createAction();
-                    return true;
-                case R:
-                    recoverAction();
-                    return true;
-                case Z:
-                    undoAction();
-                    return true;
-            }
-        }
-        return super.keyFilter(event);
-    }
-
-    @Override
     public void setControlsStyle() {
         try {
             super.setControlsStyle();
-            NodeStyleTools.setTooltip(undoButton, Languages.message("Undo") + "\nz / Z");
-            NodeStyleTools.setTooltip(recoverButton, Languages.message("Replay") + "\nr / R");
-            NodeStyleTools.setTooltip(createButton, Languages.message("NewGame") + "\nn / N");
-            NodeStyleTools.setTooltip(helpMeButton, Languages.message("HelpMe") + "\nh / H");
+            NodeStyleTools.setTooltip(undoButton, message("Undo") + "\nz / Ctrl+z");
+            NodeStyleTools.setTooltip(recoverButton, message("Replay") + "\nr / Ctrl+r");
+            NodeStyleTools.setTooltip(createButton, message("NewGame") + "\nn / Ctrl+n");
+            NodeStyleTools.setTooltip(helpMeButton, message("HelpMe") + "\nh / Ctrl+h");
         } catch (Exception e) {
             MyBoxLog.debug(e.toString());
         }
@@ -385,7 +353,7 @@ public class GameMineController extends BaseController {
                 timer.cancel();
                 timer = null;
             }
-            popInformation(Languages.message("Congratulations"));
+            popInformation(message("Congratulations"));
             if (miaowCheck.isSelected()) {
                 SoundTools.miao3();
             }
@@ -445,20 +413,20 @@ public class GameMineController extends BaseController {
     }
 
     protected void loadRecords() {
-        hisView.getEngine().loadContent("");
+        webViewController.loadContents(null);
         synchronized (this) {
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 private String html;
 
                 @Override
                 protected boolean handle() {
                     List<String> names = new ArrayList<>();
-                    names.addAll(Arrays.asList(Languages.message("Height"), Languages.message("Width"), Languages.message("MinesNumber"),
-                            Languages.message("Cost"), Languages.message("Time")
+                    names.addAll(Arrays.asList(message("Height"), message("Width"), message("MinesNumber"),
+                            message("Cost"), message("Time")
                     ));
                     StringTable table = new StringTable(names);
                     List<StringValues> records = TableStringValues.values("GameMineHistory");
@@ -475,27 +443,17 @@ public class GameMineController extends BaseController {
                         ));
                         table.add(row);
                     }
-                    String htmlStyle = UserConfig.getString(baseName + "HtmlStyle", "Default");
-                    html = HtmlWriteTools.html(null, htmlStyle, StringTable.tableDiv(table));
+                    html = HtmlWriteTools.html(null, HtmlStyles.styleValue("Default"), StringTable.tableDiv(table));
                     return true;
                 }
 
                 @Override
                 protected void whenSucceeded() {
-                    hisView.getEngine().loadContent(html);
+                    webViewController.loadContents(html);
                 }
             };
-//            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
-    }
-
-    @FXML
-    public void popLinksStyle(MouseEvent mouseEvent) {
-        popMenu = PopTools.popHtmlStyle(mouseEvent, this, popMenu, hisView.getEngine());
     }
 
     @FXML
@@ -504,7 +462,7 @@ public class GameMineController extends BaseController {
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
                 @Override
                 protected boolean handle() {
                     TableStringValues.clear("GameMineHistory");
@@ -513,14 +471,10 @@ public class GameMineController extends BaseController {
 
                 @Override
                 protected void whenSucceeded() {
-                    hisView.getEngine().loadContent("");
+                    webViewController.loadContents(null);
                 }
             };
-//            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
     }
 
@@ -682,7 +636,7 @@ public class GameMineController extends BaseController {
             popMenu.setAutoHide(true);
 
             MenuItem menu;
-            menu = new MenuItem(Languages.message("Easy"));
+            menu = new MenuItem(message("Easy"));
             menu.setOnAction((ActionEvent event) -> {
                 boardWidthInput.setText("9");
                 boardHeightInput.setText("9");
@@ -690,7 +644,7 @@ public class GameMineController extends BaseController {
             });
             popMenu.getItems().add(menu);
 
-            menu = new MenuItem(Languages.message("Medium"));
+            menu = new MenuItem(message("Medium"));
             menu.setOnAction((ActionEvent event) -> {
                 boardWidthInput.setText("16");
                 boardHeightInput.setText("16");
@@ -698,7 +652,7 @@ public class GameMineController extends BaseController {
             });
             popMenu.getItems().add(menu);
 
-            menu = new MenuItem(Languages.message("Hard"));
+            menu = new MenuItem(message("Hard"));
             menu.setOnAction((ActionEvent event) -> {
                 boardWidthInput.setText("30");
                 boardHeightInput.setText("16");
@@ -707,7 +661,7 @@ public class GameMineController extends BaseController {
             popMenu.getItems().add(menu);
 
             popMenu.getItems().add(new SeparatorMenuItem());
-            menu = new MenuItem(Languages.message("PopupClose"));
+            menu = new MenuItem(message("PopupClose"), StyleTools.getIconImage("iconCancel.png"));
             menu.setStyle("-fx-text-fill: #2e598a;");
             menu.setOnAction(new EventHandler<ActionEvent>() {
                 @Override
@@ -729,53 +683,53 @@ public class GameMineController extends BaseController {
         try {
             int v = Integer.parseInt(chessSizeSelector.getValue());
             if (v < 10) {
-                chessSizeSelector.getEditor().setStyle(NodeStyleTools.badStyle);
-                popError(Languages.message("TooSmall"));
+                chessSizeSelector.getEditor().setStyle(UserConfig.badStyle());
+                popError(message("TooSmall"));
                 return;
             }
             chessSize = v;
             chessSizeSelector.getEditor().setStyle(null);
         } catch (Exception e) {
-            chessSizeSelector.getEditor().setStyle(NodeStyleTools.badStyle);
+            chessSizeSelector.getEditor().setStyle(UserConfig.badStyle());
             return;
         }
         try {
             int v = Integer.parseInt(boardWidthInput.getText());
             if (v < 2) {
-                popError(Languages.message("TooSmall"));
-                boardWidthInput.setStyle(NodeStyleTools.badStyle);
+                popError(message("TooSmall"));
+                boardWidthInput.setStyle(UserConfig.badStyle());
                 return;
             }
             hNumber = v;
             boardWidthInput.setStyle(null);
         } catch (Exception e) {
-            boardWidthInput.setStyle(NodeStyleTools.badStyle);
+            boardWidthInput.setStyle(UserConfig.badStyle());
             return;
         }
         try {
             int v = Integer.parseInt(boardHeightInput.getText());
             if (v < 2) {
-                popError(Languages.message("TooSmall"));
-                boardHeightInput.setStyle(NodeStyleTools.badStyle);
+                popError(message("TooSmall"));
+                boardHeightInput.setStyle(UserConfig.badStyle());
                 return;
             }
             vNumber = v;
             boardHeightInput.setStyle(null);
         } catch (Exception e) {
-            boardHeightInput.setStyle(NodeStyleTools.badStyle);
+            boardHeightInput.setStyle(UserConfig.badStyle());
             return;
         }
         try {
             int v = Integer.parseInt(boardMinesInput.getText());
             if (v <= 0 || v >= hNumber * vNumber) {
-                popError(Languages.message("InvalidData"));
-                boardMinesInput.setStyle(NodeStyleTools.badStyle);
+                popError(message("InvalidData"));
+                boardMinesInput.setStyle(UserConfig.badStyle());
                 return;
             }
             minesNumber = v;
             boardMinesInput.setStyle(null);
         } catch (Exception e) {
-            boardMinesInput.setStyle(NodeStyleTools.badStyle);
+            boardMinesInput.setStyle(UserConfig.badStyle());
         }
         UserConfig.setInt(baseName + "ChessSize", chessSize);
         UserConfig.setInt(baseName + "BoardHeight", vNumber);
@@ -790,22 +744,22 @@ public class GameMineController extends BaseController {
         try {
             int v = Integer.parseInt(historiesNumberSelector.getValue());
             if (v < 1) {
-                historiesNumberSelector.getEditor().setStyle(NodeStyleTools.badStyle);
-                popError(Languages.message("TooSmall"));
+                historiesNumberSelector.getEditor().setStyle(UserConfig.badStyle());
+                popError(message("TooSmall"));
                 return;
             }
             historiesNumber = v;
             historiesNumberSelector.getEditor().setStyle(null);
             UserConfig.setInt(baseName + "HistoriesNumber", historiesNumber);
         } catch (Exception e) {
-            historiesNumberSelector.getEditor().setStyle(NodeStyleTools.badStyle);
+            historiesNumberSelector.getEditor().setStyle(UserConfig.badStyle());
             return;
         }
         synchronized (this) {
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
                 @Override
                 protected boolean handle() {
                     TableStringValues.max("GameMineHistory", historiesNumber);
@@ -817,13 +771,67 @@ public class GameMineController extends BaseController {
                     loadRecords();
                 }
             };
-//            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
 
+    }
+
+    @Override
+    public boolean keyFilter(KeyEvent event) {
+        KeyCode code = event.getCode();
+        if (code != null) {
+            switch (code) {
+                case H:
+                    helpMe();
+                    return true;
+                case N:
+                    createAction();
+                    return true;
+                case R:
+                    recoverAction();
+                    return true;
+                case Z:
+                    undoAction();
+                    return true;
+            }
+        }
+        return super.keyFilter(event);
+    }
+
+    @Override
+    public boolean controlAltR() {
+        if (targetIsTextInput()) {
+            return false;
+        }
+        recoverAction();
+        return true;
+    }
+
+    @Override
+    public boolean controlAltZ() {
+        if (targetIsTextInput()) {
+            return false;
+        }
+        undoAction();
+        return true;
+    }
+
+    @Override
+    public boolean controlAltH() {
+        if (targetIsTextInput()) {
+            return false;
+        }
+        helpMe();
+        return true;
+    }
+
+    @Override
+    public boolean controlAltN() {
+        if (targetIsTextInput()) {
+            return false;
+        }
+        createAction();
+        return true;
     }
 
 }

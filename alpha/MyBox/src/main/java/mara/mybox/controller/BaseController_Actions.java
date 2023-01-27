@@ -9,21 +9,22 @@ import javafx.concurrent.Task;
 import javafx.concurrent.WorkerStateEvent;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
+import javafx.scene.Node;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Hyperlink;
 import javafx.scene.layout.Region;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
-import mara.mybox.db.data.GeographyCode;
-import mara.mybox.db.table.TableUserConf;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fxml.ControllerTools;
 import mara.mybox.fxml.PopTools;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.fxml.WindowTools;
 import mara.mybox.value.AppVariables;
 import mara.mybox.value.Fxmls;
-import mara.mybox.value.Languages;
+import static mara.mybox.value.Languages.message;
+import mara.mybox.value.UserConfig;
 
 /**
  * @Author Mara
@@ -46,7 +47,7 @@ public abstract class BaseController_Actions extends BaseController_Interface {
         if (address == null || address.isBlank()) {
             return;
         }
-        WebBrowserController.oneOpen(address);
+        WebBrowserController.oneOpen(address, true);
     }
 
     public void openLink(File file) {
@@ -67,7 +68,7 @@ public abstract class BaseController_Actions extends BaseController_Interface {
 
     @FXML
     public void derbyHelp() {
-        openLink("http://db.apache.org/derby/docs/10.15/ref/index.html");
+        openLink("https://db.apache.org/derby/docs/10.15/ref/index.html");
     }
 
     @FXML
@@ -101,7 +102,12 @@ public abstract class BaseController_Actions extends BaseController_Interface {
     }
 
     @FXML
-    public void addAction(ActionEvent event) {
+    public void addAction() {
+
+    }
+
+    @FXML
+    public void addRowsAction() {
 
     }
 
@@ -133,6 +139,10 @@ public abstract class BaseController_Actions extends BaseController_Interface {
     public void myBoxClipBoard() {
         if (this instanceof BaseImageController) {
             ImageInMyBoxClipboardController.oneOpen();
+
+        } else if (this instanceof ControlData2DEditTable) {
+            Data2DPasteContentInMyBoxClipboardController.open((ControlData2DEditTable) this);
+
         } else {
             TextInMyBoxClipboardController.oneOpen();
         }
@@ -304,20 +314,19 @@ public abstract class BaseController_Actions extends BaseController_Interface {
     }
 
     public void clearUserSettings() {
-        if (!PopTools.askSure(getBaseTitle(), Languages.message("ClearPersonalSettings"), Languages.message("SureClear"))) {
+        if (!PopTools.askSure(myController, getBaseTitle(), message("ClearPersonalSettings"), message("SureClear"))) {
             return;
         }
         synchronized (this) {
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(myController) {
 
                 @Override
                 protected boolean handle() {
                     try {
-                        new TableUserConf().clear();
-                        AppVariables.initAppVaribles();
+                        UserConfig.clear();
                         return true;
                     } catch (Exception e) {
                         MyBoxLog.debug(e.toString());
@@ -331,11 +340,7 @@ public abstract class BaseController_Actions extends BaseController_Interface {
                     popSuccessful();
                 }
             };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
     }
 
@@ -347,6 +352,14 @@ public abstract class BaseController_Actions extends BaseController_Interface {
         ControllerTools.openTarget(null, file);
     }
 
+    public void browse(File file) {
+        try {
+            browseURI(file.toURI());
+        } catch (Exception e) {
+            MyBoxLog.error(e.toString());
+        }
+    }
+
     public void browse(String url) {
         try {
             browseURI(new URI(url));
@@ -356,7 +369,7 @@ public abstract class BaseController_Actions extends BaseController_Interface {
     }
 
     public void browseURI(URI uri) {
-        PopTools.browseURI(uri);
+        PopTools.browseURI(myController, uri);
     }
 
     public LoadingController handling() {
@@ -371,9 +384,13 @@ public abstract class BaseController_Actions extends BaseController_Interface {
         return handling(task, Modality.WINDOW_MODAL, null);
     }
 
+    public LoadingController handling(Task<?> task, String info) {
+        return handling(task, Modality.WINDOW_MODAL, info);
+    }
+
     public LoadingController handling(Task<?> task, Modality block, String info) {
         try {
-            LoadingController controller = (LoadingController) WindowTools.handling(getMyStage(), Fxmls.LoadingFxml);
+            LoadingController controller = (LoadingController) WindowTools.handling(getMyWindow(), Fxmls.LoadingFxml);
             controller.init(task);
             if (info != null) {
                 controller.setInfo(info);
@@ -381,24 +398,71 @@ public abstract class BaseController_Actions extends BaseController_Interface {
             controller.parentController = myController;
 
             if (task != null) {
+                if (task instanceof SingletonTask) {
+                    SingletonTask sTask = (SingletonTask) task;
+                    sTask.setController(myController);
+                    sTask.setSelf(sTask);
+                    sTask.setLoading(controller);
+                }
                 task.setOnSucceeded((WorkerStateEvent event) -> {
                     controller.closeStage();
                 });
                 task.setOnCancelled((WorkerStateEvent event) -> {
-                    popInformation(Languages.message("Canceled"));
+                    popInformation(message("Canceled"));
                     controller.closeStage();
                 });
                 task.setOnFailed((WorkerStateEvent event) -> {
-                    popError(Languages.message("Error"));
+                    popError(message("Error"));
                     controller.closeStage();
                 });
             }
             return controller;
-
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
             return null;
         }
+    }
+
+    public LoadingController start(Task<?> task) {
+        return start(task, true, null);
+    }
+
+    public LoadingController start(Task<?> task, String info) {
+        return start(task, true, info);
+    }
+
+    public LoadingController start(Task<?> task, boolean handling) {
+        return start(task, handling, null);
+    }
+
+    public LoadingController start(Task<?> task, boolean handling, String info) {
+        LoadingController controller = null;
+        if (handling) {
+            controller = handling(task, info);
+        } else if (task instanceof SingletonTask) {
+            SingletonTask sTask = (SingletonTask) task;
+            sTask.setController(myController);
+            sTask.setSelf(sTask);
+            sTask.setLoading(controller);
+        }
+        Thread thread = new Thread(task);
+        thread.setDaemon(false);
+        thread.start();
+        return controller;
+    }
+
+    public void start(Task<?> task, Node node) {
+        if (task instanceof SingletonTask) {
+            SingletonTask sTask = (SingletonTask) task;
+            sTask.setController(myController);
+            sTask.setSelf(sTask);
+            if (node != null) {
+                sTask.setDisbaleNode(node);
+            }
+        }
+        Thread thread = new Thread(task);
+        thread.setDaemon(false);
+        thread.start();
     }
 
     public void multipleFilesGenerated(final List<String> fileNames) {
@@ -409,7 +473,7 @@ public abstract class BaseController_Actions extends BaseController_Interface {
             String path = new File(fileNames.get(0)).getParent();
             Alert alert = new Alert(Alert.AlertType.INFORMATION);
             alert.setTitle(getMyStage().getTitle());
-            String info = MessageFormat.format(Languages.message("GeneratedFilesResult"),
+            String info = MessageFormat.format(message("GeneratedFilesResult"),
                     fileNames.size(), "\"" + path + "\"");
             int num = fileNames.size();
             if (num > 10) {
@@ -423,10 +487,10 @@ public abstract class BaseController_Actions extends BaseController_Interface {
             }
             alert.setContentText(info);
             alert.getDialogPane().setMinHeight(Region.USE_PREF_SIZE);
-            ButtonType buttonOpen = new ButtonType(Languages.message("OpenTargetPath"));
-            ButtonType buttonBrowse = new ButtonType(Languages.message("Browse"));
-            ButtonType buttonBrowseNew = new ButtonType(Languages.message("BrowseInNew"));
-            ButtonType buttonClose = new ButtonType(Languages.message("Close"));
+            ButtonType buttonOpen = new ButtonType(message("OpenTargetPath"));
+            ButtonType buttonBrowse = new ButtonType(message("Browse"));
+            ButtonType buttonBrowseNew = new ButtonType(message("BrowseInNew"));
+            ButtonType buttonClose = new ButtonType(message("Close"));
             alert.getButtonTypes().setAll(buttonBrowseNew, buttonBrowse, buttonOpen, buttonClose);
             Stage stage = (Stage) alert.getDialogPane().getScene().getWindow();
             stage.setAlwaysOnTop(true);
@@ -434,6 +498,9 @@ public abstract class BaseController_Actions extends BaseController_Interface {
             stage.sizeToScene();
 
             Optional<ButtonType> result = alert.showAndWait();
+            if (result == null || !result.isPresent()) {
+                return;
+            }
             if (result.get() == buttonOpen) {
                 browseURI(new File(path).toURI());
                 recordFileOpened(path);
@@ -453,18 +520,6 @@ public abstract class BaseController_Actions extends BaseController_Interface {
             MyBoxLog.debug(e.toString());
         }
 
-    }
-
-    public void dataChanged() {
-
-    }
-
-    // pick coordinate from outside
-    public void setCoordinate(double longitude, double latitude) {
-    }
-
-    // pick GeographyCode from outside
-    public void setGeographyCode(GeographyCode code) {
     }
 
 }

@@ -2,133 +2,129 @@ package mara.mybox.controller;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
-import java.text.MessageFormat;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import javafx.beans.value.ObservableValue;
 import javafx.fxml.FXML;
 import javax.imageio.ImageIO;
-import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.StyleTools;
+import mara.mybox.bufferedimage.ImageFileInformation;
+import mara.mybox.bufferedimage.ImageInformation;
 import mara.mybox.bufferedimage.PixelsOperation;
 import mara.mybox.bufferedimage.PixelsOperationFactory;
+import mara.mybox.dev.MyBoxLog;
+import mara.mybox.fxml.SingletonTask;
+import mara.mybox.fxml.SoundTools;
+import mara.mybox.fxml.style.StyleTools;
 import mara.mybox.imagefile.ImageFileWriters;
 import mara.mybox.tools.FileDeleteTools;
-import mara.mybox.tools.FileTools;
 import mara.mybox.tools.SystemTools;
-import mara.mybox.value.AppVariables;
 import mara.mybox.value.Colors;
 import static mara.mybox.value.Languages.message;
-
-import mara.mybox.value.Languages;
-import mara.mybox.value.UserConfig;
 
 /**
  * @Author Mara
  * @CreateDate 2021-5-20
  * @License Apache License Version 2.0
  */
-public class MyBoxIconsController extends BaseTaskController {
+public class MyBoxIconsController extends BaseBatchFileController {
+
+    protected File srcRoot;
+    protected String resourcePath, lightBluePath, redPath, pinkPath, orangePath, bluePath, darkGreenPath;
+    protected PixelsOperation operation1, operation2;
 
     @FXML
-    protected ControlFileSelecter sourceCodesPathController;
+    protected ControlPathInput sourceCodesPathController;
 
     public MyBoxIconsController() {
-        baseTitle = Languages.message("MakeIcons");
+        baseTitle = message("MakeIcons");
     }
 
     @Override
     public void initControls() {
         try {
             super.initControls();
-            sourceCodesPathController.label(Languages.message("sourceCodesPath"))
-                    .isDirectory(true).isSource(false).mustExist(true).permitNull(true)
-                    .defaultValue("win".equals(SystemTools.os()) ? "D:\\MyBox" : "/home/mara/mybox")
-                    .name("SourceCodesPath", true);
+            sourceCodesPathController.label(message("sourceCodesPath"))
+                    .isDirectory(true).isSource(false).mustExist(true).permitNull(false)
+                    .defaultFile("win".equals(SystemTools.os()) ? new File("D:\\MyBox") : new File("/home/mara/mybox"))
+                    .baseName(baseName).savedName(baseName + "SourceCodesPath").init();
+
+            sourceCodesPathController.notify.addListener((ObservableValue<? extends Boolean> v, Boolean ov, Boolean nv) -> {
+                checkPath();
+            });
+            checkPath();
 
         } catch (Exception e) {
             MyBoxLog.debug(e.toString());
         }
     }
 
-    @Override
-    public void startAction() {
-        synchronized (this) {
-            if (task != null && !task.isQuit()) {
-                return;
-            }
-            startButton.setDisable(true);
-            initLogs();
-            tabPane.getSelectionModel().select(logsTab);
-            startTask();
-        }
-    }
-
-    @Override
-    protected boolean doTask() {
+    public boolean checkPath() {
         try {
-            String saved = UserConfig.getString("SourceCodesPath", null);
-            if (saved == null) {
-                parentController.popError(Languages.message("MissSourceCodesPath"));
+            tableData.clear();
+            srcRoot = sourceCodesPathController.file();
+            if (srcRoot == null) {
+                popError(message("InvalidSourceCodesPath"));
                 return false;
             }
-            String srcPath = saved + "/src/main/resources/";
-            String lightBluePath = srcPath + StyleTools.ButtonsPath + "LightBlue/";
+            resourcePath = srcRoot + "/src/main/resources/";
+            lightBluePath = resourcePath + StyleTools.ButtonsPath + "LightBlue/";
             if (!new File(lightBluePath).exists()) {
-                parentController.popError(Languages.message("WrongSourceCodesPath"));
+                popError(message("WrongSourceCodesPath"));
                 return false;
             }
-            updateLogs(srcPath + StyleTools.ButtonsPath);
-            String redPath = srcPath + StyleTools.ButtonsPath + "Red/";
-            FileDeleteTools.clearDir(new File(redPath));
-            String pinkPath = srcPath + StyleTools.ButtonsPath + "Pink/";
-            FileDeleteTools.clearDir(new File(pinkPath));
-            String orangePath = srcPath + StyleTools.ButtonsPath + "Orange/";
-            FileDeleteTools.clearDir(new File(orangePath));
-            String bluePath = srcPath + StyleTools.ButtonsPath + "Blue/";
-            FileDeleteTools.clearDir(new File(bluePath));
-            String darkGreenPath = srcPath + StyleTools.ButtonsPath + "DarkGreen/";
-            FileDeleteTools.clearDir(new File(darkGreenPath));
-
-            File[] icons = new File(lightBluePath).listFiles();
-            BufferedImage src = null;
-
-            PixelsOperation operation1 = PixelsOperationFactory.replaceColorOperation(src,
-                    Colors.MyBoxDarkGreyBlue, Colors.MyBoxDarkGreyBlue, 20);
-            PixelsOperation operation2 = PixelsOperationFactory.replaceColorOperation(src,
-                    Colors.MyBoxGreyBlue, Colors.MyBoxGreyBlue, 20);
-
-            String filename;
-            for (File icon : icons) {
-                filename = icon.getName();
-                if (!filename.startsWith("icon") || !filename.endsWith(".png")) {
-                    continue;
+            redPath = resourcePath + StyleTools.ButtonsPath + "Red/";
+            pinkPath = resourcePath + StyleTools.ButtonsPath + "Pink/";
+            orangePath = resourcePath + StyleTools.ButtonsPath + "Orange/";
+            bluePath = resourcePath + StyleTools.ButtonsPath + "Blue/";
+            darkGreenPath = resourcePath + StyleTools.ButtonsPath + "DarkGreen/";
+            synchronized (this) {
+                if (task != null) {
+                    task.cancel();
                 }
-                updateLogs(Languages.message("SourceFile") + ": " + icon.getAbsolutePath());
-                src = ImageIO.read(icon);
+                task = new SingletonTask<Void>(this) {
 
-                operation1.setImage(src).setColorPara2(Colors.MyBoxDarkBlue);
-                operation2.setImage(operation1.operate()).setColorPara2(Colors.MyBoxLightBlue);
-                ImageFileWriters.writeImageFile(operation2.operate(), "png", bluePath + filename);
-                updateLogs(MessageFormat.format(Languages.message("FilesGenerated"), bluePath + filename));
+                    private List<ImageInformation> infos;
 
-                operation1.setImage(src).setColorPara2(Colors.MyBoxDarkPink);
-                operation2.setImage(operation1.operate()).setColorPara2(Colors.MyBoxLightPink);
-                ImageFileWriters.writeImageFile(operation2.operate(), "png", pinkPath + filename);
-                updateLogs(MessageFormat.format(Languages.message("FilesGenerated"), pinkPath + filename));
+                    @Override
+                    protected boolean handle() {
+                        File[] icons = new File(lightBluePath).listFiles();
+                        infos = new ArrayList<>();
+                        for (File file : icons) {
+                            if (task == null || isCancelled()) {
+                                return false;
+                            }
+                            ImageFileInformation finfo = ImageFileInformation.create(file);
+                            infos.addAll(finfo.getImagesInformation());
+                        }
+                        Collections.sort(infos, new Comparator<ImageInformation>() {
+                            @Override
+                            public int compare(ImageInformation v1, ImageInformation v2) {
+                                long diff = v2.getModifyTime() - v1.getModifyTime();
+                                if (diff == 0) {
+                                    return 0;
+                                } else if (diff > 0) {
+                                    return 1;
+                                } else {
+                                    return -1;
+                                }
+                            }
+                        });
+                        return true;
+                    }
 
-                operation1.setImage(src).setColorPara2(Colors.MyBoxDarkRed);
-                operation2.setImage(operation1.operate()).setColorPara2(Colors.MyBoxLightRed);
-                ImageFileWriters.writeImageFile(operation2.operate(), "png", redPath + filename);
-                updateLogs(MessageFormat.format(Languages.message("FilesGenerated"), redPath + filename));
+                    @Override
+                    protected void whenSucceeded() {
+                        if (!infos.isEmpty()) {
+                            tableData.addAll(infos);
+                            tableView.refresh();
+                            popDone();
+                        }
+                    }
 
-                operation1.setImage(src).setColorPara2(Colors.MyBoxOrange);
-                operation2.setImage(operation1.operate()).setColorPara2(Colors.MyBoxLightOrange);
-                ImageFileWriters.writeImageFile(operation2.operate(), "png", orangePath + filename);
-                updateLogs(MessageFormat.format(Languages.message("FilesGenerated"), orangePath + filename));
-
-                operation1.setImage(src).setColorPara2(Colors.MyBoxDarkGreen);
-                operation2.setImage(operation1.operate()).setColorPara2(Colors.MyBoxLightGreen);
-                ImageFileWriters.writeImageFile(operation2.operate(), "png", darkGreenPath + filename);
-                updateLogs(MessageFormat.format(Languages.message("FilesGenerated"), darkGreenPath + filename));
-
+                };
+                start(task);
             }
             return true;
         } catch (Exception e) {
@@ -138,13 +134,80 @@ public class MyBoxIconsController extends BaseTaskController {
     }
 
     @Override
-    protected void afterSuccess() {
-        if (parentController != null) {
-            parentController.popInformation(Languages.message("TakeEffectWhenReboot"));
-        } else {
-            popInformation(Languages.message("TakeEffectWhenReboot"));
+    public boolean makeMoreParameters() {
+        try {
+            if (tableData == null || tableData.isEmpty()) {
+                actualParameters = null;
+                return false;
+            }
+            updateLogs(resourcePath + StyleTools.ButtonsPath);
+            if (tableView.getSelectionModel().getSelectedItem() == null) {
+                FileDeleteTools.clearDir(new File(redPath));
+                FileDeleteTools.clearDir(new File(pinkPath));
+                FileDeleteTools.clearDir(new File(orangePath));
+                FileDeleteTools.clearDir(new File(bluePath));
+                FileDeleteTools.clearDir(new File(darkGreenPath));
+            }
+            return super.makeMoreParameters();
+        } catch (Exception e) {
+            MyBoxLog.debug(e.toString());
+            return false;
         }
-        startButton.setDisable(false);
+    }
+
+    @Override
+    public String handleFile(File file) {
+        try {
+            if (task == null || task.isCancelled()) {
+                return message("Canceled");
+            }
+            String filename = file.getName();
+            if (!filename.startsWith("icon") || !filename.endsWith(".png")) {
+                return message("Skip");
+            }
+            updateLogs(message("SourceFile") + ": " + file.getAbsolutePath());
+            BufferedImage srcImage = ImageIO.read(file);
+
+            operation1 = PixelsOperationFactory.replaceColorOperation(srcImage,
+                    Colors.MyBoxDarkGreyBlue, Colors.MyBoxDarkGreyBlue, 20);
+            operation2 = PixelsOperationFactory.replaceColorOperation(srcImage,
+                    Colors.MyBoxGreyBlue, Colors.MyBoxGreyBlue, 20);
+
+            operation1.setImage(srcImage).setColorPara2(Colors.MyBoxDarkBlue);
+            operation2.setImage(operation1.operate()).setColorPara2(Colors.MyBoxLightBlue);
+            ImageFileWriters.writeImageFile(operation2.operate(), "png", bluePath + filename);
+            targetFileGenerated(new File(bluePath + filename));
+
+            operation1.setImage(srcImage).setColorPara2(Colors.MyBoxDarkPink);
+            operation2.setImage(operation1.operate()).setColorPara2(Colors.MyBoxLightPink);
+            ImageFileWriters.writeImageFile(operation2.operate(), "png", pinkPath + filename);
+            targetFileGenerated(new File(pinkPath + filename));
+
+            operation1.setImage(srcImage).setColorPara2(Colors.MyBoxDarkRed);
+            operation2.setImage(operation1.operate()).setColorPara2(Colors.MyBoxLightRed);
+            ImageFileWriters.writeImageFile(operation2.operate(), "png", redPath + filename);
+            targetFileGenerated(new File(redPath + filename));
+
+            operation1.setImage(srcImage).setColorPara2(Colors.MyBoxOrange);
+            operation2.setImage(operation1.operate()).setColorPara2(Colors.MyBoxLightOrange);
+            ImageFileWriters.writeImageFile(operation2.operate(), "png", orangePath + filename);
+            targetFileGenerated(new File(orangePath + filename));
+
+            operation1.setImage(srcImage).setColorPara2(Colors.MyBoxDarkGreen);
+            operation2.setImage(operation1.operate()).setColorPara2(Colors.MyBoxLightGreen);
+            ImageFileWriters.writeImageFile(operation2.operate(), "png", darkGreenPath + filename);
+            targetFileGenerated(new File(darkGreenPath + filename));
+
+            return message("Successful");
+        } catch (Exception e) {
+            return file + " " + e.toString();
+        }
+    }
+
+    @Override
+    public void donePost() {
+        SoundTools.miao3();
+        popInformation(message("TakeEffectWhenReboot"));
     }
 
 }

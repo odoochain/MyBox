@@ -14,15 +14,12 @@ import javafx.scene.control.TextField;
 import javafx.scene.control.Toggle;
 import javafx.scene.control.ToggleGroup;
 import mara.mybox.bufferedimage.ImageBlend;
-import mara.mybox.bufferedimage.MargionTools;
+import mara.mybox.bufferedimage.MarginTools;
 import mara.mybox.bufferedimage.PixelsBlend;
 import mara.mybox.bufferedimage.PixelsBlendFactory;
 import mara.mybox.bufferedimage.TransformTools;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fximage.FxImageTools;
-import mara.mybox.fxml.NodeStyleTools;
-import mara.mybox.fxml.NodeTools;
-import static mara.mybox.fxml.NodeStyleTools.badStyle;
 import mara.mybox.fxml.ValidationTools;
 import mara.mybox.imagefile.ImageFileReaders;
 import mara.mybox.value.Colors;
@@ -73,14 +70,13 @@ public class ImageManufactureBatchPasteController extends BaseImageManufactureBa
             super.initControls();
 
             startButton.disableProperty().unbind();
-            startButton.disableProperty().bind(Bindings.isEmpty(targetPathInput.textProperty())
-                    .or(targetPathInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+            startButton.disableProperty().bind(targetPathController.valid.not()
                     .or(Bindings.isEmpty(tableView.getItems()))
                     .or(Bindings.isEmpty(sourceFileInput.textProperty()))
-                    .or(sourceFileInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
-                    .or(xInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
-                    .or(yInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
-                    .or(marginInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                    .or(sourceFileInput.styleProperty().isEqualTo(UserConfig.badStyle()))
+                    .or(xInput.styleProperty().isEqualTo(UserConfig.badStyle()))
+                    .or(yInput.styleProperty().isEqualTo(UserConfig.badStyle()))
+                    .or(marginInput.styleProperty().isEqualTo(UserConfig.badStyle()))
             );
 
         } catch (Exception e) {
@@ -245,10 +241,10 @@ public class ImageManufactureBatchPasteController extends BaseImageManufactureBa
                 UserConfig.setInt(baseName + "Margin", margin);
                 marginInput.setStyle(null);
             } else {
-                marginInput.setStyle(NodeStyleTools.badStyle);
+                marginInput.setStyle(UserConfig.badStyle());
             }
         } catch (Exception e) {
-            marginInput.setStyle(NodeStyleTools.badStyle);
+            marginInput.setStyle(UserConfig.badStyle());
         }
 
     }
@@ -260,10 +256,10 @@ public class ImageManufactureBatchPasteController extends BaseImageManufactureBa
                 posX = v;
                 xInput.setStyle(null);
             } else {
-                xInput.setStyle(NodeStyleTools.badStyle);
+                xInput.setStyle(UserConfig.badStyle());
             }
         } catch (Exception e) {
-            xInput.setStyle(NodeStyleTools.badStyle);
+            xInput.setStyle(UserConfig.badStyle());
         }
 
         try {
@@ -272,10 +268,10 @@ public class ImageManufactureBatchPasteController extends BaseImageManufactureBa
                 posY = v;
                 yInput.setStyle(null);
             } else {
-                yInput.setStyle(NodeStyleTools.badStyle);
+                yInput.setStyle(UserConfig.badStyle());
             }
         } catch (Exception e) {
-            yInput.setStyle(NodeStyleTools.badStyle);
+            yInput.setStyle(UserConfig.badStyle());
         }
 
     }
@@ -299,12 +295,12 @@ public class ImageManufactureBatchPasteController extends BaseImageManufactureBa
             BufferedImage bgImage = source;
             if (enlargeCheck.isSelected()) {
                 if (clipSource.getWidth() > bgImage.getWidth()) {
-                    bgImage = MargionTools.addMargins(bgImage,
+                    bgImage = MarginTools.addMargins(bgImage,
                             Colors.TRANSPARENT, clipSource.getWidth() - bgImage.getWidth() + 1,
                             false, false, false, true);
                 }
                 if (clipSource.getHeight() > bgImage.getHeight()) {
-                    bgImage = MargionTools.addMargins(bgImage,
+                    bgImage = MarginTools.addMargins(bgImage,
                             Colors.TRANSPARENT, clipSource.getHeight() - bgImage.getHeight() + 1,
                             false, true, false, false);
                 }

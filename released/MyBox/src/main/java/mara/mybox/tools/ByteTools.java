@@ -10,7 +10,7 @@ import java.nio.charset.Charset;
 import java.util.zip.DeflaterOutputStream;
 import java.util.zip.InflaterOutputStream;
 import javafx.scene.control.IndexRange;
-import javax.imageio.ImageIO;
+import mara.mybox.bufferedimage.BufferedImageTools;
 import mara.mybox.data.FileEditInformation.Line_Break;
 import mara.mybox.data.FindReplaceString;
 import mara.mybox.dev.MyBoxLog;
@@ -252,7 +252,25 @@ public class ByteTools {
         }
     }
 
-    public static String validateTextHex(String text) {
+    public static boolean validateTextHex(String text) {
+        try {
+            String inHex = text.replaceAll("\\s+|\n", "").toUpperCase();
+            int hexlen = inHex.length();
+            if (hexlen % 2 == 1) {
+                return false;
+            }
+            String b;
+            for (int i = 0; i < hexlen; i += 2) {
+                b = inHex.substring(i, i + 2);
+                Integer.parseInt(b, 16);
+            }
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public static String formatTextHex(String text) {
         try {
             String inHex = text.replaceAll("\\s+|\n", "").toUpperCase();
             int hexlen = inHex.length();
@@ -512,13 +530,7 @@ public class ByteTools {
     }
 
     public static byte[] imageToBytes(BufferedImage image, String format) {
-        try ( ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            ImageIO.write(image, format, out);
-            return out.toByteArray();
-        } catch (Exception e) {
-            MyBoxLog.error(e);
-            return null;
-        }
+        return BufferedImageTools.bytes(image, format);
     }
 
 }

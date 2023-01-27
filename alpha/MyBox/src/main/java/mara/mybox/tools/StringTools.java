@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.nio.charset.Charset;
 import java.text.Collator;
 import java.text.DecimalFormat;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -12,6 +13,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.value.AppValues;
+import static mara.mybox.value.Languages.message;
 
 /**
  * @Author Mara
@@ -215,6 +217,7 @@ public class StringTools {
                 return compare.compare(f1, f2);
             }
         });
+
     }
 
     public static void sort(List<String> strings) {
@@ -241,8 +244,12 @@ public class StringTools {
     }
 
     public static String format(long data) {
-        DecimalFormat df = new DecimalFormat("#,###");
-        return df.format(data);
+        try {
+            DecimalFormat df = new DecimalFormat("#,###");
+            return df.format(data);
+        } catch (Exception e) {
+            return message("Invalid");
+        }
     }
 
     public static String format(double data) {
@@ -259,6 +266,25 @@ public class StringTools {
         }
         try {
             int mode = (caseInsensitive ? Pattern.CASE_INSENSITIVE : 0x00) | Pattern.MULTILINE;
+            Pattern pattern = Pattern.compile(find, mode);
+            Matcher matcher = pattern.matcher(string);
+            return matcher.matches();
+        } catch (Exception e) {
+            MyBoxLog.debug(e.toString());
+            return false;
+        }
+    }
+
+    public static boolean match(String string, String find, boolean isRegex,
+            boolean dotAll, boolean multiline, boolean caseInsensitive) {
+        if (string == null || find == null || find.isEmpty()) {
+            return false;
+        }
+        try {
+            int mode = (isRegex ? 0x00 : Pattern.LITERAL)
+                    | (caseInsensitive ? Pattern.CASE_INSENSITIVE : 0x00)
+                    | (dotAll ? Pattern.DOTALL : 0x00)
+                    | (multiline ? Pattern.MULTILINE : 0x00);
             Pattern pattern = Pattern.compile(find, mode);
             Matcher matcher = pattern.matcher(string);
             return matcher.matches();
@@ -349,6 +375,167 @@ public class StringTools {
             s.append(line).append("\n");
         }
         return s.toString();
+    }
+
+    public static boolean noDuplicated(List<String> names, boolean notNull) {
+        try {
+            if (names == null || names.isEmpty()) {
+                return false;
+            }
+            List<String> valid = new ArrayList<>();
+            for (int c = 0; c < names.size(); c++) {
+                String name = names.get(c);
+                if (notNull && name == null) {
+                    return false;
+                }
+                if (valid.contains(name)) {
+                    return false;
+                }
+                valid.add(name);
+            }
+            return true;
+        } catch (Exception e) {
+            MyBoxLog.error(e);
+            return false;
+        }
+    }
+
+    public static String[][] transpose(String[][] matrix) {
+        try {
+            if (matrix == null) {
+                return null;
+            }
+            int rowsNumber = matrix.length, columnsNumber = matrix[0].length;
+            String[][] result = new String[columnsNumber][rowsNumber];
+            for (int row = 0; row < rowsNumber; ++row) {
+                for (int col = 0; col < columnsNumber; ++col) {
+                    result[col][row] = matrix[row][col];
+                }
+            }
+            return result;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public static String[] matrix2Array(String[][] m) {
+        if (m == null || m.length == 0 || m[0].length == 0) {
+            return null;
+        }
+        int h = m.length;
+        int w = m[0].length;
+        String[] a = new String[w * h];
+        for (int j = 0; j < h; ++j) {
+            System.arraycopy(m[j], 0, a, j * w, w);
+        }
+        return a;
+    }
+
+    public static String[][] array2Matrix(String[] a, int w) {
+        if (a == null || a.length == 0 || w < 1) {
+            return null;
+        }
+        int h = a.length / w;
+        if (h < 1) {
+            return null;
+        }
+        String[][] m = new String[h][w];
+        for (int j = 0; j < h; ++j) {
+            for (int i = 0; i < w; ++i) {
+                m[j][i] = a[j * w + i];
+            }
+        }
+        return m;
+    }
+
+    public static String[][] toString(double[][] dMatrix) {
+        try {
+            if (dMatrix == null) {
+                return null;
+            }
+            int rsize = dMatrix.length, csize = dMatrix[0].length;
+            String[][] sMatrix = new String[rsize][csize];
+            for (int i = 0; i < rsize; i++) {
+                for (int j = 0; j < csize; j++) {
+                    sMatrix[i][j] = dMatrix[i][j] + "";
+                }
+            }
+            return sMatrix;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public static List<String> toList(String value, String separater) {
+        try {
+            if (value == null || value.isBlank()) {
+                return null;
+            }
+            String[] a = value.split(separater);
+            if (a == null || a.length == 0) {
+                return null;
+            }
+            List<String> values = new ArrayList<>();
+            for (String v : a) {
+                if (v != null && !v.isBlank()) {
+                    values.add(v);
+                }
+            }
+            if (values.isEmpty()) {
+                return null;
+            } else {
+                return values;
+            }
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public static String toString(List<String> values, String separater) {
+        try {
+            if (values == null || values.isEmpty()) {
+                return null;
+            }
+            String s = null;
+            for (String v : values) {
+                if (v != null && !v.isBlank()) {
+                    if (s == null) {
+                        s = v;
+                    } else {
+                        s += separater + v;
+                    }
+                }
+            }
+            if (s == null || s.isBlank()) {
+                return null;
+            } else {
+                return s;
+            }
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public static boolean string2Boolean(String string) {
+        return isTrue(string);
+    }
+
+    public static boolean isTrue(String string) {
+        if (string == null || string.isBlank()) {
+            return false;
+        }
+        return "1".equals(string)
+                || "true".equalsIgnoreCase(string) || "yes".equalsIgnoreCase(string)
+                || message("true").equals(string) || message("Yes").equals(string);
+    }
+
+    public static boolean isFalse(String string) {
+        if (string == null || string.isBlank()) {
+            return false;
+        }
+        return "0".equals(string)
+                || "false".equalsIgnoreCase(string) || "no".equalsIgnoreCase(string)
+                || message("false").equals(string) || message("No").equals(string);
     }
 
 }

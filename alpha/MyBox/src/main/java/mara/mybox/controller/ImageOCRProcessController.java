@@ -34,12 +34,13 @@ import mara.mybox.db.data.VisitHistory;
 import mara.mybox.db.data.VisitHistoryTools;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fxml.LocateTools;
-import mara.mybox.fxml.NodeStyleTools;
 import mara.mybox.fxml.RecentVisitMenu;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.fxml.WindowTools;
 import mara.mybox.imagefile.ImageFileWriters;
 import mara.mybox.tools.FileNameTools;
 import mara.mybox.tools.OCRTools;
+import mara.mybox.value.AppPaths;
 import mara.mybox.value.AppVariables;
 import mara.mybox.value.FileFilters;
 import mara.mybox.value.Fxmls;
@@ -84,10 +85,10 @@ public class ImageOCRProcessController extends ImageViewerController {
                             scale = f;
                             scaleSelector.getEditor().setStyle(null);
                         } else {
-                            scaleSelector.getEditor().setStyle(NodeStyleTools.badStyle);
+                            scaleSelector.getEditor().setStyle(UserConfig.badStyle());
                         }
                     } catch (Exception e) {
-                        scaleSelector.getEditor().setStyle(NodeStyleTools.badStyle);
+                        scaleSelector.getEditor().setStyle(UserConfig.badStyle());
                     }
                 }
             });
@@ -109,10 +110,10 @@ public class ImageOCRProcessController extends ImageViewerController {
                             threshold = i;
                             binarySelector.getEditor().setStyle(null);
                         } else {
-                            binarySelector.getEditor().setStyle(NodeStyleTools.badStyle);
+                            binarySelector.getEditor().setStyle(UserConfig.badStyle());
                         }
                     } catch (Exception e) {
-                        binarySelector.getEditor().setStyle(NodeStyleTools.badStyle);
+                        binarySelector.getEditor().setStyle(UserConfig.badStyle());
                     }
                 }
             });
@@ -153,7 +154,19 @@ public class ImageOCRProcessController extends ImageViewerController {
     @FXML
     @Override
     public void recoverAction() {
-        loadImage(OCRController.imageView.getImage());
+        loadImage(OCRController.sourceFile, OCRController.imageInformation, OCRController.imageView.getImage(), false);
+    }
+
+    @FXML
+    @Override
+    public void previousAction() {
+        OCRController.previousAction();
+    }
+
+    @FXML
+    @Override
+    public void nextAction() {
+        OCRController.nextAction();
     }
 
     @FXML
@@ -165,7 +178,7 @@ public class ImageOCRProcessController extends ImageViewerController {
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
                 private Image changedImage;
 
                 @Override
@@ -187,11 +200,7 @@ public class ImageOCRProcessController extends ImageViewerController {
                 }
 
             };
-            OCRController.handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            OCRController.start(task);
         }
     }
 
@@ -204,7 +213,7 @@ public class ImageOCRProcessController extends ImageViewerController {
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
                 private Image ocrImage;
 
                 @Override
@@ -228,11 +237,7 @@ public class ImageOCRProcessController extends ImageViewerController {
                 }
 
             };
-            handling(task);
-            OCRController.task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            OCRController.start(task);
         }
     }
 
@@ -290,7 +295,7 @@ public class ImageOCRProcessController extends ImageViewerController {
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
                 private Image ocrImage;
 
                 @Override
@@ -392,11 +397,7 @@ public class ImageOCRProcessController extends ImageViewerController {
                 }
 
             };
-            OCRController.handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            OCRController.start(task);
         }
     }
 
@@ -422,7 +423,7 @@ public class ImageOCRProcessController extends ImageViewerController {
                     ImageConvolution imageConvolution = ImageConvolution.create().
                             setImage(image).setKernel(kernel);
                     BufferedImage bufferedImage = imageConvolution.operateImage();
-                    String tmpFile = AppVariables.MyBoxTempPath + File.separator
+                    String tmpFile = AppPaths.getGeneratedPath() + File.separator
                             + Languages.message("EdgeDetection") + "-" + Languages.message("EightNeighborLaplaceInvert") + ".png";
                     if (ImageFileWriters.writeImageFile(bufferedImage, tmpFile)) {
                         files.add(tmpFile);
@@ -432,7 +433,7 @@ public class ImageOCRProcessController extends ImageViewerController {
                     imageConvolution = ImageConvolution.create().
                             setImage(image).setKernel(kernel);
                     bufferedImage = imageConvolution.operateImage();
-                    tmpFile = AppVariables.MyBoxTempPath + File.separator
+                    tmpFile = AppPaths.getGeneratedPath() + File.separator
                             + Languages.message("EdgeDetection") + "-" + Languages.message("EightNeighborLaplace") + ".png";
                     if (ImageFileWriters.writeImageFile(bufferedImage, tmpFile)) {
                         files.add(tmpFile);
@@ -441,7 +442,7 @@ public class ImageOCRProcessController extends ImageViewerController {
                     ImageContrast imageContrast = new ImageContrast(image,
                             ContrastAlgorithm.HSB_Histogram_Equalization);
                     bufferedImage = imageContrast.operateImage();
-                    tmpFile = AppVariables.MyBoxTempPath + File.separator
+                    tmpFile = AppPaths.getGeneratedPath() + File.separator
                             + Languages.message("HSBHistogramEqualization") + ".png";
                     if (ImageFileWriters.writeImageFile(bufferedImage, tmpFile)) {
                         files.add(tmpFile);
@@ -450,7 +451,7 @@ public class ImageOCRProcessController extends ImageViewerController {
                     imageContrast = new ImageContrast(image,
                             ContrastAlgorithm.Gray_Histogram_Equalization);
                     bufferedImage = imageContrast.operateImage();
-                    tmpFile = AppVariables.MyBoxTempPath + File.separator
+                    tmpFile = AppPaths.getGeneratedPath() + File.separator
                             + Languages.message("GrayHistogramEqualization") + ".png";
                     if (ImageFileWriters.writeImageFile(bufferedImage, tmpFile)) {
                         files.add(tmpFile);
@@ -461,7 +462,7 @@ public class ImageOCRProcessController extends ImageViewerController {
                     imageContrast.setIntPara1(100);
                     imageContrast.setIntPara2(100);
                     bufferedImage = imageContrast.operateImage();
-                    tmpFile = AppVariables.MyBoxTempPath + File.separator
+                    tmpFile = AppPaths.getGeneratedPath() + File.separator
                             + Languages.message("GrayHistogramStretching") + ".png";
                     if (ImageFileWriters.writeImageFile(bufferedImage, tmpFile)) {
                         files.add(tmpFile);
@@ -471,7 +472,7 @@ public class ImageOCRProcessController extends ImageViewerController {
                             ContrastAlgorithm.Gray_Histogram_Shifting);
                     imageContrast.setIntPara1(40);
                     bufferedImage = imageContrast.operateImage();
-                    tmpFile = AppVariables.MyBoxTempPath + File.separator
+                    tmpFile = AppPaths.getGeneratedPath() + File.separator
                             + Languages.message("GrayHistogramShifting") + ".png";
                     if (ImageFileWriters.writeImageFile(bufferedImage, tmpFile)) {
                         files.add(tmpFile);
@@ -481,7 +482,7 @@ public class ImageOCRProcessController extends ImageViewerController {
                     imageConvolution = ImageConvolution.create().
                             setImage(image).setKernel(kernel);
                     bufferedImage = imageConvolution.operateImage();
-                    tmpFile = AppVariables.MyBoxTempPath + File.separator
+                    tmpFile = AppPaths.getGeneratedPath() + File.separator
                             + Languages.message("UnsharpMasking") + ".png";
                     if (ImageFileWriters.writeImageFile(bufferedImage, tmpFile)) {
                         files.add(tmpFile);
@@ -491,7 +492,7 @@ public class ImageOCRProcessController extends ImageViewerController {
                     imageConvolution = ImageConvolution.create().
                             setImage(image).setKernel(kernel);
                     bufferedImage = imageConvolution.operateImage();
-                    tmpFile = AppVariables.MyBoxTempPath + File.separator
+                    tmpFile = AppPaths.getGeneratedPath() + File.separator
                             + Languages.message("Enhancement") + "-" + Languages.message("FourNeighborLaplace") + ".png";
                     if (ImageFileWriters.writeImageFile(bufferedImage, tmpFile)) {
                         files.add(tmpFile);
@@ -501,7 +502,7 @@ public class ImageOCRProcessController extends ImageViewerController {
                     imageConvolution = ImageConvolution.create().
                             setImage(image).setKernel(kernel);
                     bufferedImage = imageConvolution.operateImage();
-                    tmpFile = AppVariables.MyBoxTempPath + File.separator
+                    tmpFile = AppPaths.getGeneratedPath() + File.separator
                             + Languages.message("Enhancement") + "-" + Languages.message("EightNeighborLaplace") + ".png";
                     if (ImageFileWriters.writeImageFile(bufferedImage, tmpFile)) {
                         files.add(tmpFile);
@@ -511,7 +512,7 @@ public class ImageOCRProcessController extends ImageViewerController {
                     imageConvolution = ImageConvolution.create().
                             setImage(image).setKernel(kernel);
                     bufferedImage = imageConvolution.operateImage();
-                    tmpFile = AppVariables.MyBoxTempPath + File.separator
+                    tmpFile = AppPaths.getGeneratedPath() + File.separator
                             + Languages.message("GaussianBlur") + ".png";
                     if (ImageFileWriters.writeImageFile(bufferedImage, tmpFile)) {
                         files.add(tmpFile);
@@ -521,7 +522,7 @@ public class ImageOCRProcessController extends ImageViewerController {
                     imageConvolution = ImageConvolution.create().
                             setImage(image).setKernel(kernel);
                     bufferedImage = imageConvolution.operateImage();
-                    tmpFile = AppVariables.MyBoxTempPath + File.separator
+                    tmpFile = AppPaths.getGeneratedPath() + File.separator
                             + Languages.message("AverageBlur") + ".png";
                     if (ImageFileWriters.writeImageFile(bufferedImage, tmpFile)) {
                         files.add(tmpFile);
@@ -530,7 +531,7 @@ public class ImageOCRProcessController extends ImageViewerController {
                     PixelsOperation pixelsOperation = PixelsOperationFactory.create(imageView.getImage(),
                             null, PixelsOperation.OperationType.RGB, PixelsOperation.ColorActionType.Invert);
                     bufferedImage = pixelsOperation.operateImage();
-                    tmpFile = AppVariables.MyBoxTempPath + File.separator
+                    tmpFile = AppPaths.getGeneratedPath() + File.separator
                             + Languages.message("Invert") + ".png";
                     if (ImageFileWriters.writeImageFile(bufferedImage, tmpFile)) {
                         files.add(tmpFile);
@@ -565,10 +566,7 @@ public class ImageOCRProcessController extends ImageViewerController {
             }
 
         };
-        Thread thread = new Thread(demoTask);
-        thread.setDaemon(false);
-        thread.start();
-
+        start(demoTask, false);
     }
 
     @FXML
@@ -580,7 +578,7 @@ public class ImageOCRProcessController extends ImageViewerController {
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
                 private Image ocrImage;
 
                 @Override
@@ -603,11 +601,7 @@ public class ImageOCRProcessController extends ImageViewerController {
                 }
 
             };
-            OCRController.handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            OCRController.start(task);
         }
     }
 
@@ -661,7 +655,7 @@ public class ImageOCRProcessController extends ImageViewerController {
                 return;
             }
 
-            String name = (sourceFile != null ? FileNameTools.getFilePrefix(sourceFile.getName()) : "") + "_preprocessed";
+            String name = (sourceFile != null ? FileNameTools.prefix(sourceFile.getName()) : "") + "_preprocessed";
             final File file = chooseSaveFile(UserConfig.getPath(VisitHistoryTools.getPathKey(VisitHistory.FileType.Image)),
                     name, FileFilters.ImageExtensionFilter);
             if (file == null) {
@@ -669,11 +663,11 @@ public class ImageOCRProcessController extends ImageViewerController {
             }
             recordFileWritten(file, VisitHistory.FileType.Image);
 
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 @Override
                 protected boolean handle() {
-                    String format = FileNameTools.getFileSuffix(file.getName());
+                    String format = FileNameTools.suffix(file.getName());
                     BufferedImage bufferedImage = SwingFXUtils.fromFXImage(imageView.getImage(), null);
                     return ImageFileWriters.writeImageFile(bufferedImage, format, file.getAbsolutePath());
                 }
@@ -686,11 +680,7 @@ public class ImageOCRProcessController extends ImageViewerController {
                 }
 
             };
-            OCRController.handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            OCRController.start(task);
         }
     }
 

@@ -11,15 +11,13 @@ import javafx.scene.control.TextField;
 import javafx.scene.control.Toggle;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.layout.VBox;
-import mara.mybox.color.CIEData;
 import mara.mybox.color.CIEDataTools;
 import mara.mybox.color.ChromaticAdaptation.ChromaticAdaptationAlgorithm;
 import mara.mybox.color.Illuminant;
 import mara.mybox.color.RGBColorSpace;
-import mara.mybox.fxml.NodeStyleTools;
-import static mara.mybox.fxml.NodeStyleTools.badStyle;
+import mara.mybox.tools.DoubleArrayTools;
+import mara.mybox.value.UserConfig;
 import mara.mybox.tools.DoubleTools;
-import static mara.mybox.value.Languages.message;
 import mara.mybox.value.Languages;
 
 /**
@@ -472,15 +470,15 @@ public class RGBColorSpaceController extends BaseController {
         try {
             double v = Double.parseDouble(xInput.getText());
             if (v < 0) {
-                xInput.setStyle(NodeStyleTools.badStyle);
+                xInput.setStyle(UserConfig.badStyle());
                 return null;
             } else {
                 if (valueType == ValueType.Normalized) {
                     if (v > 1.0) {
-                        xInput.setStyle(NodeStyleTools.badStyle);
+                        xInput.setStyle(UserConfig.badStyle());
                         if (commentsLabel != null) {
                             commentsLabel.setText(Languages.message("NormalizeError"));
-                            commentsLabel.setStyle(NodeStyleTools.badStyle);
+                            commentsLabel.setStyle(UserConfig.badStyle());
                         }
                         return null;
                     }
@@ -489,22 +487,22 @@ public class RGBColorSpaceController extends BaseController {
                 xInput.setStyle(null);
             }
         } catch (Exception e) {
-            xInput.setStyle(NodeStyleTools.badStyle);
+            xInput.setStyle(UserConfig.badStyle());
             return null;
         }
 
         try {
             double v = Double.parseDouble(yInput.getText());
             if (v < 0) {
-                yInput.setStyle(NodeStyleTools.badStyle);
+                yInput.setStyle(UserConfig.badStyle());
                 return null;
             } else {
                 if (valueType == ValueType.Normalized) {
                     if (v > 1.0) {
-                        yInput.setStyle(NodeStyleTools.badStyle);
+                        yInput.setStyle(UserConfig.badStyle());
                         if (commentsLabel != null) {
                             commentsLabel.setText(Languages.message("NormalizeError"));
-                            commentsLabel.setStyle(NodeStyleTools.badStyle);
+                            commentsLabel.setStyle(UserConfig.badStyle());
                         }
                         return null;
                     }
@@ -513,7 +511,7 @@ public class RGBColorSpaceController extends BaseController {
                 yInput.setStyle(null);
             }
         } catch (Exception e) {
-            yInput.setStyle(NodeStyleTools.badStyle);
+            yInput.setStyle(UserConfig.badStyle());
             return null;
         }
 
@@ -528,11 +526,11 @@ public class RGBColorSpaceController extends BaseController {
                 z = v;
                 zInput.setStyle(null);
             } catch (Exception e) {
-                zInput.setStyle(NodeStyleTools.badStyle);
+                zInput.setStyle(UserConfig.badStyle());
                 return null;
             }
         }
-        return DoubleTools.array(x, y, z);
+        return DoubleArrayTools.array(x, y, z);
     }
 
 }

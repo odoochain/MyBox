@@ -3,7 +3,6 @@ package mara.mybox.controller;
 import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.InputStreamReader;
 import java.nio.charset.Charset;
 import java.text.MessageFormat;
 import java.util.ArrayList;
@@ -17,13 +16,11 @@ import javafx.embed.swing.SwingFXUtils;
 import javafx.fxml.FXML;
 import javafx.scene.control.Label;
 import javafx.scene.control.Tab;
-import javafx.scene.control.TabPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.image.Image;
-import javafx.stage.Modality;
 import mara.mybox.bufferedimage.AlphaTools;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.NodeStyleTools;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.fxml.WindowTools;
 import mara.mybox.imagefile.ImageFileWriters;
 import mara.mybox.tools.DateTools;
@@ -33,6 +30,7 @@ import mara.mybox.tools.TmpFileTools;
 import mara.mybox.value.Fxmls;
 import mara.mybox.value.Languages;
 import static mara.mybox.value.Languages.message;
+import mara.mybox.value.UserConfig;
 import net.sourceforge.tess4j.ITesseract;
 import net.sourceforge.tess4j.Tesseract;
 
@@ -48,8 +46,6 @@ public abstract class PdfViewController_OCR extends BaseFileImagesViewController
     protected Thread ocrThread;
 
     @FXML
-    protected TabPane tabPane;
-    @FXML
     protected Tab imageTab, ocrTab, ocrOptionsTab;
     @FXML
     protected TextArea ocrArea;
@@ -64,10 +60,10 @@ public abstract class PdfViewController_OCR extends BaseFileImagesViewController
             return;
         }
         ocrOptionsController.setLanguages();
-        File dataPath = ocrOptionsController.dataPathController.file;
+        File dataPath = ocrOptionsController.dataPathController.file();
         if (!dataPath.exists()) {
             popError(Languages.message("InvalidParameters"));
-            ocrOptionsController.dataPathController.fileInput.setStyle(NodeStyleTools.badStyle);
+            ocrOptionsController.dataPathController.fileInput.setStyle(UserConfig.badStyle());
             return;
         }
         if (ocrOptionsController.embedRadio.isSelected()) {
@@ -81,10 +77,10 @@ public abstract class PdfViewController_OCR extends BaseFileImagesViewController
         if (imageView.getImage() == null || timer != null || process != null) {
             return;
         }
-        File tesseract = ocrOptionsController.tesseractPathController.file;
+        File tesseract = ocrOptionsController.tesseractPathController.file();
         if (!tesseract.exists()) {
             popError(Languages.message("InvalidParameters"));
-            ocrOptionsController.tesseractPathController.fileInput.setStyle(NodeStyleTools.badStyle);
+            ocrOptionsController.tesseractPathController.fileInput.setStyle(UserConfig.badStyle());
             return;
         }
         loading = handling();
@@ -94,7 +90,7 @@ public abstract class PdfViewController_OCR extends BaseFileImagesViewController
             @Override
             public void run() {
                 try {
-                    Image selected = scopeImage();
+                    Image selected = imageToHandle();
                     if (selected == null) {
                         selected = imageView.getImage();
                     }
@@ -109,7 +105,7 @@ public abstract class PdfViewController_OCR extends BaseFileImagesViewController
                     parameters.addAll(Arrays.asList(
                             tesseract.getAbsolutePath(),
                             imageFile, fileBase,
-                            "--tessdata-dir", ocrOptionsController.dataPathController.file.getAbsolutePath(),
+                            "--tessdata-dir", ocrOptionsController.dataPathController.file().getAbsolutePath(),
                             version > 3 ? "--psm" : "-psm", ocrOptionsController.psm + ""
                     ));
                     if (ocrOptionsController.selectedLanguages != null) {
@@ -129,7 +125,7 @@ public abstract class PdfViewController_OCR extends BaseFileImagesViewController
                     ProcessBuilder pb = new ProcessBuilder(parameters).redirectErrorStream(true);
                     long start = new Date().getTime();
                     process = pb.start();
-                    try ( BufferedReader inReader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                    try ( BufferedReader inReader = process.inputReader(Charset.defaultCharset())) {
                         String line;
                         while ((line = inReader.readLine()) != null) {
                             outputs += line + "\n";
@@ -197,9 +193,8 @@ public abstract class PdfViewController_OCR extends BaseFileImagesViewController
         synchronized (this) {
             if (ocrTask != null) {
                 ocrTask.cancel();
-                return;
             }
-            ocrTask = new SingletonTask<Void>() {
+            ocrTask = new SingletonTask<Void>(this) {
 
                 private String texts;
 
@@ -207,20 +202,20 @@ public abstract class PdfViewController_OCR extends BaseFileImagesViewController
                 protected boolean handle() {
                     try {
                         ITesseract instance = new Tesseract();
-                        instance.setTessVariable("user_defined_dpi", "96");
-                        instance.setTessVariable("debug_file", "/dev/null");
+                        instance.setVariable("user_defined_dpi", "96");
+                        instance.setVariable("debug_file", "/dev/null");
                         instance.setPageSegMode(ocrOptionsController.psm);
                         Map<String, String> p = ocrOptionsController.checkParameters();
                         if (p != null && !p.isEmpty()) {
                             for (String key : p.keySet()) {
-                                instance.setTessVariable(key, p.get(key));
+                                instance.setVariable(key, p.get(key));
                             }
                         }
-                        instance.setDatapath(ocrOptionsController.dataPathController.file.getAbsolutePath());
+                        instance.setDatapath(ocrOptionsController.dataPathController.file().getAbsolutePath());
                         if (ocrOptionsController.selectedLanguages != null) {
                             instance.setLanguage(ocrOptionsController.selectedLanguages);
                         }
-                        Image selected = scopeImage();
+                        Image selected = imageToHandle();
                         if (selected == null) {
                             selected = imageView.getImage();
                         }
@@ -247,11 +242,7 @@ public abstract class PdfViewController_OCR extends BaseFileImagesViewController
                     tabPane.getSelectionModel().select(ocrTab);
                 }
             };
-            handling(ocrTask, Modality.WINDOW_MODAL,
-                    MessageFormat.format(message("LoadingPageNumber"), (frameIndex + 1) + ""));
-            Thread thread = new Thread(ocrTask);
-            thread.setDaemon(false);
-            thread.start();
+            start(ocrTask, MessageFormat.format(message("LoadingPageNumber"), (frameIndex + 1) + ""));
         }
 
     }

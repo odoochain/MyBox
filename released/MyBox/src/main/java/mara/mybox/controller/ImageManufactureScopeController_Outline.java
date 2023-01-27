@@ -2,7 +2,6 @@ package mara.mybox.controller;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
-import java.util.Arrays;
 import java.util.List;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
@@ -18,11 +17,13 @@ import mara.mybox.bufferedimage.AlphaTools;
 import mara.mybox.bufferedimage.ColorConvertTools;
 import mara.mybox.bufferedimage.ImageScope;
 import mara.mybox.data.DoubleRectangle;
+import mara.mybox.data.ImageItem;
 import mara.mybox.db.data.VisitHistory;
 import mara.mybox.db.data.VisitHistoryTools;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fxml.FxFileTools;
 import mara.mybox.fxml.RecentVisitMenu;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.fxml.cell.ListImageCell;
 import mara.mybox.imagefile.ImageFileReaders;
 import mara.mybox.value.AppVariables;
@@ -34,20 +35,11 @@ import mara.mybox.value.UserConfig;
  * @CreateDate 2021-8-13
  * @License Apache License Version 2.0
  */
-public class ImageManufactureScopeController_Outline extends ImageManufactureScopeController_Colors {
+public abstract class ImageManufactureScopeController_Outline extends ImageManufactureScopeController_Colors {
 
     public void initPixTab() {
         try {
-            List<Image> prePixList = Arrays.asList(
-                    new Image("img/ww1.png"), new Image("img/jade.png"),
-                    new Image("img/ww3.png"), new Image("img/ww4.png"), new Image("img/ww6.png"),
-                    new Image("img/ww7.png"), new Image("img/ww8.png"), new Image("img/ww9.png"),
-                    new Image("img/About.png"), new Image("img/MyBox.png"), new Image("img/DataTools.png"),
-                    new Image("img/RecentAccess.png"), new Image("img/FileTools.png"), new Image("img/ImageTools.png"),
-                    new Image("img/DocumentTools.png"), new Image("img/MediaTools.png"), new Image("img/NetworkTools.png"),
-                    new Image("img/zz1.png")
-            );
-            outlinesList.getItems().addAll(prePixList);
+            outlinesList.getItems().setAll(ImageItem.internalImages());
             outlinesList.setCellFactory(new Callback<ListView<Image>, ListCell<Image>>() {
                 @Override
                 public ListCell<Image> call(ListView<Image> param) {
@@ -132,7 +124,7 @@ public class ImageManufactureScopeController_Outline extends ImageManufactureSco
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 private BufferedImage bufferedImage;
 
@@ -153,11 +145,7 @@ public class ImageManufactureScopeController_Outline extends ImageManufactureSco
                 }
 
             };
-            parentController.handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            parentController.start(task);
         }
 
     }
@@ -167,7 +155,7 @@ public class ImageManufactureScopeController_Outline extends ImageManufactureSco
             return;
         }
         loadOutlineSource(bufferedImage, new DoubleRectangle(0, 0,
-                bufferedImage.getWidth(), bufferedImage.getHeight()));
+                bufferedImage.getWidth() - 1, bufferedImage.getHeight() - 1));
     }
 
     public void loadOutlineSource(BufferedImage bufferedImage, DoubleRectangle rect) {
@@ -200,7 +188,7 @@ public class ImageManufactureScopeController_Outline extends ImageManufactureSco
                 if (task != null && !task.isQuit()) {
                     return;
                 }
-                task = new SingletonTask<Void>() {
+                task = new SingletonTask<Void>(this) {
                     private BufferedImage[] outline;
 
                     @Override
@@ -227,8 +215,8 @@ public class ImageManufactureScopeController_Outline extends ImageManufactureSco
                         }
                         maskRectangleData = new DoubleRectangle(
                                 maskRectangleData.getSmallX(), maskRectangleData.getSmallY(),
-                                maskRectangleData.getSmallX() + outline[0].getWidth(),
-                                maskRectangleData.getSmallY() + outline[0].getHeight());
+                                maskRectangleData.getSmallX() + outline[0].getWidth() - 1,
+                                maskRectangleData.getSmallY() + outline[0].getHeight() - 1);
                         drawMaskRectangleLineAsData();
                         scope.setOutlineSource(outlineSource);
                         scope.setOutline(outline[1]);
@@ -237,11 +225,7 @@ public class ImageManufactureScopeController_Outline extends ImageManufactureSco
                     }
 
                 };
-                parentController.handling(task);
-                task.setSelf(task);
-                Thread thread = new Thread(task);
-                thread.setDaemon(false);
-                thread.start();
+                parentController.start(task);
             }
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
@@ -256,7 +240,7 @@ public class ImageManufactureScopeController_Outline extends ImageManufactureSco
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
                 private Image outlineImage;
 
                 @Override
@@ -282,11 +266,7 @@ public class ImageManufactureScopeController_Outline extends ImageManufactureSco
                     scopeView.setFitHeight(outlineImage.getHeight() * radio);
                 }
             };
-            parentController.handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            parentController.start(task);
         }
 
     }

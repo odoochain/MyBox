@@ -5,8 +5,6 @@ import java.awt.Rectangle;
 /**
  * @Author Mara
  * @CreateDate 2018-11-11 12:23:40
- * @Version 1.0
- * @Description
  * @License Apache License Version 2.0
  */
 public class DoubleRectangle implements DoubleShape {
@@ -24,21 +22,14 @@ public class DoubleRectangle implements DoubleShape {
         maxY = Integer.MAX_VALUE;
         smallX = rectangle.getX();
         smallY = rectangle.getY();
-        bigX = rectangle.getX() + rectangle.getWidth() - 1;
-        bigY = rectangle.getY() + rectangle.getHeight() - 1;
-        width = getWidth();
-        height = getHeight();
+        width = rectangle.getWidth();
+        height = rectangle.getHeight();
+        bigX = rectangle.getX() + width - 1;
+        bigY = rectangle.getY() + height - 1;
     }
 
     public DoubleRectangle(double x1, double y1, double x2, double y2) {
-        maxX = Integer.MAX_VALUE;
-        maxY = Integer.MAX_VALUE;
-        smallX = x1;
-        smallY = y1;
-        bigX = x2;
-        bigY = y2;
-        width = getWidth();
-        height = getHeight();
+        this(Integer.MAX_VALUE, Integer.MAX_VALUE, x1, y1, x2, y2);
     }
 
     public DoubleRectangle(double maxX, double maxY, double x1, double y1, double x2, double y2) {
@@ -48,6 +39,8 @@ public class DoubleRectangle implements DoubleShape {
         smallY = y1;
         bigX = x2;
         bigY = y2;
+        width = getWidth();
+        height = getHeight();
     }
 
     @Override
@@ -67,24 +60,19 @@ public class DoubleRectangle implements DoubleShape {
     }
 
     public boolean same(DoubleRectangle rect) {
-//        MyBoxLog.debug(smallX + " " + smallY + " " + bigX + " " + bigY);
-//        MyBoxLog.debug(rect.getSmallX() + " " + rect.getSmallY() + " " + rect.getBigX() + " " + rect.getBigY());
         return rect != null
                 && smallX == rect.getSmallX() && smallY == rect.getSmallY()
                 && bigX == rect.getBigX() && bigY == rect.getBigY();
     }
 
     @Override
-    public boolean include(double x, double y) {
+    public boolean contains(double x, double y) {
         return x >= smallX && y >= smallY && x <= bigX && y <= bigY;
     }
 
     @Override
     public DoubleRectangle move(double offset) {
-        DoubleRectangle nRectangle = new DoubleRectangle(
-                smallX + offset, smallY + offset,
-                bigX + offset, bigY + offset);
-        return nRectangle;
+        return move(offset, offset);
     }
 
     @Override
@@ -104,8 +92,8 @@ public class DoubleRectangle implements DoubleShape {
         return new Rectangle((int) smallX, (int) smallY, (int) getWidth(), (int) getHeight());
     }
 
-    public double getWidth() {
-        width = Math.abs(bigX - smallX + 1);
+    public final double getWidth() {
+        width = Math.abs(bigX - smallX) + 1;
         return width;
     }
 
@@ -113,8 +101,8 @@ public class DoubleRectangle implements DoubleShape {
         this.width = width;
     }
 
-    public double getHeight() {
-        height = Math.abs(bigY - smallY + 1);
+    public final double getHeight() {
+        height = Math.abs(bigY - smallY) + 1;
         return height;
     }
 

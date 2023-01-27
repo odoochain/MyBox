@@ -1,15 +1,13 @@
 package mara.mybox.controller;
 
-import com.github.kokorin.jaffree.ffmpeg.UrlInput;
+//import com.github.kokorin.jaffree.ffmpeg.UrlInput;
 import java.io.File;
 import java.text.MessageFormat;
 import java.util.Date;
 import mara.mybox.data.MediaInformation;
 import mara.mybox.dev.MyBoxLog;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.tools.FileNameTools;
-import mara.mybox.tools.FileTools;
-import mara.mybox.value.AppVariables;
-import static mara.mybox.value.Languages.message;
 import mara.mybox.value.Languages;
 
 /**
@@ -37,7 +35,7 @@ public class FFmpegConvertMediaStreamsController extends FFmpegConvertMediaFiles
                 processStartTime = new Date();
                 totalFilesHandled = 0;
                 updateInterface("Started");
-                task = new SingletonTask<Void>() {
+                task = new SingletonTask<Void>(this) {
 
                     @Override
                     public Void call() {
@@ -90,10 +88,7 @@ public class FFmpegConvertMediaStreamsController extends FFmpegConvertMediaFiles
                     }
 
                 };
-                task.setSelf(task);
-                Thread thread = new Thread(task);
-                thread.setDaemon(false);
-                thread.start();
+                start(task, false);
             }
 
         } catch (Exception e) {
@@ -118,8 +113,8 @@ public class FFmpegConvertMediaStreamsController extends FFmpegConvertMediaFiles
             String prefix, suffix;
             File file = new File(address);
             if (file.exists()) {
-                prefix = FileNameTools.getFilePrefix(file.getName());
-                suffix = FileNameTools.getFileSuffix(file.getName());
+                prefix = FileNameTools.prefix(file.getName());
+                suffix = FileNameTools.suffix(file.getName());
             } else {
                 int posSlash = address.lastIndexOf('/');
 
@@ -159,6 +154,6 @@ public class FFmpegConvertMediaStreamsController extends FFmpegConvertMediaFiles
 
     protected void convert(String address, File targetFile, long duration)
             throws Exception {
-        convert(UrlInput.fromUrl(address), targetFile, duration);
+//        convert(UrlInput.fromUrl(address), targetFile, duration);
     }
 }

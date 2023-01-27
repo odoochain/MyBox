@@ -15,13 +15,10 @@ import javafx.stage.Window;
 import mara.mybox.db.table.TableMyBoxLog;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.dev.MyBoxLog.LogType;
-import mara.mybox.fxml.NodeStyleTools;
-import mara.mybox.fxml.NodeTools;
+import mara.mybox.fxml.style.NodeStyleTools;
 import mara.mybox.fxml.WindowTools;
 import mara.mybox.fxml.cell.TableDateCell;
 import mara.mybox.value.AppVariables;
-import static mara.mybox.value.Languages.message;
-
 import mara.mybox.value.Fxmls;
 import mara.mybox.value.Languages;
 import mara.mybox.value.UserConfig;
@@ -59,6 +56,7 @@ public class MyBoxLogController extends BaseDataManageController<MyBoxLog> {
     @Override
     protected void initColumns() {
         try {
+            super.initColumns();
             mblidColumn.setCellValueFactory(new PropertyValueFactory<>("mblid"));
             timeColumn.setCellValueFactory(new PropertyValueFactory<>("time"));
             timeColumn.setCellFactory(new TableDateCell());
@@ -106,10 +104,13 @@ public class MyBoxLogController extends BaseDataManageController<MyBoxLog> {
         try {
             super.initControls();
 
+            AppVariables.popErrorLogs = UserConfig.getBoolean("PopErrorLogs", true);
+            popCheck.setSelected(AppVariables.popErrorLogs);
             popCheck.selectedProperty().addListener(new ChangeListener<Boolean>() {
                 @Override
                 public void changed(ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) {
                     AppVariables.popErrorLogs = popCheck.isSelected();
+                    UserConfig.setBoolean("PopErrorLogs", popCheck.isSelected());
                 }
             });
 
@@ -218,7 +219,6 @@ public class MyBoxLogController extends BaseDataManageController<MyBoxLog> {
             if (object != null && object instanceof MyBoxLogController) {
                 try {
                     controller = (MyBoxLogController) object;
-                    controller.toFront();
                     break;
                 } catch (Exception e) {
                 }
@@ -227,6 +227,7 @@ public class MyBoxLogController extends BaseDataManageController<MyBoxLog> {
         if (controller == null) {
             controller = (MyBoxLogController) WindowTools.openStage(Fxmls.MyBoxLogsFxml);
         }
+        controller.requestMouse();
         return controller;
     }
 

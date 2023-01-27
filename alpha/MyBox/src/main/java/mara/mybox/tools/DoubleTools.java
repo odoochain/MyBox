@@ -1,20 +1,150 @@
 package mara.mybox.tools;
 
-import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
+import java.text.NumberFormat;
 import java.util.Random;
+import mara.mybox.data2d.Data2D_Attributes.InvalidAs;
+import mara.mybox.dev.MyBoxLog;
+import mara.mybox.value.AppValues;
+import static mara.mybox.value.Languages.message;
 
 /**
  * @Author Mara
  * @CreateDate 2018-6-11 17:43:53
- * @Description
  * @License Apache License Version 2.0
  */
 public class DoubleTools {
+
+    public static NumberFormat numberFormat;
+
+    public static boolean invalidDouble(double value) {
+        return Double.isNaN(value) || Double.isInfinite(value)
+                || value == AppValues.InvalidDouble;
+    }
+
+    public static double value(InvalidAs invalidAs) {
+        if (invalidAs == InvalidAs.Zero) {
+            return 0;
+        } else {
+            return Double.NaN;
+        }
+    }
+
+    public static String scaleString(String string, InvalidAs invalidAs, int scale) {
+        try {
+            if (scale < 0) {
+                return string;
+            }
+            double d = toDouble(string, invalidAs);
+            return scaleString(d, scale);
+        } catch (Exception e) {
+            return string;
+        }
+    }
+
+    public static double scale(String string, InvalidAs invalidAs, int scale) {
+        try {
+            double d = toDouble(string, invalidAs);
+            return scale(d, scale);
+        } catch (Exception e) {
+            return value(invalidAs);
+        }
+    }
+
+    public static double toDouble(String string, InvalidAs invalidAs) {
+        try {
+            double d = Double.valueOf(string.replaceAll(",", ""));
+            if (invalidDouble(d)) {
+                if (StringTools.isTrue(string)) {
+                    return 1;
+                } else if (StringTools.isFalse(string)) {
+                    return 0;
+                }
+                return value(invalidAs);
+            } else {
+                return d;
+            }
+        } catch (Exception e) {
+            return value(invalidAs);
+        }
+    }
+
+    public static double[] toDouble(String[] sVector, InvalidAs invalidAs) {
+        try {
+            if (sVector == null) {
+                return null;
+            }
+            int len = sVector.length;
+            double[] doubleVector = new double[len];
+            for (int i = 0; i < len; i++) {
+                doubleVector[i] = DoubleTools.toDouble(sVector[i], invalidAs);
+            }
+            return doubleVector;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public static double[][] toDouble(String[][] sMatrix, InvalidAs invalidAs) {
+        try {
+            if (sMatrix == null) {
+                return null;
+            }
+            int rsize = sMatrix.length, csize = sMatrix[0].length;
+            double[][] doubleMatrix = new double[rsize][csize];
+            for (int i = 0; i < rsize; i++) {
+                for (int j = 0; j < csize; j++) {
+                    doubleMatrix[i][j] = DoubleTools.toDouble(sMatrix[i][j], invalidAs);
+                }
+            }
+            return doubleMatrix;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public static String percentage(double data, double total) {
+        return percentage(data, total, 2);
+    }
+
+    public static String percentage(double data, double total, int scale) {
+        try {
+            if (total == 0) {
+                return message("Invalid");
+            }
+            return scale(data * 100 / total, scale) + "";
+        } catch (Exception e) {
+            return data + "";
+        }
+    }
+
+    public static int compare(String s1, String s2, boolean desc) {
+        return compare(toDouble(s1, InvalidAs.Blank), toDouble(s2, InvalidAs.Blank), desc);
+    }
+
+    // invalid values are counted as smaller
+    public static int compare(double d1, double d2, boolean desc) {
+        if (Double.isNaN(d1)) {
+            if (Double.isNaN(d2)) {
+                return 0;
+            } else {
+                return desc ? 1 : -1;
+            }
+        } else {
+            if (Double.isNaN(d2)) {
+                return desc ? -1 : 1;
+            } else {
+                double diff = d1 - d2;
+                if (diff == 0) {
+                    return 0;
+                } else if (diff > 0) {
+                    return desc ? -1 : 1;
+                } else {
+                    return desc ? 1 : -1;
+                }
+            }
+        }
+    }
 
     /*
         https://stackoverflow.com/questions/322749/retain-precision-with-double-in-java
@@ -43,71 +173,46 @@ public class DoubleTools {
     }
 
     public static double scale(double v, int scale) {
-        BigDecimal b = new BigDecimal(v);
-        return scale(b, scale);
-    }
-
-    public static double scale(BigDecimal b, int scale) {
-        return b.setScale(scale, RoundingMode.HALF_UP).doubleValue();
-    }
-
-    public static double[] scale(double[] data, int scale) {
         try {
-            if (data == null) {
-                return null;
-            }
-            double[] result = new double[data.length];
-            for (int i = 0; i < data.length; ++i) {
-                result[i] = scale(data[i], scale);
-            }
-            return result;
+            return Double.valueOf(scaleString(v, scale));
         } catch (Exception e) {
-            return null;
+            return v;
         }
     }
 
-    public static void sortList(List<Integer> numbers) {
-        Collections.sort(numbers, new Comparator<Integer>() {
-            @Override
-            public int compare(Integer p1, Integer p2) {
-                return p1 - p2;
+    public static NumberFormat numberFormat() {
+        numberFormat = NumberFormat.getInstance();
+        numberFormat.setMinimumFractionDigits(0);
+        numberFormat.setGroupingUsed(false);
+        numberFormat.setRoundingMode(RoundingMode.HALF_UP);
+        return numberFormat;
+    }
+
+    public static String scaleString(double v, int scale) {
+        try {
+            if (scale < 0) {
+                return v + "";
             }
-        });
-    }
-
-    public static double[] sortArray(double[] numbers) {
-        List<Double> list = new ArrayList<>();
-        for (double i : numbers) {
-            list.add(i);
-        }
-        Collections.sort(list, new Comparator<Double>() {
-            @Override
-            public int compare(Double p1, Double p2) {
-                return (int) (p1 - p2);
+            if (numberFormat == null) {
+                numberFormat();
             }
-        });
-        double[] sorted = new double[numbers.length];
-        for (int i = 0; i < list.size(); ++i) {
-            sorted[i] = list.get(i);
+            numberFormat.setMaximumFractionDigits(scale);
+            return numberFormat.format(v);
+        } catch (Exception e) {
+            MyBoxLog.console(e);
+            return v + "";
         }
-        return sorted;
     }
 
-    public static double[] array(double x, double y, double z) {
-        double[] xyz = new double[3];
-        xyz[0] = x;
-        xyz[1] = y;
-        xyz[2] = z;
-        return xyz;
-    }
-
-    public static double random(Random r, int max) {
+    public static double random(Random r, int max, boolean nonNegative) {
         if (r == null) {
             r = new Random();
         }
+        int sign = nonNegative ? 1 : r.nextInt(2);
+        sign = sign == 1 ? 1 : -1;
         double d = r.nextDouble();
-        int p = r.nextInt(max > 0 ? max : 1);
-        return p != 0 ? (d * p) : d;
+        int i = max > 0 ? r.nextInt(max) : 0;
+        return sign == 1 ? i + d : -(i + d);
     }
 
 }

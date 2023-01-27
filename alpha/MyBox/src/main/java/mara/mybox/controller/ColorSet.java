@@ -15,11 +15,9 @@ import mara.mybox.db.table.TableColor;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fximage.FxColorTools;
 import mara.mybox.fxml.LocateTools;
-import mara.mybox.fxml.NodeStyleTools;
-import mara.mybox.fxml.NodeTools;
+import mara.mybox.fxml.style.NodeStyleTools;
 import mara.mybox.fxml.WindowTools;
 import mara.mybox.value.AppVariables;
-
 import mara.mybox.value.Fxmls;
 import mara.mybox.value.UserConfig;
 
@@ -100,6 +98,10 @@ public class ColorSet extends BaseController {
         return (Color) rect.getFill();
     }
 
+    public java.awt.Color awtColor() {
+        return FxColorTools.toAwtColor(color());
+    }
+
     public String rgb() {
         return FxColorTools.color2rgb(color());
     }
@@ -121,7 +123,7 @@ public class ColorSet extends BaseController {
 
     @FXML
     public void popColorPalette(MouseEvent event) {
-        if (UserConfig.getBoolean("PopColorSetWhenMousePassing", true)) {
+        if (UserConfig.getBoolean("PopColorSetWhenMouseHovering", true)) {
             showColorPalette();
         }
     }
@@ -132,7 +134,7 @@ public class ColorSet extends BaseController {
                     WindowTools.class.getResource(Fxmls.ColorPalettePopupFxml), AppVariables.currentBundle);
             Pane pane = fxmlLoader.load();
             ColorPalettePopupController controller = (ColorPalettePopupController) fxmlLoader.getController();
-            controller.load(this);
+            controller.load(this, rect);
 
             popup = makePopup();
             popup.getContent().add(pane);

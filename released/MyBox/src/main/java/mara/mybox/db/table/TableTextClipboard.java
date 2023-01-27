@@ -5,10 +5,10 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.Date;
 import mara.mybox.db.DerbyBase;
+import mara.mybox.db.data.ColumnDefinition;
+import mara.mybox.db.data.ColumnDefinition.ColumnType;
 import mara.mybox.db.data.TextClipboard;
-import mara.mybox.db.table.ColumnDefinition.ColumnType;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.value.AppVariables;
 import mara.mybox.value.UserConfig;
 
 /**
@@ -31,7 +31,7 @@ public class TableTextClipboard extends BaseTable<TextClipboard> {
     }
 
     public final TableTextClipboard defineColumns() {
-        addColumn(new ColumnDefinition("tcid", ColumnType.Long, true, true).setIsID(true));
+        addColumn(new ColumnDefinition("tcid", ColumnType.Long, true, true).setAuto(true));
         addColumn(new ColumnDefinition("text", ColumnType.String, true).setLength(StringMaxLength));
         addColumn(new ColumnDefinition("create_time", ColumnType.Datetime));
         orderColumns = "create_time DESC";
@@ -55,6 +55,7 @@ public class TableTextClipboard extends BaseTable<TextClipboard> {
                 try ( PreparedStatement statement = conn1.prepareStatement(QueryText)) {
                     statement.setString(1, text);
                     statement.setMaxRows(1);
+                    conn1.setAutoCommit(true);
                     try ( ResultSet results = statement.executeQuery()) {
                         if (results.next()) {
                             exist = readData(results);

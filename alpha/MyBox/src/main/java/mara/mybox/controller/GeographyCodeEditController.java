@@ -1,5 +1,6 @@
 package mara.mybox.controller;
 
+import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
@@ -11,18 +12,14 @@ import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.VBox;
-import mara.mybox.data.CoordinateSystem;
+import mara.mybox.data.GeoCoordinateSystem;
 import mara.mybox.db.data.GeographyCode;
 import mara.mybox.db.data.GeographyCodeLevel;
 import mara.mybox.db.table.TableGeographyCode;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.NodeStyleTools;
-import mara.mybox.fxml.NodeTools;
-import static mara.mybox.fxml.NodeStyleTools.badStyle;
+import mara.mybox.fxml.style.NodeStyleTools;
+import mara.mybox.tools.DoubleTools;
 import mara.mybox.value.AppValues;
-import mara.mybox.value.AppVariables;
-import static mara.mybox.value.Languages.message;
-
 import mara.mybox.value.Fxmls;
 import mara.mybox.value.Languages;
 import mara.mybox.value.UserConfig;
@@ -37,7 +34,7 @@ public class GeographyCodeEditController extends GeographyCodeUserController {
     protected double longitude, latitude, altitude, precision;
     protected long area, population;
     protected GeographyCode loadedCode;
-    protected CoordinateSystem coordinateSystem;
+    protected GeoCoordinateSystem coordinateSystem;
 
     @FXML
     protected TextField gcidInput, subordinateInput, chineseInput, englishInput,
@@ -72,7 +69,7 @@ public class GeographyCodeEditController extends GeographyCodeUserController {
             super.initControls();
             longitude = latitude = -200;
             altitude = precision = 0;
-            coordinateSystem = CoordinateSystem.defaultCode();
+            coordinateSystem = GeoCoordinateSystem.defaultCode();
 
             longitudeInput.textProperty().addListener(
                     (ObservableValue<? extends String> ov, String oldv, String newv) -> {
@@ -94,16 +91,16 @@ public class GeographyCodeEditController extends GeographyCodeUserController {
                         checkPrecision();
                     });
 
-            for (CoordinateSystem.Value item : CoordinateSystem.Value.values()) {
+            for (GeoCoordinateSystem.Value item : GeoCoordinateSystem.Value.values()) {
                 coordinateSystemSelector.getItems().add(Languages.message(item.name()));
             }
             coordinateSystemSelector.getSelectionModel().selectedItemProperty().addListener((ObservableValue<? extends String> ov, String oldValue, String newValue) -> {
-                        if (newValue == null || newValue.isEmpty()) {
-                            return;
-                        }
-                        coordinateSystem = new CoordinateSystem(newValue);
-                        UserConfig.setString("GeographyCodeCoordinateSystem", newValue);
-                    });
+                if (newValue == null || newValue.isEmpty()) {
+                    return;
+                }
+                coordinateSystem = new GeoCoordinateSystem(newValue);
+                UserConfig.setString("GeographyCodeCoordinateSystem", newValue);
+            });
             coordinateSystemSelector.getSelectionModel().select(UserConfig.getString("GeographyCodeCoordinateSystem", Languages.message("CGCS2000")));
 
             areaInput.textProperty().addListener(
@@ -116,10 +113,10 @@ public class GeographyCodeEditController extends GeographyCodeUserController {
                         checkPopulation();
                     });
 
-            saveButton.disableProperty().bind(longitudeInput.styleProperty().isEqualTo(NodeStyleTools.badStyle)
-                    .or(latitudeInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
-                    .or(areaInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
-                    .or(populationInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+            saveButton.disableProperty().bind(longitudeInput.styleProperty().isEqualTo(UserConfig.badStyle())
+                    .or(latitudeInput.styleProperty().isEqualTo(UserConfig.badStyle()))
+                    .or(areaInput.styleProperty().isEqualTo(UserConfig.badStyle()))
+                    .or(populationInput.styleProperty().isEqualTo(UserConfig.badStyle()))
             );
 
         } catch (Exception e) {
@@ -163,10 +160,10 @@ public class GeographyCodeEditController extends GeographyCodeUserController {
                 longitude = v;
                 longitudeInput.setStyle(null);
             } else {
-                longitudeInput.setStyle(NodeStyleTools.badStyle);
+                longitudeInput.setStyle(UserConfig.badStyle());
             }
         } catch (Exception e) {
-            longitudeInput.setStyle(NodeStyleTools.badStyle);
+            longitudeInput.setStyle(UserConfig.badStyle());
         }
     }
 
@@ -183,10 +180,10 @@ public class GeographyCodeEditController extends GeographyCodeUserController {
                 latitude = v;
                 latitudeInput.setStyle(null);
             } else {
-                latitudeInput.setStyle(NodeStyleTools.badStyle);
+                latitudeInput.setStyle(UserConfig.badStyle());
             }
         } catch (Exception e) {
-            latitudeInput.setStyle(NodeStyleTools.badStyle);
+            latitudeInput.setStyle(UserConfig.badStyle());
         }
     }
 
@@ -201,7 +198,7 @@ public class GeographyCodeEditController extends GeographyCodeUserController {
             altitude = Double.valueOf(s);
             altitudeInput.setStyle(null);
         } catch (Exception e) {
-            altitudeInput.setStyle(NodeStyleTools.badStyle);
+            altitudeInput.setStyle(UserConfig.badStyle());
         }
     }
 
@@ -216,7 +213,7 @@ public class GeographyCodeEditController extends GeographyCodeUserController {
             precision = Double.valueOf(s);
             precisionInput.setStyle(null);
         } catch (Exception e) {
-            precisionInput.setStyle(NodeStyleTools.badStyle);
+            precisionInput.setStyle(UserConfig.badStyle());
         }
     }
 
@@ -227,10 +224,10 @@ public class GeographyCodeEditController extends GeographyCodeUserController {
                 area = v;
                 areaInput.setStyle(null);
             } else {
-                areaInput.setStyle(NodeStyleTools.badStyle);
+                areaInput.setStyle(UserConfig.badStyle());
             }
         } catch (Exception e) {
-            areaInput.setStyle(NodeStyleTools.badStyle);
+            areaInput.setStyle(UserConfig.badStyle());
         }
     }
 
@@ -241,10 +238,10 @@ public class GeographyCodeEditController extends GeographyCodeUserController {
                 population = v;
                 populationInput.setStyle(null);
             } else {
-                populationInput.setStyle(NodeStyleTools.badStyle);
+                populationInput.setStyle(UserConfig.badStyle());
             }
         } catch (Exception e) {
-            populationInput.setStyle(NodeStyleTools.badStyle);
+            populationInput.setStyle(UserConfig.badStyle());
         }
     }
 
@@ -260,20 +257,25 @@ public class GeographyCodeEditController extends GeographyCodeUserController {
     @FXML
     public void locationAction(ActionEvent event) {
         try {
-            LocationInMapController controller = (LocationInMapController) openStage(Fxmls.LocationInMapFxml);
-            controller.loadCoordinate(this, longitude, latitude);
+            CoordinatePickerController controller = CoordinatePickerController.open(this, longitude, latitude);
+            controller.notify.addListener(new ChangeListener<Boolean>() {
+                @Override
+                public void changed(ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) {
+                    setGeographyCode(controller.geographyCode);
+                    controller.closeStage();
+                }
+            });
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
         }
     }
 
-    @Override
     public void setGeographyCode(GeographyCode code) {
         try {
             if (code == null) {
                 return;
             }
-            if (loadedCode != null && loadedCode.getId() > 0
+            if (loadedCode != null && loadedCode.getGcid() > 0
                     && !gcidInput.getText().isBlank()) {
                 if (code.getLongitude() >= -180 && code.getLongitude() <= 180) {
                     longitudeInput.setText(code.getLongitude() + "");
@@ -288,10 +290,10 @@ public class GeographyCodeEditController extends GeographyCodeUserController {
                 return;
             }
 
-            if (loadedCode != null && loadedCode.getId() > 0) {
-                gcidInput.setText(loadedCode.getId() + "");
-            } else if (code.getId() > 0) {
-                gcidInput.setText(code.getId() + "");
+            if (loadedCode != null && loadedCode.getGcid() > 0) {
+                gcidInput.setText(loadedCode.getGcid() + "");
+            } else if (code.getGcid() > 0) {
+                gcidInput.setText(code.getGcid() + "");
             } else {
                 gcidInput.clear();
             }
@@ -350,12 +352,12 @@ public class GeographyCodeEditController extends GeographyCodeUserController {
             } else {
                 latitudeInput.clear();
             }
-            if (code.getAltitude() != AppValues.InvalidDouble) {
+            if (!DoubleTools.invalidDouble(code.getAltitude())) {
                 altitudeInput.setText(code.getAltitude() + "");
             } else {
                 altitudeInput.clear();
             }
-            if (code.getPrecision() != AppValues.InvalidDouble) {
+            if (!DoubleTools.invalidDouble(code.getPrecision())) {
                 precisionInput.setText(code.getPrecision() + "");
             } else {
                 precisionInput.clear();
@@ -474,9 +476,9 @@ public class GeographyCodeEditController extends GeographyCodeUserController {
             GeographyCode newCode = new GeographyCode();
 
             if (gcidInput.getText() == null || gcidInput.getText().isBlank()) {
-                newCode.setId(-1);
+                newCode.setGcid(-1);
             } else {
-                newCode.setId(Long.valueOf(gcidInput.getText()));
+                newCode.setGcid(Long.valueOf(gcidInput.getText()));
             }
             if (predefinedCheck.isSelected()) {
                 newCode.setSource(GeographyCode.AddressSource.PredefinedData);
@@ -509,7 +511,7 @@ public class GeographyCodeEditController extends GeographyCodeUserController {
             newCode.setAlias4(alias4Input.getText().trim());
             newCode.setAlias5(alias5Input.getText().trim());
             if (selectedCode != null) {
-                newCode.setOwner(selectedCode.getId());
+                newCode.setOwner(selectedCode.getGcid());
                 newCode.setContinent(selectedCode.getContinent());
                 newCode.setCountry(selectedCode.getCountry());
                 newCode.setProvince(selectedCode.getProvince());
@@ -550,7 +552,7 @@ public class GeographyCodeEditController extends GeographyCodeUserController {
         gcidInput.setText("");
         popInformation(Languages.message("DataCopyComments"));
         if (loadedCode != null) {
-            loadedCode.setId(-1);
+            loadedCode.setGcid(-1);
         }
     }
 

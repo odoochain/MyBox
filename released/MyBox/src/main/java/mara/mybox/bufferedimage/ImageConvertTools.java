@@ -22,6 +22,7 @@ import javax.imageio.ImageWriter;
 import javax.imageio.metadata.IIOMetadata;
 import javax.imageio.stream.ImageInputStream;
 import javax.imageio.stream.ImageOutputStream;
+import mara.mybox.bufferedimage.ImageBinary.BinaryAlgorithm;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.imagefile.ImageFileReaders;
 import static mara.mybox.imagefile.ImageFileReaders.getReader;
@@ -31,7 +32,7 @@ import mara.mybox.tools.FileNameTools;
 import mara.mybox.tools.FileTools;
 import mara.mybox.tools.TmpFileTools;
 import mara.mybox.value.FileExtensions;
-import mara.mybox.value.Languages;
+import static mara.mybox.value.Languages.message;
 import net.sf.image4j.codec.ico.ICODecoder;
 import net.sf.image4j.codec.ico.ICOEncoder;
 
@@ -87,31 +88,36 @@ public class ImageConvertTools {
         return 25.4f / dpi;
     }
 
-    public static BufferedImage convertBinary(BufferedImage bufferedImage, ImageAttributes attributes) {
+    public static BufferedImage convert(BufferedImage srcImage, String format) {
+        return convertColorSpace(srcImage, new ImageAttributes(srcImage, format));
+    }
+
+    public static BufferedImage convertBinary(BufferedImage srcImage, ImageAttributes attributes) {
         try {
-            if (bufferedImage == null || attributes == null) {
-                return bufferedImage;
+            if (srcImage == null || attributes == null) {
+                return srcImage;
             }
-            int color = bufferedImage.getType();
+            int color = srcImage.getType();
             ImageBinary imageBinary;
-            if (attributes.getBinaryConversion() == ImageAttributes.BinaryConversion.BINARY_THRESHOLD
+            if (attributes.getBinaryConversion() == BinaryAlgorithm.Threshold
                     && attributes.getThreshold() >= 0) {
-                imageBinary = new ImageBinary(bufferedImage, attributes.getThreshold());
-            } else if (attributes.getBinaryConversion() == ImageAttributes.BinaryConversion.BINARY_OTSU) {
-                imageBinary = new ImageBinary(bufferedImage, -1);
+                imageBinary = new ImageBinary(srcImage, attributes.getThreshold());
+            } else if (attributes.getBinaryConversion() == BinaryAlgorithm.OTSU) {
+                imageBinary = new ImageBinary(srcImage, -1);
                 imageBinary.setCalculate(true);
             } else if (color != BufferedImage.TYPE_BYTE_BINARY || attributes.isIsDithering()) {
-                imageBinary = new ImageBinary(bufferedImage, -1);
+                imageBinary = new ImageBinary(srcImage, -1);
             } else {
-                return bufferedImage;
+                return srcImage;
             }
             imageBinary.setIsDithering(attributes.isIsDithering());
-            bufferedImage = imageBinary.operate();
-            bufferedImage = ImageBinary.byteBinary(bufferedImage);
-            return bufferedImage;
+            BufferedImage targetImage = imageBinary.operate();
+            targetImage = AlphaTools.removeAlpha(targetImage);
+            targetImage = ImageBinary.byteBinary(targetImage);
+            return targetImage;
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
-            return bufferedImage;
+            return srcImage;
         }
     }
 
@@ -138,18 +144,19 @@ public class ImageConvertTools {
                         break;
                 }
             }
-
             ICC_Profile targetProfile = attributes.getProfile();
             String csName = attributes.getColorSpaceName();
             if (targetProfile == null) {
                 if (csName == null) {
                     return tmpImage;
                 }
-                if ("BlackOrWhite".equals(csName) || Languages.message("BlackOrWhite").equals(csName)) {
+                if ("BlackOrWhite".equals(csName) || message("BlackOrWhite").equals(csName)) {
+                    tmpImage = AlphaTools.removeAlpha(srcImage);
                     return convertBinary(tmpImage, attributes);
                 } else {
-                    if (Languages.message("Gray").equals(csName)) {
+                    if (message("Gray").equals(csName)) {
                         csName = "Gray";
+                        tmpImage = AlphaTools.removeAlpha(srcImage);
                     }
                     targetProfile = ImageColorSpace.internalProfileByName(csName);
                     attributes.setProfile(targetProfile);
@@ -177,7 +184,7 @@ public class ImageConvertTools {
             if ("ico".equals(targetFormat) || "icon".equals(targetFormat)) {
                 return convertToIcon(srcFile, attributes, targetFile);
             }
-            String sourceFormat = FileNameTools.getFileSuffix(srcFile);
+            String sourceFormat = FileNameTools.suffix(srcFile.getName());
             if ("ico".equals(sourceFormat) || "icon".equals(sourceFormat)) {
                 return convertFromIcon(srcFile, attributes, targetFile);
             }
@@ -202,6 +209,7 @@ public class ImageConvertTools {
                 }
                 BufferedImage bufferedImage;
                 int index = 0;
+                ImageInformation info = new ImageInformation(srcFile);
                 while (true) {
                     try {
                         bufferedImage = reader.read(index);
@@ -209,7 +217,7 @@ public class ImageConvertTools {
                         if (e.toString().contains("java.lang.IndexOutOfBoundsException")) {
                             break;
                         }
-                        bufferedImage = readBrokenImage(e, srcFile.getAbsolutePath(), index, null, -1);
+                        bufferedImage = readBrokenImage(e, info.setIndex(index));
                     }
                     if (bufferedImage == null) {
                         continue;
@@ -267,13 +275,14 @@ public class ImageConvertTools {
             }
             List<BufferedImage> images = new ArrayList();
             try ( ImageInputStream iis = ImageIO.createImageInputStream(new BufferedInputStream(new FileInputStream(srcFile)))) {
-                ImageReader reader = getReader(iis, FileNameTools.getFileSuffix(srcFile));
+                ImageReader reader = getReader(iis, FileNameTools.suffix(srcFile.getName()));
                 if (reader == null) {
                     return false;
                 }
                 reader.setInput(iis, false);
                 BufferedImage bufferedImage;
                 int index = 0;
+                ImageInformation info = new ImageInformation(srcFile);
                 while (true) {
                     try {
                         bufferedImage = reader.read(index);
@@ -281,7 +290,7 @@ public class ImageConvertTools {
                         if (e.toString().contains("java.lang.IndexOutOfBoundsException")) {
                             break;
                         }
-                        bufferedImage = readBrokenImage(e, srcFile.getAbsolutePath(), index, null, -1);
+                        bufferedImage = readBrokenImage(e, info.setIndex(index));
                     }
                     if (bufferedImage != null) {
                         bufferedImage = convertToIcon(bufferedImage, attributes);
@@ -443,7 +452,8 @@ public class ImageConvertTools {
         }
     }
 
-    public static Raster ycck2cmyk(final byte[] buffer, final int w, final int h) throws IOException {
+    public static Raster ycck2cmyk(final byte[] buffer, final int w, final int h)
+            throws IOException {
         final int pixelCount = w * h * 4;
         for (int i = 0; i < pixelCount; i = i + 4) {
             int y = (buffer[i] & 255);
@@ -460,7 +470,8 @@ public class ImageConvertTools {
             buffer[i + 2] = (byte) (255 - b);
         }
 
-        return Raster.createInterleavedRaster(new DataBufferByte(buffer, pixelCount), w, h, w * 4, 4, new int[]{0, 1, 2, 3}, null);
+        return Raster.createInterleavedRaster(new DataBufferByte(buffer, pixelCount), w, h, w * 4, 4, new int[]{
+            0, 1, 2, 3}, null);
     }
 
     public static BufferedImage rgb2cmyk(ICC_Profile cmykProfile,
@@ -511,7 +522,8 @@ public class ImageConvertTools {
                 //no change so use last value
             } else { //new value
 
-                RGB = CMYK.toRGB(new float[]{C / 255f, M / 255f, Y / 255f, K / 255f});
+                RGB = CMYK.toRGB(new float[]{C / 255f, M / 255f, Y / 255f,
+                    K / 255f});
 
                 //flag so we can just reuse if next value the same
                 lastC = C;
@@ -532,7 +544,8 @@ public class ImageConvertTools {
         /**
          * create CMYK raster from buffer
          */
-        final Raster raster = Raster.createInterleavedRaster(new DataBufferByte(buffer, j), w, h, w * 3, 3, new int[]{0, 1, 2}, null);
+        final Raster raster = Raster.createInterleavedRaster(new DataBufferByte(buffer, j), w, h, w * 3, 3, new int[]{
+            0, 1, 2}, null);
 
         //data now sRGB so create image
         final BufferedImage image = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);

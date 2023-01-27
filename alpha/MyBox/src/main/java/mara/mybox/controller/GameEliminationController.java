@@ -1,6 +1,5 @@
 package mara.mybox.controller;
 
-import java.awt.image.BufferedImage;
 import java.io.File;
 import java.text.MessageFormat;
 import java.util.ArrayList;
@@ -20,7 +19,6 @@ import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
-import javafx.embed.swing.SwingFXUtils;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.geometry.Pos;
@@ -36,15 +34,12 @@ import javafx.scene.control.RadioButton;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.SelectionMode;
 import javafx.scene.control.Tab;
-import javafx.scene.control.TabPane;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.effect.DropShadow;
-import javafx.scene.image.Image;
-import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseEvent;
@@ -61,26 +56,27 @@ import javafx.stage.Popup;
 import javafx.stage.Stage;
 import javafx.util.Callback;
 import javafx.util.Duration;
-import javafx.util.converter.IntegerStringConverter;
-import javax.imageio.ImageIO;
 import mara.mybox.data.ImageItem;
 import mara.mybox.data.IntPoint;
 import mara.mybox.db.data.VisitHistory;
 import mara.mybox.db.table.TableStringValues;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fxml.LocateTools;
-import mara.mybox.fxml.NodeStyleTools;
 import mara.mybox.fxml.PopTools;
 import mara.mybox.fxml.RecentVisitMenu;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.fxml.SoundTools;
 import mara.mybox.fxml.cell.ListImageCheckBoxCell;
+import mara.mybox.fxml.cell.TableAutoCommitCell;
+import mara.mybox.fxml.converter.IntegerStringFromatConverter;
+import mara.mybox.fxml.style.NodeStyleTools;
 import mara.mybox.tools.DateTools;
 import mara.mybox.tools.FileNameTools;
+import mara.mybox.tools.HtmlWriteTools;
 import mara.mybox.value.AppVariables;
 import mara.mybox.value.FileFilters;
-import mara.mybox.value.Languages;
+import static mara.mybox.value.Languages.message;
 import mara.mybox.value.UserConfig;
-import thridparty.TableAutoCommitCell;
 
 /**
  * @Author Mara
@@ -105,13 +101,11 @@ public class GameEliminationController extends BaseController {
     protected File soundFile;
 
     @FXML
-    protected TabPane tabPane;
-    @FXML
     protected Tab playTab, chessesTab, rulersTab, settingsTab;
     @FXML
     protected VBox chessboardPane;
     @FXML
-    protected Label chessesLabel, scoreLabel, imageLabel, autoLabel;
+    protected Label chessesLabel, scoreLabel, autoLabel, soundFileLabel;
     @FXML
     protected ListView<ImageItem> imagesListview;
     @FXML
@@ -138,15 +132,12 @@ public class GameEliminationController extends BaseController {
     @FXML
     protected ScrollPane scrollPane;
     @FXML
-    protected ImageView imageView;
-    @FXML
-    protected Label soundFileLabel;
+    protected ControlWebView imageInfoController;
     @FXML
     protected ColorSet colorSetController;
 
     public GameEliminationController() {
-        baseTitle = Languages.message("GameElimniation");
-
+        baseTitle = message("GameElimniation");
         TipsLabelKey = "GameEliminationComments";
     }
 
@@ -187,9 +178,13 @@ public class GameEliminationController extends BaseController {
             catButton.selectedProperty().addListener(new ChangeListener<Boolean>() {
                 @Override
                 public void changed(ObservableValue ov, Boolean oldVal, Boolean newVal) {
+                    if (firstClick != null) {
+                        recoverStyle(firstClick.getX(), firstClick.getY());
+                        firstClick = null;
+                    }
                     autoPlaying = catButton.isSelected();
                     if (autoPlaying) {
-                        autoLabel.setText(Languages.message("Autoplaying"));
+                        autoLabel.setText(message("Autoplaying"));
                         findAdjacentAndEliminate();
                     } else {
                         autoLabel.setText("");
@@ -203,22 +198,15 @@ public class GameEliminationController extends BaseController {
     }
 
     @Override
-    public boolean keyFilter(KeyEvent event) {
-        KeyCode code = event.getCode();
-        if (code != null) {
-            switch (code) {
-                case H:
-                    helpMeAction();
-                    return true;
-                case N:
-                    createAction();
-                    return true;
-                case A:
-                    setAutoplay();
-                    return true;
-            }
+    public void setControlsStyle() {
+        try {
+            super.setControlsStyle();
+            NodeStyleTools.setTooltip(createButton, message("NewGame") + "\nn / Ctrl+n");
+            NodeStyleTools.setTooltip(helpMeButton, message("HelpMeFindExchange") + "\nh / Ctrl+h");
+            NodeStyleTools.setTooltip(catButton, message("AutoPlayGame") + "\np / Ctrl+p");
+        } catch (Exception e) {
+            MyBoxLog.debug(e.toString());
         }
-        return super.keyFilter(event);
     }
 
     @Override
@@ -229,7 +217,7 @@ public class GameEliminationController extends BaseController {
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 private List<ImageItem> items;
                 private String defaultSelected;
@@ -237,40 +225,45 @@ public class GameEliminationController extends BaseController {
                 @Override
                 protected boolean handle() {
                     try {
-                        List<String> imageNames = new ArrayList();
-                        List<String> names = TableStringValues.read("GameEliminationImage");
-                        for (String name : names) {
-                            if (!name.startsWith("color:")) {
-                                File file = new File(name);
-                                if (!file.exists()) {
-                                    TableStringValues.delete("GameEliminationImage", name);
+                        items = new ArrayList<>();
+                        List<ImageItem> predefinedItems = ImageItem.predefined();
+                        List<String> saved = TableStringValues.read("GameEliminationImage");
+                        if (saved != null) {
+                            for (String address : saved) {
+                                boolean predefined = false;
+                                for (ImageItem item : predefinedItems) {
+                                    if (address.equals(item.getAddress())) {
+                                        predefined = true;
+                                        break;
+                                    }
+                                }
+                                if (!predefined) {
+                                    if (!address.startsWith("color:")) {
+                                        File file = new File(address);
+                                        if (!file.exists()) {
+                                            TableStringValues.delete("GameEliminationImage", address);
+                                            continue;
+                                        }
+                                    }
+                                    items.add(new ImageItem().setAddress(address));
                                 }
                             }
                         }
-                        if (!names.isEmpty()) {
-                            imageNames.addAll(names);
-                        }
-
-                        imageNames.addAll(ImageItem.predefined().keySet());
-                        defaultSelected = imageNames.get(0);
-                        items = new ArrayList();
-                        for (int i = 0; i < imageNames.size(); ++i) {
-                            String name = imageNames.get(i);
-                            String comments = ImageItem.predefined().get(name);
-                            ImageItem item = new ImageItem(name, comments);
+                        items.addAll(predefinedItems);
+                        defaultSelected = items.get(0).getAddress();
+                        for (int i = 0; i < items.size(); ++i) {
+                            ImageItem item = items.get(i);
                             item.getSelected().addListener(new ChangeListener<Boolean>() {
                                 @Override
-                                public void changed(ObservableValue ov,
-                                        Boolean t, Boolean t1) {
+                                public void changed(ObservableValue ov, Boolean t, Boolean t1) {
                                     if (!isSettingValues) {
                                         setChessImagesLabel();
                                     }
                                 }
                             });
                             item.setIndex(i);
-                            items.add(item);
                             if (i > 0 && i < 8) {
-                                defaultSelected += "," + name;
+                                defaultSelected += "," + item.getAddress();
                             }
                         }
                         return true;
@@ -290,25 +283,9 @@ public class GameEliminationController extends BaseController {
                 }
 
             };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
 
-    }
-
-    @Override
-    public void setControlsStyle() {
-        try {
-            super.setControlsStyle();
-            NodeStyleTools.setTooltip(createButton, Languages.message("NewGame") + "\nn / N");
-            NodeStyleTools.setTooltip(helpMeButton, Languages.message("HelpMeFindExchange") + "\nh / H");
-            NodeStyleTools.setTooltip(catButton, Languages.message("AutoPlayGame") + "\na / A");
-        } catch (Exception e) {
-            MyBoxLog.debug(e.toString());
-        }
     }
 
     protected void initChessesTab(List<ImageItem> items, String defaultSelected) {
@@ -335,8 +312,7 @@ public class GameEliminationController extends BaseController {
             imagesListview.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
             imagesListview.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<ImageItem>() {
                 @Override
-                public void changed(ObservableValue ov, ImageItem oldVal,
-                        ImageItem newVal) {
+                public void changed(ObservableValue ov, ImageItem oldVal, ImageItem newVal) {
                     viewImage();
                 }
             });
@@ -375,36 +351,39 @@ public class GameEliminationController extends BaseController {
             rulersTable.setItems(scoreRulersData);
 
             numberColumn.setCellValueFactory(new PropertyValueFactory<>("adjacentNumber"));
+
             scoreColumn.setCellValueFactory(new PropertyValueFactory<>("score"));
             scoreColumn.setCellFactory(new Callback<TableColumn<ScoreRuler, Integer>, TableCell<ScoreRuler, Integer>>() {
                 @Override
-                public TableCell<ScoreRuler, Integer> call(
-                        TableColumn<ScoreRuler, Integer> param) {
+                public TableCell<ScoreRuler, Integer> call(TableColumn<ScoreRuler, Integer> param) {
                     TableAutoCommitCell<ScoreRuler, Integer> cell
-                            = new TableAutoCommitCell<ScoreRuler, Integer>(new IntegerStringConverter()) {
+                            = new TableAutoCommitCell<ScoreRuler, Integer>(new IntegerStringFromatConverter()) {
+
                         @Override
-                        public void commitEdit(Integer val) {
-                            if (val < 0) {
-                                cancelEdit();
-                            } else {
-                                super.commitEdit(val);
+                        public boolean valid(Integer value) {
+                            return value != null && value >= 0;
+                        }
+
+                        @Override
+                        public void commitEdit(Integer value) {
+                            try {
+                                int rowIndex = rowIndex();
+                                if (rowIndex < 0 || !valid(value)) {
+                                    cancelEdit();
+                                    return;
+                                }
+                                ScoreRuler row = scoreRulersData.get(rowIndex);
+                                if (row == null || value == null || value < 0) {
+                                    return;
+                                }
+                                super.commitEdit(value);
+                                row.score = value;
+                            } catch (Exception e) {
+                                MyBoxLog.debug(e);
                             }
                         }
                     };
                     return cell;
-                }
-            });
-            scoreColumn.setOnEditCommit(new EventHandler<TableColumn.CellEditEvent<ScoreRuler, Integer>>() {
-                @Override
-                public void handle(
-                        TableColumn.CellEditEvent<ScoreRuler, Integer> t) {
-                    if (t == null) {
-                        return;
-                    }
-                    if (t.getNewValue() >= 0) {
-                        ScoreRuler row = t.getRowValue();
-                        row.score = t.getNewValue();
-                    }
                 }
             });
             scoreColumn.getStyleClass().add("editable-column");
@@ -481,19 +460,19 @@ public class GameEliminationController extends BaseController {
             String sound = UserConfig.getString("GameEliminationSound", "Guai");
             switch (sound) {
                 case "Ben":
-                    benRadio.fire();
+                    benRadio.setSelected(true);
                     break;
                 case "GuaiBen":
-                    guaiBenRadio.fire();
+                    guaiBenRadio.setSelected(true);
                     break;
                 case "Mute":
-                    muteRadio.fire();
+                    muteRadio.setSelected(true);
                     break;
                 case "Customized":
-                    customizedSoundRadio.fire();
+                    customizedSoundRadio.setSelected(true);
                     break;
                 default:
-                    guaiRadio.fire();
+                    guaiRadio.setSelected(true);
                     break;
             }
 
@@ -530,13 +509,13 @@ public class GameEliminationController extends BaseController {
             String dead = UserConfig.getString("GameEliminationDead", "Renew");
             switch (dead) {
                 case "Chance":
-                    deadChanceRadio.fire();
+                    deadChanceRadio.setSelected(true);
                     break;
                 case "Prompt":
-                    deadPromptRadio.fire();
+                    deadPromptRadio.setSelected(true);
                     break;
                 default:
-                    deadRenewRadio.fire();
+                    deadRenewRadio.setSelected(true);
                     break;
             }
 
@@ -576,16 +555,16 @@ public class GameEliminationController extends BaseController {
             String speed = UserConfig.getString("GameEliminationAutoSpeed", "2");
             switch (speed) {
                 case "1":
-                    speed1Radio.fire();
+                    speed1Radio.setSelected(true);
                     break;
                 case "3":
-                    speed3Radio.fire();
+                    speed3Radio.setSelected(true);
                     break;
                 case "5":
-                    speed5Radio.fire();
+                    speed5Radio.setSelected(true);
                     break;
                 default:
-                    speed2Radio.fire();
+                    speed2Radio.setSelected(true);
                     break;
             }
 
@@ -630,16 +609,16 @@ public class GameEliminationController extends BaseController {
             String flush = UserConfig.getString("GameEliminationFlushTime", "2");
             switch (flush) {
                 case "1":
-                    flush1Radio.fire();
+                    flush1Radio.setSelected(true);
                     break;
                 case "3":
-                    flush3Radio.fire();
+                    flush3Radio.setSelected(true);
                     break;
                 case "0":
-                    flush0Radio.fire();
+                    flush0Radio.setSelected(true);
                     break;
                 default:
-                    flush2Radio.fire();
+                    flush2Radio.setSelected(true);
                     break;
             }
 
@@ -681,38 +660,28 @@ public class GameEliminationController extends BaseController {
                 count++;
             }
         }
-        chessesLabel.setText(MessageFormat.format(Languages.message("SelectChesses"), count));
+        chessesLabel.setText(MessageFormat.format(message("SelectChesses"), count));
     }
 
     public void viewImage() {
         if (isSettingValues) {
             return;
         }
-        imageView.setImage(null);
-        imageLabel.setText("");
+        imageInfoController.loadContents("");
         ImageItem selected = imagesListview.getSelectionModel().getSelectedItem();
-        if (selected == null) {
+        if (selected == null || selected.isColor()) {
             return;
         }
-        String address = selected.getAddress();
-        if (selected.isInternel()) {
-            imageView.setImage(new Image(address));
-            imageView.setPreserveRatio(true);
-            imageView.setFitHeight(Math.min(scrollPane.getHeight(), imageView.getImage().getHeight()));
-            imageLabel.setText(Languages.message(selected.getComments()));
-        } else if (selected.isColor()) {
-
-        } else {
-            try {
-                File file = new File(address);
-                if (file.exists()) {
-                    BufferedImage image = ImageIO.read(file);
-                    imageView.setImage(SwingFXUtils.toFXImage(image, null));
-                } else {
-                }
-            } catch (Exception e) {
-            }
+        File file = selected.getFile();
+        if (file == null || !file.exists()) {
+            return;
         }
+        String body = "<Img src='" + file.toURI().toString() + "' width=" + selected.getWidth() + ">\n";
+        String comments = selected.getComments();
+        if (comments != null && !comments.isBlank()) {
+            body += "<BR>" + message(comments);
+        }
+        imageInfoController.loadContents(HtmlWriteTools.html(body));
     }
 
     @Override
@@ -752,7 +721,7 @@ public class GameEliminationController extends BaseController {
                 }
             }
             if (countedChesses.isEmpty()) {
-                if (!PopTools.askSure(getBaseTitle(), Languages.message("SureNoScore"))) {
+                if (!PopTools.askSure(this, getBaseTitle(), message("SureNoScore"))) {
                     return;
                 }
             }
@@ -788,7 +757,7 @@ public class GameEliminationController extends BaseController {
             item.setSelected(false);
         }
         isSettingValues = false;
-        chessesLabel.setText(MessageFormat.format(Languages.message("SelectChesses"), 0));
+        chessesLabel.setText(MessageFormat.format(message("SelectChesses"), 0));
         imagesListview.refresh();
     }
 
@@ -886,10 +855,10 @@ public class GameEliminationController extends BaseController {
 
     public void selectSoundFile(File file) {
         recordFileOpened(file);
-        String suffix = FileNameTools.getFileSuffix(file);
+        String suffix = FileNameTools.suffix(file.getName());
         if (suffix == null
                 || (!"mp3".equals(suffix.toLowerCase()) && !"wav".equals(suffix.toLowerCase()))) {
-            alertError(Languages.message("OnlySupportMp3Wav"));
+            alertError(message("OnlySupportMp3Wav"));
             return;
         }
         soundFile = file;
@@ -931,18 +900,18 @@ public class GameEliminationController extends BaseController {
         menu.pop();
     }
 
-    public boolean addImageItem(String name) {
-        if (isSettingValues || name == null) {
+    public boolean addImageItem(String address) {
+        if (isSettingValues || address == null) {
             return false;
         }
         for (ImageItem item : imagesListview.getItems()) {
-            if (item.getAddress().equals(name)) {
+            if (item.getAddress().equals(address)) {
                 return false;
             }
         }
         catButton.setSelected(false);
         isSettingValues = true;
-        ImageItem item = new ImageItem(name, null);
+        ImageItem item = new ImageItem().setAddress(address);
         item.getSelected().addListener(new ChangeListener<Boolean>() {
             @Override
             public void changed(ObservableValue ov, Boolean t, Boolean t1) {
@@ -953,7 +922,7 @@ public class GameEliminationController extends BaseController {
         });
         imagesListview.getItems().add(0, item);
         imagesListview.scrollTo(0);
-        TableStringValues.add("GameEliminationImage", name);
+        TableStringValues.add("GameEliminationImage", address);
         isSettingValues = false;
         return true;
     }
@@ -992,7 +961,7 @@ public class GameEliminationController extends BaseController {
         if (selectedChesses.size() <= minimumAdjacent) {
             Alert alert = new Alert(Alert.AlertType.ERROR);
             alert.setTitle(getBaseTitle());
-            alert.setContentText(MessageFormat.format(Languages.message("ChessesNumberTooSmall"), minimumAdjacent + ""));
+            alert.setContentText(MessageFormat.format(message("ChessesNumberTooSmall"), minimumAdjacent + ""));
             alert.getDialogPane().setMinHeight(Region.USE_PREF_SIZE);
             Stage stage = (Stage) alert.getDialogPane().getScene().getWindow();
             stage.setAlwaysOnTop(true);
@@ -1109,6 +1078,10 @@ public class GameEliminationController extends BaseController {
             return;
         }
         try {
+            if (firstClick != null) {
+                recoverStyle(firstClick.getX(), firstClick.getY());
+                firstClick = null;
+            }
             for (int i = 1; i <= boardSize; ++i) {
                 for (int j = 1; j <= boardSize; ++j) {
                     setRandomImage(i, j);
@@ -1147,8 +1120,7 @@ public class GameEliminationController extends BaseController {
         }
     }
 
-    protected Adjacent exchange(int i1, int j1, int i2, int j2,
-            boolean justCheck) {
+    protected Adjacent exchange(int i1, int j1, int i2, int j2, boolean justCheck) {
         if (isSettingValues) {
             return null;
         }
@@ -1480,7 +1452,7 @@ public class GameEliminationController extends BaseController {
             int add = scoreRulers.get(size);
             totalScore += add;
             long cost = new Date().getTime() - startTime.getTime();
-            scoreLabel.setText(Languages.message("Score") + ": " + totalScore + "  " + Languages.message("Cost") + ": "
+            scoreLabel.setText(message("Score") + ": " + totalScore + "  " + message("Cost") + ": "
                     + DateTools.timeDuration(cost));
 
             if (add > 0) {
@@ -1588,12 +1560,12 @@ public class GameEliminationController extends BaseController {
 
             if (autoPlaying || deadRenewRadio.isSelected()) {
                 newGame(false);
-                popInformation(Languages.message("DeadlockDetectRenew"));
+                popInformation(message("DeadlockDetectRenew"));
             } else if (lastRandom == null || deadPromptRadio.isSelected()) {
                 promptDeadlock();
             } else {
                 makeChance();
-                popInformation(Languages.message("DeadlockDetectChance"));
+                popInformation(message("DeadlockDetectChance"));
             }
 
         } catch (Exception e) {
@@ -1652,25 +1624,74 @@ public class GameEliminationController extends BaseController {
             SoundTools.BenWu2();
             Alert alert = new Alert(Alert.AlertType.ERROR);
             alert.setTitle(getBaseTitle());
-            alert.setContentText(Languages.message("NoValidElimination"));
+            alert.setContentText(message("NoValidElimination"));
             alert.getDialogPane().setMinHeight(Region.USE_PREF_SIZE);
-            ButtonType buttonRenew = new ButtonType(Languages.message("RenewGame"));
-            ButtonType buttonChance = new ButtonType(Languages.message("MakeChance"));
+            ButtonType buttonRenew = new ButtonType(message("RenewGame"));
+            ButtonType buttonChance = new ButtonType(message("MakeChance"));
             alert.getButtonTypes().setAll(buttonRenew, buttonChance);
             Stage stage = (Stage) alert.getDialogPane().getScene().getWindow();
             stage.setAlwaysOnTop(true);
             stage.toFront();
             Optional<ButtonType> result = alert.showAndWait();
+            if (result == null || !result.isPresent()) {
+                return;
+            }
             if (result.get() == buttonRenew) {
                 newGame(false);
-                popInformation(Languages.message("DeadlockDetectRenew"));
+                popInformation(message("DeadlockDetectRenew"));
             } else if (result.get() == buttonChance) {
                 makeChance();
-                popInformation(Languages.message("DeadlockDetectChance"));
+                popInformation(message("DeadlockDetectChance"));
             }
         } catch (Exception e) {
             MyBoxLog.debug(e.toString());
         }
+    }
+
+    @Override
+    public boolean keyFilter(KeyEvent event) {
+        KeyCode code = event.getCode();
+        if (code != null) {
+            switch (code) {
+                case H:
+                    helpMeAction();
+                    return true;
+                case N:
+                    createAction();
+                    return true;
+                case P:
+                    setAutoplay();
+                    return true;
+            }
+        }
+        return super.keyFilter(event);
+    }
+
+    @Override
+    public boolean controlAltP() {
+        if (targetIsTextInput()) {
+            return false;
+        }
+        setAutoplay();
+        return true;
+    }
+
+    @Override
+    public boolean controlAltH() {
+        if (targetIsTextInput()) {
+            return false;
+        }
+        helpMeAction();
+        return true;
+    }
+
+    @Override
+    public boolean controlAltN() {
+        if (targetIsTextInput()) {
+            return false;
+        }
+        createAction();
+        return true;
     }
 
     @Override
@@ -1746,6 +1767,7 @@ public class GameEliminationController extends BaseController {
             VBox vbox = getBox(i, j);
             vbox.getChildren().clear();
             vbox.getChildren().add(node);
+            vbox.setStyle(currentStyle);
         } catch (Exception e) {
             MyBoxLog.debug(e.toString());
         }
@@ -1792,8 +1814,8 @@ public class GameEliminationController extends BaseController {
 
     protected void focusStyle(int i, int j) {
         try {
-            final VBox vbox1 = chessBoard.get(i + "-" + j);
-            vbox1.setStyle(focusStyle);
+            VBox vbox = getBox(i, j);
+            vbox.setStyle(focusStyle);
         } catch (Exception e) {
             MyBoxLog.debug(e.toString());
         }
@@ -1801,8 +1823,8 @@ public class GameEliminationController extends BaseController {
 
     protected void recoverStyle(int i, int j) {
         try {
-            final VBox vbox1 = chessBoard.get(i + "-" + j);
-            vbox1.setStyle(currentStyle);
+            VBox vbox = getBox(i, j);
+            vbox.setStyle(currentStyle);
         } catch (Exception e) {
             MyBoxLog.debug(e.toString());
         }
@@ -1825,8 +1847,7 @@ public class GameEliminationController extends BaseController {
             this.endj = endj;
         }
 
-        public void setExchange(int exchangei1, int exchangej1, int exchangei2,
-                int exchangej2) {
+        public void setExchange(int exchangei1, int exchangej1, int exchangei2, int exchangej2) {
             this.exchangei1 = exchangei1;
             this.exchangej1 = exchangej1;
             this.exchangei2 = exchangei2;

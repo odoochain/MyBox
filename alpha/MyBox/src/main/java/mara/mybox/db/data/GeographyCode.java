@@ -1,13 +1,8 @@
 package mara.mybox.db.data;
 
-import mara.mybox.db.table.DataFactory;
-import mara.mybox.data.CoordinateSystem;
-import mara.mybox.db.table.ColumnDefinition;
+import mara.mybox.data.GeoCoordinateSystem;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.value.AppValues;
-import mara.mybox.value.AppVariables;
-import static mara.mybox.value.Languages.message;
-
 import mara.mybox.value.Languages;
 
 /**
@@ -17,20 +12,19 @@ import mara.mybox.value.Languages;
  */
 public class GeographyCode extends BaseData {
 
-    protected long owner, continent, country, province, city, county, town, village, building,
+    protected long gcid, owner, continent, country, province, city, county, town, village, building,
             area, population;
     protected short level;
     protected GeographyCodeLevel levelCode;
     protected String name, fullName, chineseName, englishName, levelName,
             code1, code2, code3, code4, code5, alias1, alias2, alias3, alias4, alias5, comments,
             continentName, countryName, provinceName, cityName, countyName, townName, villageName,
-            buildingName, poiName;
+            buildingName, poiName, label, info, sourceName;
     protected double longitude, latitude, altitude, precision;
     protected GeographyCode ownerCode, continentCode, countryCode, provinceCode, cityCode,
             countyCode, townCode, villageCode, buildingCode;
-    protected CoordinateSystem coordinateSystem;
+    protected GeoCoordinateSystem coordinateSystem;
     protected AddressSource source;
-    protected String sourceName;
 
     public static enum AddressLevel {
         Global, Continent, Country, Province, City, County, Town, Village, Building, InterestOfLocation
@@ -41,7 +35,7 @@ public class GeographyCode extends BaseData {
     }
 
     public GeographyCode() {
-        id = continent = country = province = city = county = village = town = building
+        gcid = continent = country = province = city = county = village = town = building
                 = area = population = -1;
         level = 10;
         levelCode = null;
@@ -67,7 +61,7 @@ public class GeographyCode extends BaseData {
                 newCode.setLevelCode((GeographyCodeLevel) levelCode.clone());
             }
             if (coordinateSystem != null) {
-                newCode.setCoordinateSystem((CoordinateSystem) coordinateSystem.clone());
+                newCode.setCoordinateSystem((GeoCoordinateSystem) coordinateSystem.clone());
             }
             if (ownerCode != null) {
                 newCode.setOwnerCode((GeographyCode) ownerCode.clone());
@@ -100,6 +94,7 @@ public class GeographyCode extends BaseData {
         }
     }
 
+
     /*
         Static methods
      */
@@ -114,7 +109,7 @@ public class GeographyCode extends BaseData {
         try {
             switch (column) {
                 case "gcid":
-                    data.setId(value == null ? -1 : (long) value);
+                    data.setGcid(value == null ? -1 : (long) value);
                     return true;
                 case "level":
                     data.setLevel(value == null ? -1 : (short) value);
@@ -140,7 +135,7 @@ public class GeographyCode extends BaseData {
                     return true;
                 case "coordinate_system":
                     data.setCoordinateSystem(value == null
-                            ? CoordinateSystem.defaultCode() : new CoordinateSystem((short) value));
+                            ? GeoCoordinateSystem.defaultCode() : new GeoCoordinateSystem((short) value));
                     return true;
                 case "area":
                     data.setArea(value == null ? AppValues.InvalidLong : (long) value);
@@ -225,7 +220,7 @@ public class GeographyCode extends BaseData {
         }
         switch (column) {
             case "gcid":
-                return data.getId();
+                return data.getGcid();
             case "level":
                 return data.getLevel();
             case "longitude":
@@ -238,7 +233,7 @@ public class GeographyCode extends BaseData {
                 return data.getPrecision();
             case "coordinate_system":
                 return data.getCoordinateSystem() == null
-                        ? CoordinateSystem.defaultCode().shortValue()
+                        ? GeoCoordinateSystem.defaultCode().shortValue()
                         : data.getCoordinateSystem().shortValue();
             case "chinese_name":
                 return data.getChineseName();
@@ -304,7 +299,7 @@ public class GeographyCode extends BaseData {
         if (data == null || column == null || value == null) {
             return null;
         }
-        switch (column.getName()) {
+        switch (column.getColumnName()) {
             case "owner":
                 return data.getOwner() + "";
             case "gcsource":
@@ -312,7 +307,7 @@ public class GeographyCode extends BaseData {
             case "level":
                 return data.getLevelName();
             case "coordinate_system":
-                CoordinateSystem cs = data.getCoordinateSystem();
+                GeoCoordinateSystem cs = data.getCoordinateSystem();
                 return cs != null ? cs.name() : null;
             case "continent":
                 return data.getContinentName();
@@ -331,7 +326,7 @@ public class GeographyCode extends BaseData {
             case "building":
                 return data.getBuildingName();
         }
-        return DataFactory.displayColumnBase(data, column, value);
+        return BaseDataAdaptor.displayColumnBase(data, column, value);
     }
 
     public static String displayDataMore(GeographyCode data, String lineBreak) {
@@ -644,56 +639,56 @@ public class GeographyCode extends BaseData {
 
     public long getContinent() {
         if (continentCode != null) {
-            continent = continentCode.getId();
+            continent = continentCode.getGcid();
         }
         return continent;
     }
 
     public long getCountry() {
         if (countryCode != null) {
-            country = countryCode.getId();
+            country = countryCode.getGcid();
         }
         return country;
     }
 
     public long getProvince() {
         if (provinceCode != null) {
-            province = provinceCode.getId();
+            province = provinceCode.getGcid();
         }
         return province;
     }
 
     public long getCity() {
         if (cityCode != null) {
-            city = cityCode.getId();
+            city = cityCode.getGcid();
         }
         return city;
     }
 
     public long getCounty() {
         if (countyCode != null) {
-            county = countyCode.getId();
+            county = countyCode.getGcid();
         }
         return county;
     }
 
     public long getVillage() {
         if (villageCode != null) {
-            village = villageCode.getId();
+            village = villageCode.getGcid();
         }
         return village;
     }
 
     public long getTown() {
         if (townCode != null) {
-            town = townCode.getId();
+            town = townCode.getGcid();
         }
         return town;
     }
 
     public long getBuilding() {
         if (buildingCode != null) {
-            building = buildingCode.getId();
+            building = buildingCode.getGcid();
         }
         return building;
     }
@@ -778,9 +773,9 @@ public class GeographyCode extends BaseData {
         return levelName;
     }
 
-    public CoordinateSystem getCoordinateSystem() {
+    public GeoCoordinateSystem getCoordinateSystem() {
         if (coordinateSystem == null) {
-            coordinateSystem = CoordinateSystem.defaultCode();
+            coordinateSystem = GeoCoordinateSystem.defaultCode();
         }
         return coordinateSystem;
     }
@@ -798,10 +793,17 @@ public class GeographyCode extends BaseData {
         return source(source);
     }
 
-
     /*
         get/set
      */
+    public long getGcid() {
+        return gcid;
+    }
+
+    public void setGcid(long gcid) {
+        this.gcid = gcid;
+    }
+
     public String getChineseName() {
         return chineseName;
     }
@@ -878,16 +880,18 @@ public class GeographyCode extends BaseData {
         return longitude;
     }
 
-    public void setLongitude(double longitude) {
+    public GeographyCode setLongitude(double longitude) {
         this.longitude = longitude;
+        return this;
     }
 
     public double getLatitude() {
         return latitude;
     }
 
-    public void setLatitude(double latitude) {
+    public GeographyCode setLatitude(double latitude) {
         this.latitude = latitude;
+        return this;
     }
 
     public void setContinent(long continent) {
@@ -1078,8 +1082,9 @@ public class GeographyCode extends BaseData {
         return altitude;
     }
 
-    public void setAltitude(double altitude) {
+    public GeographyCode setAltitude(double altitude) {
         this.altitude = altitude;
+        return this;
     }
 
     public double getPrecision() {
@@ -1098,12 +1103,31 @@ public class GeographyCode extends BaseData {
         this.ownerCode = ownerCode;
     }
 
-    public void setCoordinateSystem(CoordinateSystem coordinateSystem) {
+    public GeographyCode setCoordinateSystem(GeoCoordinateSystem coordinateSystem) {
         this.coordinateSystem = coordinateSystem;
+        return this;
     }
 
     public void setSourceName(String sourceName) {
         this.sourceName = sourceName;
+    }
+
+    public String getInfo() {
+        return info;
+    }
+
+    public GeographyCode setInfo(String info) {
+        this.info = info;
+        return this;
+    }
+
+    public String getLabel() {
+        return label;
+    }
+
+    public GeographyCode setLabel(String label) {
+        this.label = label;
+        return this;
     }
 
 }

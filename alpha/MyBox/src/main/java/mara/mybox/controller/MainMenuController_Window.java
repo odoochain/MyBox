@@ -3,11 +3,15 @@ package mara.mybox.controller;
 import java.util.ArrayList;
 import java.util.List;
 import javafx.event.ActionEvent;
+import javafx.event.Event;
 import javafx.fxml.FXML;
+import javafx.scene.control.CheckMenuItem;
+import javafx.scene.control.Menu;
 import javafx.stage.Window;
 import mara.mybox.MyBox;
+import mara.mybox.dev.MyBoxLog;
+import mara.mybox.fxml.NodeTools;
 import mara.mybox.fxml.WindowTools;
-
 import mara.mybox.value.Fxmls;
 
 /**
@@ -18,8 +22,47 @@ import mara.mybox.value.Fxmls;
 public abstract class MainMenuController_Window extends MainMenuController_Base {
 
     @FXML
+    protected Menu homeMenu;
+    @FXML
+    protected CheckMenuItem alwayOnTopCheck;
+
+    @Override
+    public void initControls() {
+        try {
+            super.initControls();
+
+            homeMenu.setOnShowing((Event e) -> {
+                checkTop();
+            });
+            checkTop();
+
+        } catch (Exception e) {
+            MyBoxLog.debug(e.toString());
+        }
+    }
+
+    protected void checkTop() {
+        if (getMyStage() == null) {
+            return;
+        }
+        alwayOnTopCheck.setSelected(myStage.isAlwaysOnTop());
+    }
+
+    @FXML
     protected void showHome(ActionEvent event) {
         openStage(Fxmls.MyboxFxml);
+    }
+
+    @FXML
+    protected void SnapshotWindow(ActionEvent event) {
+        ImageViewerController.load(NodeTools.snap(parentController.thisPane));
+    }
+
+    @FXML
+    protected void SnapshotPane(ActionEvent event) {
+        thisPane.getChildren().remove(mainMenuPane);
+        ImageViewerController.load(NodeTools.snap(parentController.thisPane));
+        thisPane.getChildren().add(0, mainMenuPane);
     }
 
     @FXML
@@ -77,6 +120,14 @@ public abstract class MainMenuController_Window extends MainMenuController_Base 
     @Override
     public BaseController reload() {
         return parentController.reload();
+    }
+
+    @FXML
+    public void AlwayOnTop() {
+        if (getMyStage() == null) {
+            return;
+        }
+        myStage.setAlwaysOnTop(alwayOnTopCheck.isSelected());
     }
 
     @FXML

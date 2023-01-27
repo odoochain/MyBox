@@ -23,7 +23,8 @@ public class TextFileTools {
 
     public static String readTexts(File file, Charset charset) {
         StringBuilder s = new StringBuilder();
-        try (final BufferedReader reader = new BufferedReader(new FileReader(file, charset))) {
+        File validFile = FileTools.removeBOM(file);
+        try (final BufferedReader reader = new BufferedReader(new FileReader(validFile, charset))) {
             String line = reader.readLine();
             if (line != null) {
                 s.append(line);
@@ -47,9 +48,9 @@ public class TextFileTools {
         }
         file.getParentFile().mkdirs();
         Charset fileCharset = charset != null ? charset : Charset.forName("utf-8");
-        try ( BufferedWriter out = new BufferedWriter(new FileWriter(file, fileCharset, false))) {
-            out.write(data);
-            out.flush();
+        try ( BufferedWriter writer = new BufferedWriter(new FileWriter(file, fileCharset, false))) {
+            writer.write(data);
+            writer.flush();
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
             return null;
@@ -87,7 +88,8 @@ public class TextFileTools {
         String line;
         try (final FileWriter writer = new FileWriter(targetFile, Charset.forName("utf-8"))) {
             for (File file : files) {
-                try (final BufferedReader reader = new BufferedReader(new FileReader(file, charset(file)))) {
+                File validFile = FileTools.removeBOM(file);
+                try (final BufferedReader reader = new BufferedReader(new FileReader(validFile, charset(validFile)))) {
                     while ((line = reader.readLine()) != null) {
                         writer.write(line + System.lineSeparator());
                     }
@@ -99,6 +101,29 @@ public class TextFileTools {
             return false;
         }
         return true;
+    }
+
+    public static void writeLine(BufferedWriter writer, List<String> values, String delimiter) {
+        try {
+            if (writer == null || values == null || values.isEmpty() || delimiter == null) {
+                return;
+            }
+            String delimiterValue = TextTools.delimiterValue(delimiter);
+            int end = values.size() - 1;
+            String line = "";
+            for (int c = 0; c <= end; c++) {
+                String value = values.get(c);
+                if (value != null) {
+                    line += value;
+                }
+                if (c < end) {
+                    line += delimiterValue;
+                }
+            }
+            writer.write(line + "\n");
+        } catch (Exception e) {
+            MyBoxLog.console(e);
+        }
     }
 
 }

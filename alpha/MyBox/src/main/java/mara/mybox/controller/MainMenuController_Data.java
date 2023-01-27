@@ -12,38 +12,47 @@ import mara.mybox.value.Fxmls;
 public abstract class MainMenuController_Data extends MainMenuController_Network {
 
     @FXML
+    protected void DataManufacture(ActionEvent event) {
+        DataManufactureController c = (DataManufactureController) loadScene(Fxmls.DataManufactureFxml);
+        c.createAction();
+    }
+
+    @FXML
+    protected void manageData(ActionEvent event) {
+        loadScene(Fxmls.Data2DManageFxml);
+    }
+
+    @FXML
+    protected void SpliceData(ActionEvent event) {
+        loadScene(Fxmls.Data2DSpliceFxml);
+    }
+
+    @FXML
+    protected void RowFilter(ActionEvent event) {
+        loadScene(Fxmls.RowFilterFxml);
+    }
+
+    @FXML
     protected void openMatricesManage(ActionEvent event) {
-        loadScene(Fxmls.MatricesManageFxml);
+        MatricesManageController c = (MatricesManageController) loadScene(Fxmls.MatricesManageFxml);
+        c.createAction();
     }
 
     @FXML
     protected void openMatrixUnaryCalculation(ActionEvent event) {
-        loadScene(Fxmls.MatrixUnaryCalculationFxml);
+        MatrixUnaryCalculationController c = (MatrixUnaryCalculationController) loadScene(Fxmls.MatrixUnaryCalculationFxml);
+        c.createAction();
     }
 
     @FXML
     protected void openMatricesBinaryCalculation(ActionEvent event) {
-        loadScene(Fxmls.MatricesBinaryCalculationFxml);
-    }
-
-    @FXML
-    protected void openDataset(ActionEvent event) {
-        loadScene(Fxmls.DatasetFxml);
-    }
-
-    @FXML
-    protected void openLocationData(ActionEvent event) {
-        loadScene(Fxmls.LocationDataFxml);
+        MatricesBinaryCalculationController c = (MatricesBinaryCalculationController) loadScene(Fxmls.MatricesBinaryCalculationFxml);
+        c.createAction();
     }
 
     @FXML
     protected void openGeographyCode(ActionEvent event) {
         loadScene(Fxmls.GeographyCodeFxml);
-    }
-
-    @FXML
-    protected void openLocationsDataInMap(ActionEvent event) {
-        loadScene(Fxmls.LocationsDataInMapFxml);
     }
 
     @FXML
@@ -57,23 +66,30 @@ public abstract class MainMenuController_Data extends MainMenuController_Network
     }
 
     @FXML
-    protected void openEpidemicReports(ActionEvent event) {
-        loadScene(Fxmls.EpidemicReportsFxml);
+    protected void dataInSystemClipboard(ActionEvent event) {
+        DataInSystemClipboardController.oneOpen();
     }
 
     @FXML
-    protected void openDataClipboard(ActionEvent event) {
-        loadScene(Fxmls.DataClipboardFxml);
+    protected void dataInMyBoxClipboard(ActionEvent event) {
+        DataInMyBoxClipboardController c = DataInMyBoxClipboardController.oneOpen();
+        c.createAction();
     }
 
     @FXML
     protected void openDataCsv(ActionEvent event) {
-        loadScene(Fxmls.DataFileCSVFxml);
+        DataFileCSVController c = (DataFileCSVController) loadScene(Fxmls.DataFileCSVFxml);
+        if (c != null) {
+            c.createAction();
+        }
     }
 
     @FXML
     protected void openDataExcel(ActionEvent event) {
-        loadScene(Fxmls.DataFileExcelFxml);
+        DataFileExcelController c = (DataFileExcelController) loadScene(Fxmls.DataFileExcelFxml);
+        if (c != null) {
+            c.createAction();
+        }
     }
 
     @FXML
@@ -94,6 +110,54 @@ public abstract class MainMenuController_Data extends MainMenuController_Network
     @FXML
     protected void openCsvMerge(ActionEvent event) {
         loadScene(Fxmls.DataFileCSVMergeFxml);
+    }
+
+    @FXML
+    protected void openDataText(ActionEvent event) {
+        DataFileTextController c = (DataFileTextController) loadScene(Fxmls.DataFileTextFxml);
+        if (c != null) {
+            c.createAction();
+        }
+    }
+
+    @FXML
+    protected void openTextDataConvert(ActionEvent event) {
+        loadScene(Fxmls.DataFileTextConvertFxml);
+    }
+
+    @FXML
+    protected void openTextDataMerge(ActionEvent event) {
+        loadScene(Fxmls.DataFileTextMergeFxml);
+    }
+
+    @FXML
+    protected void DatabaseSQL(ActionEvent event) {
+        loadScene(Fxmls.DatabaseSqlFxml);
+    }
+
+    @FXML
+    protected void DatabaseTable(ActionEvent event) {
+        loadScene(Fxmls.DataTablesFxml);
+    }
+
+    @FXML
+    protected void JShell(ActionEvent event) {
+        loadScene(Fxmls.JShellFxml);
+    }
+
+    @FXML
+    protected void JEXL(ActionEvent event) {
+        loadScene(Fxmls.JexlFxml);
+    }
+
+    @FXML
+    protected void JavaScript(ActionEvent event) {
+        loadScene(Fxmls.JavaScriptFxml);
+    }
+
+    @FXML
+    protected void MathFunction(ActionEvent event) {
+        loadScene(Fxmls.MathFunctionFxml);
     }
 
 }

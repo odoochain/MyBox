@@ -2,7 +2,6 @@ package mara.mybox.controller;
 
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
-
 import mara.mybox.value.Fxmls;
 
 /**
@@ -23,7 +22,7 @@ public abstract class MainMenuController_Image extends MainMenuController_Docume
     }
 
     @FXML
-    protected void openImageData(ActionEvent event) {
+    protected void openImageAnalyse(ActionEvent event) {
         loadScene(Fxmls.ImageAnalyseFxml);
     }
 
@@ -108,23 +107,23 @@ public abstract class MainMenuController_Image extends MainMenuController_Docume
     }
 
     @FXML
-    protected void ImagesSplice(ActionEvent event) {
-        loadScene(Fxmls.ImagesSpliceFxml);
-    }
-
-    @FXML
     protected void ImagesEditor(ActionEvent event) {
         loadScene(Fxmls.ImagesEditorFxml);
     }
 
     @FXML
-    protected void ImagesPlay(ActionEvent event) {
-        loadScene(Fxmls.ImagesPlayFxml);
+    protected void ImagesSplice(ActionEvent event) {
+        loadScene(Fxmls.ImagesSpliceFxml);
     }
 
     @FXML
-    protected void openImageStatistic(ActionEvent event) {
-        loadScene(Fxmls.ImageStatisticFxml);
+    protected void ImageRepeat(ActionEvent event) {
+        loadScene(Fxmls.ImageRepeatFxml);
+    }
+
+    @FXML
+    protected void ImagesPlay(ActionEvent event) {
+        loadScene(Fxmls.ImagesPlayFxml);
     }
 
     @FXML
@@ -155,6 +154,11 @@ public abstract class MainMenuController_Image extends MainMenuController_Docume
     @FXML
     protected void openManageColors(ActionEvent event) {
         ColorsManageController.oneOpen();
+    }
+
+    @FXML
+    protected void queryColor(ActionEvent event) {
+        loadScene(Fxmls.ColorQueryFxml);
     }
 
     @FXML
@@ -200,6 +204,11 @@ public abstract class MainMenuController_Image extends MainMenuController_Docume
     @FXML
     protected void openPixelsCalculator(ActionEvent event) {
         openStage(Fxmls.PixelsCalculatorFxml);
+    }
+
+    @FXML
+    protected void ImageBase64(ActionEvent event) {
+        loadScene(Fxmls.ImageBase64Fxml);
     }
 
 }

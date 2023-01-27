@@ -1,10 +1,14 @@
 package mara.mybox.controller;
 
+import java.util.ArrayList;
 import java.util.List;
+import javafx.event.Event;
 import javafx.fxml.FXML;
+import javafx.geometry.Point2D;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
@@ -13,17 +17,17 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Popup;
 import javafx.stage.Window;
 import mara.mybox.dev.MyBoxLog;
+import mara.mybox.fxml.LocateTools;
 import mara.mybox.fxml.PopTools;
 import mara.mybox.value.Fxmls;
-import mara.mybox.value.Languages;
-import mara.mybox.value.UserConfig;
+import static mara.mybox.value.Languages.message;
 
 /**
  * @Author Mara
  * @CreateDate 2021-7-27
  * @License Apache License Version 2.0
  */
-public class MenuController extends BaseController {
+public class MenuController extends BaseChildController {
 
     protected Node node;
     protected String baseStyle;
@@ -36,29 +40,40 @@ public class MenuController extends BaseController {
     @FXML
     protected Label titleLabel;
     @FXML
-    protected Button functionsButton;
+    protected Button functionsButton, closePopButton, closePop2Button;
 
     public MenuController() {
     }
 
     @Override
-    public void initControls() {
+    public void initValues() {
         try {
+            super.initValues();
+
             parentController = this;
             baseStyle = thisPane.getStyle();
             if (baseStyle == null) {
                 baseStyle = "";
             }
-            String style = UserConfig.getString(baseName + "WindowStyle", "");
-            PopTools.setMenuLabelsStyle(thisPane, baseStyle + style);
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
         }
     }
 
     @Override
-    public void setStageStatus(String prefix, int minSize) {
-        setAsPopup(baseName);
+    public void setStageStatus() {
+    }
+
+    @Override
+    public void setControlsStyle() {
+        try {
+            super.setControlsStyle();
+
+            PopTools.setWindowStyle(thisPane, baseName, baseStyle);
+
+        } catch (Exception e) {
+            MyBoxLog.error(e.toString());
+        }
     }
 
     public void setParameters(BaseController parent, Node node, double x, double y) {
@@ -72,13 +87,39 @@ public class MenuController extends BaseController {
             if (window instanceof Popup) {
                 window.setX(x);
                 window.setY(y);
+            } else {
+                String name = baseName;
+                if (parent != null) {
+                    name += parent.baseName;
+                    if (getMyStage() != null) {
+                        myStage.setTitle(parent.getTitle());
+                    }
+                }
+                if (node != null && node.getId() != null) {
+                    name += node.getId();
+                }
+                setAsPop(name);
             }
-            setControlsStyle();
 
-            if (node != null) {
+            if (node != null && node.getId() != null) {
                 setTitleid(node.getId());
             }
 
+            setControlsStyle();
+
+        } catch (Exception e) {
+            MyBoxLog.error(e.toString());
+        }
+    }
+
+    public void setTitle() {
+        try {
+            if (parentController != null) {
+                if (getMyStage() != null) {
+                    myStage.setTitle(parentController.getTitle());
+                }
+
+            }
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
         }
@@ -91,19 +132,33 @@ public class MenuController extends BaseController {
     }
 
     public void setTitleid(String id) {
-        if (id == null || id.isBlank()) {
+        if (titleLabel == null || id == null || id.isBlank()) {
             return;
         }
-        titleLabel.setText(Languages.message("Target") + ": " + (parentController.isPop ? "Pop-" : "") + id);
+        titleLabel.setText(message("Target") + ": " + (parentController.isPop ? "Pop-" : "") + id);
+    }
+
+    public void setTitleLabel(String s) {
+        if (titleLabel == null || s == null || s.isBlank()) {
+            return;
+        }
+        titleLabel.setText(s);
     }
 
     public void addNode(Node node) {
         nodesBox.getChildren().add(node);
     }
 
-    public void addFlowPane(List<Node> nodes) {
-        try {
+    public void addNode(int index, Node node) {
+        nodesBox.getChildren().add(index, node);
+    }
 
+    public void addFlowPane(List<Node> nodes) {
+        addFlowPane(-1, nodes);
+    }
+
+    public void addFlowPane(int index, List<Node> nodes) {
+        try {
             FlowPane flowPane = new FlowPane();
             flowPane.setMinHeight(Region.USE_PREF_SIZE);
             flowPane.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
@@ -112,8 +167,11 @@ public class MenuController extends BaseController {
             if (nodes != null) {
                 flowPane.getChildren().setAll(nodes);
             }
-
-            addNode(flowPane);
+            if (index >= 0) {
+                addNode(index, flowPane);
+            } else {
+                addNode(flowPane);
+            }
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
         }
@@ -126,30 +184,29 @@ public class MenuController extends BaseController {
 
     @FXML
     public void popStyles(MouseEvent mouseEvent) {
-        PopTools.popMenuStyles(this, baseStyle, mouseEvent);
-    }
-
-    @FXML
-    @Override
-    public void cancelAction() {
-        closeStage();
+        PopTools.popWindowStyles(this, baseStyle, mouseEvent);
     }
 
     @Override
-    public boolean keyESC() {
-        closeStage();
-        return false;
-    }
-
-    @Override
-    public boolean keyF6() {
-        closeStage();
-        return false;
+    public boolean keyEventsFilter(KeyEvent event) {
+        if (!super.keyEventsFilter(event)) {
+            if (parentController != null) {
+                return parentController.keyEventsFilter(event);
+            } else {
+                return false;
+            }
+        }
+        return true;
     }
 
     /*
         static methods
      */
+    public static MenuController open(BaseController parent, Node node, Event event) {
+        Point2D everntCoord = LocateTools.getScreenCoordinate(event);
+        return open(parent, node, everntCoord.getX(), everntCoord.getY() + LocateTools.PopOffsetY);
+    }
+
     public static MenuController open(BaseController parent, Node node, double x, double y) {
         try {
             if (parent == null) {
@@ -169,6 +226,21 @@ public class MenuController extends BaseController {
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
             return null;
+        }
+    }
+
+    public static void closeAll() {
+        List<Window> windows = new ArrayList<>();
+        windows.addAll(Window.getWindows());
+        for (Window window : windows) {
+            Object object = window.getUserData();
+            if (object != null && object instanceof MenuController) {
+                try {
+                    MenuController controller = (MenuController) object;
+                    controller.close();
+                } catch (Exception e) {
+                }
+            }
         }
     }
 

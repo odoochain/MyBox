@@ -7,14 +7,19 @@ import javafx.event.Event;
 import javafx.geometry.Bounds;
 import javafx.geometry.Rectangle2D;
 import javafx.scene.Node;
+import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.SnapshotParameters;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Control;
 import javafx.scene.control.RadioButton;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.control.SplitPane;
+import javafx.scene.control.Tab;
+import javafx.scene.control.TabPane;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TextInputControl;
+import javafx.scene.control.TitledPane;
 import javafx.scene.control.Toggle;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.image.Image;
@@ -22,6 +27,7 @@ import javafx.scene.image.WritableImage;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.Pane;
+import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
 import javafx.scene.web.WebView;
 import javafx.stage.Screen;
@@ -72,6 +78,38 @@ public class NodeTools {
         }
     }
 
+    public static void children(int level, Node node) {
+        try {
+            if (node == null) {
+                return;
+            }
+            MyBoxLog.debug("  ".repeat(level) + node.getClass() + " " + node.getId() + " " + node.getStyle());
+            if (node instanceof SplitPane) {
+                for (Node child : ((SplitPane) node).getItems()) {
+                    children(level + 1, child);
+                }
+            } else if (node instanceof ScrollPane) {
+                children(level + 1, ((ScrollPane) node).getContent());
+            } else if (node instanceof TitledPane) {
+                children(level + 1, ((TitledPane) node).getContent());
+            } else if (node instanceof StackPane) {
+                for (Node child : ((StackPane) node).getChildren()) {
+                    children(level + 1, child);
+                }
+            } else if (node instanceof TabPane) {
+                for (Tab tab : ((TabPane) node).getTabs()) {
+                    children(level + 1, tab.getContent());
+                }
+            } else if (node instanceof Parent) {
+                for (Node child : ((Parent) node).getChildrenUnmodifiable()) {
+                    children(level + 1, child);
+                }
+            }
+        } catch (Exception e) {
+            MyBoxLog.error(e.toString());
+        }
+    }
+
     public static Window getWindow(Node node) {
         try {
             return node.getScene().getWindow();
@@ -115,6 +153,17 @@ public class NodeTools {
             }
         }
         return false;
+    }
+
+    public static String getSelectedText(ToggleGroup group) {
+        if (group == null) {
+            return null;
+        }
+        Toggle button = group.getSelectedToggle();
+        if (button == null || !(button instanceof RadioButton)) {
+            return null;
+        }
+        return ((RadioButton) button).getText();
     }
 
     public static boolean setItemSelected(ComboBox<String> box, String text) {
@@ -209,24 +258,21 @@ public class NodeTools {
         }
     }
 
-    // Not work~
-//    public static void fireMouseRightClicked(Node node) {
-//        try {
-////            MyBoxLog.console(node.getScene().getWindow().getX() + " " + node.getScene().getWindow().getY());
-////            MyBoxLog.console(node.getScene().getX() + " " + node.getScene().getY());
-////            MyBoxLog.console(getX(node) + " " + getY(node));
-//            node.fireEvent(new MouseEvent(MouseEvent.MOUSE_CLICKED,
-//                    node.getScene().getX() + 20, node.getScene().getY() + 20, getX(node) + 20, getY(node) + 20,
-//                    MouseButton.SECONDARY, 1,
-//                    false, false, false, false, false, false, true, false, false, false, null));
-//        } catch (Exception e) {
-//            MyBoxLog.debug(e.toString());
-//        }
-//    }
+    public static double screenDpi() {
+        return Screen.getPrimary().getDpi();
+    }
+
+    public static double screenResolution() {
+        return Toolkit.getDefaultToolkit().getScreenResolution();
+    }
+
     public static double dpiScale() {
+        return dpiScale(screenResolution());
+    }
+
+    public static double dpiScale(double dpi) {
         try {
-            double scale = Toolkit.getDefaultToolkit().getScreenResolution() / Screen.getPrimary().getDpi();
-            return scale > 1 ? scale : 1;
+            return dpi / screenDpi();
         } catch (Exception e) {
             return 1;
         }
@@ -234,21 +280,19 @@ public class NodeTools {
 
     public static Image snap(Node node) {
         try {
-            final Bounds bounds = node.getLayoutBounds();
+            if (node == null) {
+                return null;
+            }
             double scale = dpiScale();
-            int imageWidth = (int) Math.round(bounds.getWidth() * scale);
-            int imageHeight = (int) Math.round(bounds.getHeight() * scale);
             final SnapshotParameters snapPara = new SnapshotParameters();
             snapPara.setFill(Color.TRANSPARENT);
             snapPara.setTransform(javafx.scene.transform.Transform.scale(scale, scale));
-            WritableImage snapshot = new WritableImage(imageWidth, imageHeight);
-            snapshot = node.snapshot(snapPara, snapshot);
+            WritableImage snapshot = node.snapshot(snapPara, null);
             return snapshot;
         } catch (Exception e) {
             MyBoxLog.debug(e.toString());
             return null;
         }
-
     }
 
 }

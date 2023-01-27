@@ -5,13 +5,11 @@ import java.util.List;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.scene.input.MouseEvent;
-import javafx.stage.Modality;
 import javafx.stage.Window;
 import mara.mybox.db.data.ImageClipboard;
 import mara.mybox.dev.MyBoxLog;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.fxml.WindowTools;
-import static mara.mybox.value.Languages.message;
-
 import mara.mybox.value.Fxmls;
 import mara.mybox.value.Languages;
 
@@ -56,7 +54,7 @@ public class ImageInMyBoxClipboardController extends ImageViewerController {
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 @Override
                 protected boolean handle() {
@@ -78,11 +76,7 @@ public class ImageInMyBoxClipboardController extends ImageViewerController {
                     setImageChanged(false);
                 }
             };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
     }
 
@@ -98,7 +92,6 @@ public class ImageInMyBoxClipboardController extends ImageViewerController {
             if (object != null && object instanceof ImageInMyBoxClipboardController) {
                 try {
                     controller = (ImageInMyBoxClipboardController) object;
-                    controller.toFront();
                     break;
                 } catch (Exception e) {
                 }
@@ -107,6 +100,7 @@ public class ImageInMyBoxClipboardController extends ImageViewerController {
         if (controller == null) {
             controller = (ImageInMyBoxClipboardController) WindowTools.openStage(Fxmls.ImageInMyBoxClipboardFxml);
         }
+        controller.requestMouse();
         return controller;
     }
 

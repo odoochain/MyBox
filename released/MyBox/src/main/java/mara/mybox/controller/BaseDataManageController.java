@@ -1,5 +1,6 @@
 package mara.mybox.controller;
 
+import java.sql.Connection;
 import java.util.ArrayList;
 import java.util.List;
 import javafx.event.ActionEvent;
@@ -14,29 +15,29 @@ import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.Region;
-import javafx.scene.web.WebView;
 import mara.mybox.db.DerbyBase;
+import mara.mybox.db.data.ColumnDefinition;
 import mara.mybox.db.data.QueryCondition;
 import mara.mybox.db.data.QueryCondition.DataOperation;
 import mara.mybox.db.table.BaseTable;
-import mara.mybox.db.table.ColumnDefinition;
 import mara.mybox.db.table.TableQueryCondition;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fxml.LocateTools;
-import mara.mybox.fxml.NodeStyleTools;
 import mara.mybox.fxml.PopTools;
+import mara.mybox.fxml.SingletonTask;
+import mara.mybox.fxml.style.NodeStyleTools;
+import mara.mybox.fxml.style.StyleTools;
 import mara.mybox.tools.HtmlWriteTools;
 import mara.mybox.value.AppVariables;
 import mara.mybox.value.Fxmls;
-import mara.mybox.value.Languages;
-import mara.mybox.value.UserConfig;
+import static mara.mybox.value.Languages.message;
 
 /**
  * @Author Mara
  * @CreateDate 2020-5-2
  * @License Apache License Version 2.0
  */
-public abstract class BaseDataManageController<P> extends BaseDataTableController<P> {
+public abstract class BaseDataManageController<P> extends BaseSysTableController<P> {
 
     protected BaseTable viewDefinition;
     protected String finalTitle, dataQueryString, pageQueryString,
@@ -52,7 +53,7 @@ public abstract class BaseDataManageController<P> extends BaseDataTableControlle
     @FXML
     protected Tab dataTab, infoTab, settingsTab;
     @FXML
-    protected WebView infoView;
+    protected ControlWebView infoViewController;
     @FXML
     protected GeographyCodeConditionTreeController geoController;
     @FXML
@@ -76,7 +77,7 @@ public abstract class BaseDataManageController<P> extends BaseDataTableControlle
 
     public void setTableValues() {
         queryPrefix = "SELECT * FROM " + tableName;
-        sizePrefix = "SELECT count(" + idColumn + ") FROM " + tableName;
+        sizePrefix = "SELECT count(*) FROM " + tableName;
         clearPrefix = "DELETE FROM " + tableName;
         if (tableDefinition != null) {
             tableDefinitionString = tableDefinition.html();
@@ -94,7 +95,7 @@ public abstract class BaseDataManageController<P> extends BaseDataTableControlle
         }
         String where = geoController.check();
         if (where == null) {
-            popError(Languages.message("SetConditionsComments"));
+            popError(message("SetConditionsComments"));
             return null;
         }
         return where;
@@ -106,7 +107,7 @@ public abstract class BaseDataManageController<P> extends BaseDataTableControlle
         }
         String title = geoController.getFinalTitle();
         if (title == null) {
-            popError(Languages.message("SetConditionsComments"));
+            popError(message("SetConditionsComments"));
             return null;
         }
         return title;
@@ -120,7 +121,7 @@ public abstract class BaseDataManageController<P> extends BaseDataTableControlle
         checkOrderBy();
         String title = checkTitle()
                 + (!careOrder || orderTitle == null || orderTitle.isBlank() ? "" : "\n" + orderTitle)
-                + (topNumber <= 0 ? "" : "\n" + Languages.message("NumberTopDataDaily") + ": " + topNumber);
+                + (topNumber <= 0 ? "" : "\n" + message("NumberTopDataDaily") + ": " + topNumber);
         return QueryCondition.create()
                 .setDataName(tableName)
                 .setPrefix(queryPrefix)
@@ -133,7 +134,7 @@ public abstract class BaseDataManageController<P> extends BaseDataTableControlle
     protected boolean checkQueryCondition() {
         QueryCondition condition = checkCondition(true);
         if (condition == null) {
-            popError(Languages.message("SetConditionsComments"));
+            popError(message("SetConditionsComments"));
             return false;
         }
         queryCondition = condition.setDataOperation(DataOperation.QueryData);
@@ -143,7 +144,7 @@ public abstract class BaseDataManageController<P> extends BaseDataTableControlle
     protected boolean checkClearCondition() {
         QueryCondition condition = checkCondition(false);
         if (condition == null) {
-            popError(Languages.message("SetConditionsComments"));
+            popError(message("SetConditionsComments"));
             return false;
         }
         clearCondition = condition.setDataOperation(DataOperation.ClearData);
@@ -153,7 +154,7 @@ public abstract class BaseDataManageController<P> extends BaseDataTableControlle
     protected boolean checkExportCondition() {
         QueryCondition condition = checkCondition(true);
         if (condition == null) {
-            popError(Languages.message("SetConditionsComments"));
+            popError(message("SetConditionsComments"));
             return false;
         }
         exportCondition = condition.setDataOperation(DataOperation.ExportData);
@@ -176,7 +177,7 @@ public abstract class BaseDataManageController<P> extends BaseDataTableControlle
         pageQuerySQL = null;
 
         dataQueryString = dataQuerySQL
-                + (queryCondition.getTop() <= 0 ? "" : "</br>" + Languages.message("NumberTopDataDaily") + ": " + topNumber);
+                + (queryCondition.getTop() <= 0 ? "" : "</br>" + message("NumberTopDataDaily") + ": " + topNumber);
         pageQueryString = pageQuerySQL;
     }
 
@@ -193,46 +194,46 @@ public abstract class BaseDataManageController<P> extends BaseDataTableControlle
     }
 
     @Override
-    public boolean preLoadingTableData() {
+    public boolean checkBeforeLoadingTableData() {
         if (isSettingValues) {
             return false;
         }
         if (queryCondition == null) {
-            popError(Languages.message("SetConditionsComments"));
+            popError(message("SetConditionsComments"));
             return false;
         }
         if (timer != null) {
             timer.cancel();
             timer = null;
         }
-        infoView.getEngine().loadContent​("");
+        infoViewController.loadContents​(null);
         finalTitle = queryCondition.getTitle().replaceAll("\n", " ");
         setQuerySQL();
         return true;
     }
 
     protected void setPageSQL() {
-        if (currentPageStart < 1) {
-            currentPageStart = 1;
+        if (startRowOfCurrentPage < 0) {
+            startRowOfCurrentPage = 0;
         }
-        if (currentPageSize < 1) {
-            currentPageSize = pageSize > 0 ? pageSize : 50;
+        if (pageSize < 0) {
+            pageSize = 50;
         }
-        String dataFetch = "OFFSET " + (currentPageStart - 1) + " ROWS FETCH NEXT " + currentPageSize + " ROWS ONLY";
+        String dataFetch = "OFFSET " + startRowOfCurrentPage + " ROWS FETCH NEXT " + pageSize + " ROWS ONLY";
         pageQuerySQL = dataQuerySQL + " " + dataFetch;
         pageQueryString = pageQuerySQL;
         if (queryCondition != null) {
             queryCondition.setFetch(dataFetch);
             if (pagesNumber > 1) {
-                finalTitle = queryCondition.getTitle() + " - " + Languages.message("Page") + currentPage;
+                finalTitle = queryCondition.getTitle() + " - " + message("Page") + (currentPage + 1);
             }
         }
     }
 
     @Override
-    public List<P> readPageData() {
+    public List<P> readPageData(Connection conn) {
         setPageSQL();
-        return tableDefinition.readData(pageQuerySQL);
+        return tableDefinition.query(conn, pageQuerySQL);
     }
 
     @Override
@@ -263,6 +264,7 @@ public abstract class BaseDataManageController<P> extends BaseDataTableControlle
     public void initControls() {
         try {
             super.initControls();
+            infoViewController.setParent(this);
             setTableValues();
             initOrder();
             if (csvEditController != null) {
@@ -288,9 +290,9 @@ public abstract class BaseDataManageController<P> extends BaseDataTableControlle
             orderByList.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
             for (Object o : viewDefinition.getColumns()) {
                 ColumnDefinition column = (ColumnDefinition) o;
-                String label = column.getLabel();
-                orderByList.getItems().add(label + " " + Languages.message("Ascending"));
-                orderByList.getItems().add(label + " " + Languages.message("Descending"));
+                String label = column.getColumnName();
+                orderByList.getItems().add(label + " " + message("Ascending"));
+                orderByList.getItems().add(label + " " + message("Descending"));
             }
             orderByList.getSelectionModel().select(0);
 
@@ -308,18 +310,18 @@ public abstract class BaseDataManageController<P> extends BaseDataTableControlle
             orderTitle = "";
             List<String> selected = orderByList.getSelectionModel().getSelectedItems();
             for (String item : selected) {
-                if (item.endsWith(" " + Languages.message("Ascending"))) {
-                    String name = item.substring(0, item.length() - Languages.message("Ascending").length() - 1);
+                if (item.endsWith(" " + message("Ascending"))) {
+                    String name = item.substring(0, item.length() - message("Ascending").length() - 1);
                     ColumnDefinition column = viewDefinition.columnByMessage(name);
                     if (column != null) {
-                        String q = column.getName() + " ASC";
+                        String q = column.getColumnName() + " ASC";
                         queryOrder = queryOrder.isBlank() ? q : queryOrder + ", " + q;
                     }
-                } else if (item.endsWith(" " + Languages.message("Descending"))) {
-                    String name = item.substring(0, item.length() - Languages.message("Descending").length() - 1);
+                } else if (item.endsWith(" " + message("Descending"))) {
+                    String name = item.substring(0, item.length() - message("Descending").length() - 1);
                     ColumnDefinition column = viewDefinition.columnByMessage(name);
                     if (column != null) {
-                        String q = column.getName() + " DESC";
+                        String q = column.getColumnName() + " DESC";
                         queryOrder = queryOrder.isBlank() ? q : queryOrder + ", " + q;
                     }
                 }
@@ -358,8 +360,8 @@ public abstract class BaseDataManageController<P> extends BaseDataTableControlle
                 NodeStyleTools.removeTooltip(clearButton);
             }
             if (deleteButton != null) {
-                NodeStyleTools.setTooltip(deleteButton, Languages.message("Delete") + "\nDELETE / CTRL+d / ALT+d\n\n"
-                        + Languages.message("DataDeletedComments"));
+                NodeStyleTools.setTooltip(deleteButton, message("Delete") + "\nDELETE / CTRL+d / ALT+d\n\n"
+                        + message("DataDeletedComments"));
             }
             if (setButton != null) {
                 NodeStyleTools.removeTooltip(setButton);
@@ -396,31 +398,30 @@ public abstract class BaseDataManageController<P> extends BaseDataTableControlle
         try {
             String html = "";
             if (queryCondition == null) {
-                html += "<SPAN class=\"boldText\">" + Languages.message("SetConditionsComments") + "</SPAN>";
+                html += "<SPAN class=\"boldText\">" + message("SetConditionsComments") + "</SPAN>";
             } else {
-                html += "<SPAN class=\"boldText\">" + Languages.message("QueryConditionsName") + ":</SPAN> </BR>";
+                html += "<SPAN class=\"boldText\">" + message("QueryConditionsName") + ":</SPAN> </BR>";
                 html += "<SPAN class=\"valueText\">" + queryCondition.getTitle().replaceAll("\n", "</BR>") + "</SPAN></BR></BR>";
 
-                html += "<SPAN class=\"boldText\">" + Languages.message("QueryConditions") + ":</SPAN></BR>";
+                html += "<SPAN class=\"boldText\">" + message("QueryConditions") + ":</SPAN></BR>";
                 html += "<SPAN class=\"valueText\">" + queryCondition.getWhere() + "</SPAN></BR></BR>";
 
                 if (dataQueryString != null && !dataQueryString.isBlank()) {
-                    html += "<SPAN class=\"boldText\">" + Languages.message("DataQuery") + ": </SPAN></BR>";
+                    html += "<SPAN class=\"boldText\">" + message("DataQuery") + ": </SPAN></BR>";
                     html += "<SPAN class=\"valueText\">" + dataQueryString + "</SPAN></BR>";
-                    html += "<SPAN class=\"boldText\">" + Languages.message("DataNumber") + ": </SPAN>";
-                    html += "<SPAN class=\"valueText\">" + totalSize + "</SPAN></BR></BR>";
+                    html += "<SPAN class=\"boldText\">" + message("DataNumber") + ": </SPAN>";
+                    html += "<SPAN class=\"valueText\">" + dataSize + "</SPAN></BR></BR>";
                 }
                 if (queryCondition.getFetch() != null && !queryCondition.getFetch().isBlank()) {
-                    html += "<SPAN class=\"boldText\">" + Languages.message("CurrentPage") + ": </SPAN></BR>";
+                    html += "<SPAN class=\"boldText\">" + message("CurrentPage") + ": </SPAN></BR>";
                     html += "<SPAN class=\"valueText\">" + queryCondition.getFetch() + "</SPAN></BR>";
-                    html += "<SPAN class=\"boldText\">" + Languages.message("DataNumber") + ": </SPAN>";
+                    html += "<SPAN class=\"boldText\">" + message("DataNumber") + ": </SPAN>";
                     html += "<SPAN class=\"valueText\">" + tableData.size() + "</SPAN></BR></BR>";
                 }
                 html += loadMoreInfo();
             }
-            String htmlStyle = UserConfig.getString(baseName + "HtmlStyle", "Default");
-            html = HtmlWriteTools.html(null, htmlStyle, html);
-            infoView.getEngine().loadContent​(html);
+            html = HtmlWriteTools.html(null, html);
+            infoViewController.loadContents​(html);
 
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
@@ -432,30 +433,33 @@ public abstract class BaseDataManageController<P> extends BaseDataTableControlle
     }
 
     @Override
-    protected int checkSelected() {
+    protected void checkButtons() {
         if (isSettingValues) {
-            return -1;
+            return;
         }
-        int selection = super.checkSelected();
+        super.checkButtons();
+        clearButton.setDisable(false);
+
+        boolean isEmpty = tableData == null || tableData.isEmpty();
+        boolean none = isEmpty || tableView.getSelectionModel().getSelectedItem() == null;
         if (setButton != null) {
-            setButton.setDisable(selection == 0);
+            setButton.setDisable(none);
         }
         if (locationButton != null) {
-            locationButton.setDisable(selection == 0);
+            locationButton.setDisable(none);
         }
-        return selection;
     }
 
     @Override
-    public int readDataSize() {
+    public long readDataSize(Connection conn) {
 //        MyBoxLog.debug(sizeQuerySQL);
-        return DerbyBase.size(sizeQuerySQL);
+        return DerbyBase.size(conn, sizeQuerySQL);
     }
 
     @FXML
     @Override
     public void clearAction() {
-        clear(Languages.message("ClearAsConditionTrees"));
+        clear(message("ClearAsConditionTrees"));
     }
 
     protected void setClearSQL() {
@@ -550,14 +554,14 @@ public abstract class BaseDataManageController<P> extends BaseDataTableControlle
             popMenu = new ContextMenu();
             popMenu.setAutoHide(true);
 
-            MenuItem menu = new MenuItem(Languages.message("QueryAsCondition") + "\nF1 / CTRL+q / ALT+Q");
+            MenuItem menu = new MenuItem(message("QueryAsCondition") + "\nF1 / CTRL+q / ALT+Q");
             menu.setOnAction((ActionEvent event) -> {
                 queryData();
             });
             popMenu.getItems().add(menu);
 
             popMenu.getItems().add(new SeparatorMenuItem());
-            menu = new MenuItem(Languages.message("InputConditions"));
+            menu = new MenuItem(message("InputConditions"));
             menu.setOnAction((ActionEvent event) -> {
                 QueryCondition condition = QueryCondition.create()
                         .setDataName(tableName)
@@ -573,7 +577,7 @@ public abstract class BaseDataManageController<P> extends BaseDataTableControlle
                     AppVariables.fileRecentNumber > 0 ? AppVariables.fileRecentNumber : 15);
             if (list != null && !list.isEmpty()) {
                 popMenu.getItems().add(new SeparatorMenuItem());
-                menu = new MenuItem(Languages.message("RecentUsedConditions"));
+                menu = new MenuItem(message("RecentUsedConditions"));
                 menu.setStyle("-fx-text-fill: #2e598a;");
                 popMenu.getItems().add(menu);
                 for (QueryCondition condition : list) {
@@ -587,7 +591,7 @@ public abstract class BaseDataManageController<P> extends BaseDataTableControlle
             }
 
             popMenu.getItems().add(new SeparatorMenuItem());
-            menu = new MenuItem(Languages.message("PopupClose"));
+            menu = new MenuItem(message("PopupClose"), StyleTools.getIconImage("iconCancel.png"));
             menu.setStyle("-fx-text-fill: #2e598a;");
             menu.setOnAction((ActionEvent event) -> {
                 popMenu.hide();
@@ -614,27 +618,27 @@ public abstract class BaseDataManageController<P> extends BaseDataTableControlle
 
             MenuItem menu;
 
-            menu = new MenuItem(Languages.message("ClearAsConditionTrees") + "\nCTRL+r / ALT+r");
+            menu = new MenuItem(message("ClearAsConditionTrees") + "\nCTRL+r / ALT+r");
             menu.setOnAction((ActionEvent event) -> {
-                clear(Languages.message("ClearAsConditionTrees"));
+                clear(message("ClearAsConditionTrees"));
             });
             popMenu.getItems().add(menu);
 
-            menu = new MenuItem(Languages.message("ClearSelectedDataInPage"));
+            menu = new MenuItem(message("ClearSelectedDataInPage"));
             menu.setOnAction((ActionEvent event) -> {
-                clear(Languages.message("ClearSelectedDataInPage"));
+                clear(message("ClearSelectedDataInPage"));
             });
             popMenu.getItems().add(menu);
 
-            menu = new MenuItem(Languages.message("ClearCurrentPage"));
+            menu = new MenuItem(message("ClearCurrentPage"));
             menu.setOnAction((ActionEvent event) -> {
-                clear(Languages.message("ClearCurrentPage"));
+                clear(message("ClearCurrentPage"));
             });
             popMenu.getItems().add(menu);
 
             popMenu.getItems().add(new SeparatorMenuItem());
 
-            menu = new MenuItem(Languages.message("InputConditions"));
+            menu = new MenuItem(message("InputConditions"));
             menu.setOnAction((ActionEvent event) -> {
                 QueryCondition condition = QueryCondition.create()
                         .setDataName(tableName)
@@ -651,7 +655,7 @@ public abstract class BaseDataManageController<P> extends BaseDataTableControlle
             if (list != null && !list.isEmpty()) {
                 popMenu.getItems().add(new SeparatorMenuItem());
 
-                menu = new MenuItem(Languages.message("RecentUsedConditions"));
+                menu = new MenuItem(message("RecentUsedConditions"));
                 menu.setStyle("-fx-text-fill: #2e598a;");
                 popMenu.getItems().add(menu);
 
@@ -666,7 +670,7 @@ public abstract class BaseDataManageController<P> extends BaseDataTableControlle
             }
 
             popMenu.getItems().add(new SeparatorMenuItem());
-            menu = new MenuItem(Languages.message("PopupClose"));
+            menu = new MenuItem(message("PopupClose"), StyleTools.getIconImage("iconCancel.png"));
             menu.setStyle("-fx-text-fill: #2e598a;");
             menu.setOnAction((ActionEvent event) -> {
                 popMenu.hide();
@@ -684,26 +688,26 @@ public abstract class BaseDataManageController<P> extends BaseDataTableControlle
 
     public void clear(String type) {
         String title, sql;
-        if (Languages.message("ClearSelectedDataInPage").equals(type)) {
+        if (message("ClearSelectedDataInPage").equals(type)) {
             List<P> rows = tableView.getSelectionModel().getSelectedItems();
             if (rows == null || rows.isEmpty()) {
-                popError(Languages.message("NoData"));
+                popError(message("NoData"));
                 return;
             }
             title = clearCondition.getTitle().replaceAll("</br>", "\n")
-                    + "\n" + Languages.message("Selected");
+                    + "\n" + message("Selected");
             sql = null;
 
-        } else if (Languages.message("ClearCurrentPage").equals(type)) {
+        } else if (message("ClearCurrentPage").equals(type)) {
             if (tableData == null || tableData.isEmpty()) {
-                popError(Languages.message("NoData"));
+                popError(message("NoData"));
                 return;
             }
             title = finalTitle.replaceAll("</br>", "\n")
-                    + "\n" + Languages.message("Page") + currentPage;
+                    + "\n" + message("Page") + (currentPage + 1);
             sql = pageQuerySQL;
 
-        } else if (Languages.message("ClearAsConditionTrees").equals(type)) {
+        } else if (message("ClearAsConditionTrees").equals(type)) {
             if (!checkClearCondition()) {
                 return;
             }
@@ -716,8 +720,8 @@ public abstract class BaseDataManageController<P> extends BaseDataTableControlle
             return;
         }
 
-        if (!PopTools.askSure(getBaseTitle(), Languages.message("SureClearConditions")
-                + "\n\n" + type + "\n" + title + "\n\n" + sql + "\n\n" + Languages.message("DataDeletedComments"))) {
+        if (!PopTools.askSure(this, getBaseTitle(), message("SureClearConditions")
+                + "\n\n" + type + "\n" + title + "\n\n" + sql + "\n\n" + message("DataDeletedComments"))) {
             return;
         }
 
@@ -725,19 +729,19 @@ public abstract class BaseDataManageController<P> extends BaseDataTableControlle
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 private int deletedCount = 0;
 
                 @Override
                 protected boolean handle() {
-                    if (Languages.message("ClearSelectedDataInPage").equals(type)) {
+                    if (message("ClearSelectedDataInPage").equals(type)) {
                         deletedCount = deleteSelectedData();
 
-                    } else if (Languages.message("ClearCurrentPage").equals(type)) {
+                    } else if (message("ClearCurrentPage").equals(type)) {
                         deletedCount = deleteData(tableData);
 
-                    } else if (Languages.message("ClearAsConditionTrees").equals(type)) {
+                    } else if (message("ClearAsConditionTrees").equals(type)) {
                         deletedCount = DerbyBase.update(clearSQL);
                     }
                     return true;
@@ -745,17 +749,13 @@ public abstract class BaseDataManageController<P> extends BaseDataTableControlle
 
                 @Override
                 protected void whenSucceeded() {
-                    popInformation(Languages.message("Deleted") + ":" + deletedCount);
+                    popInformation(message("Deleted") + ":" + deletedCount);
                     if (deletedCount > 0) {
                         refreshAction();
                     }
                 }
             };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
 
     }
@@ -767,13 +767,13 @@ public abstract class BaseDataManageController<P> extends BaseDataTableControlle
 
     public void clearAsConditions() {
         if (clearCondition == null) {
-            popError(Languages.message("SetConditionsComments"));
+            popError(message("SetConditionsComments"));
             return;
         }
         setClearSQL();
-        if (!PopTools.askSure(getBaseTitle(), Languages.message("SureClearConditions")
+        if (!PopTools.askSure(this, getBaseTitle(), message("SureClearConditions")
                 + "\n\n" + clearCondition.getTitle().replaceAll("</br>", "\n")
-                + "\n\n" + clearSQL + "\n\n" + Languages.message("DataDeletedComments"))) {
+                + "\n\n" + clearSQL + "\n\n" + message("DataDeletedComments"))) {
             return;
         }
 
@@ -781,7 +781,7 @@ public abstract class BaseDataManageController<P> extends BaseDataTableControlle
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
                 private int count = 0;
 
                 @Override
@@ -793,16 +793,12 @@ public abstract class BaseDataManageController<P> extends BaseDataTableControlle
 
                 @Override
                 protected void whenSucceeded() {
-                    alertInformation(Languages.message("Deleted") + ": " + count);
+                    alertInformation(message("Deleted") + ": " + count);
                     refreshAction();
                 }
 
             };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
     }
 
@@ -827,17 +823,17 @@ public abstract class BaseDataManageController<P> extends BaseDataTableControlle
 
             MenuItem menu;
 
-            menu = new MenuItem(Languages.message("ExportAsCondition") + "\nF3 / CTRL+e / ALT+E");
+            menu = new MenuItem(message("ExportAsCondition") + "\nF3 / CTRL+e / ALT+E");
             menu.setOnAction((ActionEvent event) -> {
                 exportData();
             });
             popMenu.getItems().add(menu);
 
             if (queryCondition != null && tableData != null && !tableData.isEmpty()) {
-                menu = new MenuItem(Languages.message("ExportCurrentPage"));
+                menu = new MenuItem(message("ExportCurrentPage"));
                 menu.setOnAction((ActionEvent event) -> {
                     if (queryCondition == null || tableData == null || tableData.isEmpty()) {
-                        popError(Languages.message("NoData"));
+                        popError(message("NoData"));
                         return;
                     }
                     QueryCondition condition = QueryCondition.create()
@@ -856,7 +852,7 @@ public abstract class BaseDataManageController<P> extends BaseDataTableControlle
             }
 
             popMenu.getItems().add(new SeparatorMenuItem());
-            menu = new MenuItem(Languages.message("InputConditions"));
+            menu = new MenuItem(message("InputConditions"));
             menu.setOnAction((ActionEvent event) -> {
                 QueryCondition condition = QueryCondition.create()
                         .setDataName(tableName)
@@ -872,7 +868,7 @@ public abstract class BaseDataManageController<P> extends BaseDataTableControlle
                     AppVariables.fileRecentNumber > 0 ? AppVariables.fileRecentNumber : 15);
             if (list != null && !list.isEmpty()) {
                 popMenu.getItems().add(new SeparatorMenuItem());
-                menu = new MenuItem(Languages.message("RecentUsedConditions"));
+                menu = new MenuItem(message("RecentUsedConditions"));
                 menu.setStyle("-fx-text-fill: #2e598a;");
                 popMenu.getItems().add(menu);
                 for (QueryCondition condition : list) {
@@ -886,7 +882,7 @@ public abstract class BaseDataManageController<P> extends BaseDataTableControlle
             }
 
             popMenu.getItems().add(new SeparatorMenuItem());
-            menu = new MenuItem(Languages.message("PopupClose"));
+            menu = new MenuItem(message("PopupClose"), StyleTools.getIconImage("iconCancel.png"));
             menu.setStyle("-fx-text-fill: #2e598a;");
             menu.setOnAction((ActionEvent event) -> {
                 popMenu.hide();
@@ -899,11 +895,6 @@ public abstract class BaseDataManageController<P> extends BaseDataTableControlle
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
         }
-    }
-
-    @FXML
-    public void popLinksStyle(MouseEvent mouseEvent) {
-        popMenu = PopTools.popHtmlStyle(mouseEvent, this, popMenu, infoView.getEngine());
     }
 
     @Override

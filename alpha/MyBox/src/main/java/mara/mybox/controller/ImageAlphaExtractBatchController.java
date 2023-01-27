@@ -3,17 +3,12 @@ package mara.mybox.controller;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import javafx.beans.binding.Bindings;
+import mara.mybox.bufferedimage.AlphaTools;
 import mara.mybox.db.data.VisitHistory;
 import mara.mybox.dev.MyBoxLog;
-import static mara.mybox.fxml.NodeStyleTools.badStyle;
-import mara.mybox.bufferedimage.AlphaTools;
-import mara.mybox.bufferedimage.BufferedImageTools;
-import mara.mybox.fxml.NodeStyleTools;
 import mara.mybox.imagefile.ImageFileReaders;
 import mara.mybox.imagefile.ImageFileWriters;
 import mara.mybox.tools.FileNameTools;
-import mara.mybox.tools.FileTools;
-import mara.mybox.value.AppVariables;
 import mara.mybox.value.FileFilters;
 import mara.mybox.value.Languages;
 
@@ -29,7 +24,6 @@ public class ImageAlphaExtractBatchController extends BaseImageManufactureBatchC
         baseTitle = Languages.message("ImageAlphaExtract");
 
         operationType = VisitHistory.OperationType.Alpha;
-        TipsLabelKey = "ImageAlphaExtractTips";
 
         sourceExtensionFilter = FileFilters.AlphaImageExtensionFilter;
         targetExtensionFilter = sourceExtensionFilter;
@@ -41,8 +35,7 @@ public class ImageAlphaExtractBatchController extends BaseImageManufactureBatchC
         try {
             super.initControls();
             startButton.disableProperty().unbind();
-            startButton.disableProperty().bind(Bindings.isEmpty(targetPathInput.textProperty())
-                    .or(targetPathInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+            startButton.disableProperty().bind(targetPathController.valid.not()
                     .or(Bindings.isEmpty(tableView.getItems()))
             );
 
@@ -64,14 +57,14 @@ public class ImageAlphaExtractBatchController extends BaseImageManufactureBatchC
             if (targets == null) {
                 return Languages.message("Failed");
             }
-            String prefix = FileNameTools.getFilePrefix(target.getAbsolutePath());
-            String alphaFileName = prefix + "_noAlpha." + targetFileSuffix;
-            ImageFileWriters.writeImageFile(targets[0], attributes, alphaFileName);
-            targetFileGenerated(new File(alphaFileName));
-
-            String noAlphaFileName = prefix + "_alpha.png";
-            ImageFileWriters.writeImageFile(targets[1], "png", noAlphaFileName);
+            String prefix = target.getParent() + File.separator + FileNameTools.prefix(target.getName());
+            String noAlphaFileName = prefix + "_noAlpha." + targetFileSuffix;
+            ImageFileWriters.writeImageFile(targets[0], attributes, noAlphaFileName);
             targetFileGenerated(new File(noAlphaFileName));
+
+            String alphaFileName = prefix + "_alpha.png";
+            ImageFileWriters.writeImageFile(targets[1], "png", alphaFileName);
+            targetFileGenerated(new File(alphaFileName));
 
             return Languages.message("Successful");
         } catch (Exception e) {

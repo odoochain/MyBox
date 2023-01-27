@@ -5,20 +5,15 @@ import javafx.beans.binding.Bindings;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
-import javafx.scene.web.WebView;
-import javafx.stage.Modality;
-import mara.mybox.color.CIEData;
 import mara.mybox.color.CIEDataTools;
 import mara.mybox.color.ChromaticAdaptation;
 import mara.mybox.color.Illuminant;
 import mara.mybox.data.StringTable;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.NodeStyleTools;
-import static mara.mybox.fxml.NodeStyleTools.badStyle;
-import mara.mybox.tools.DoubleTools;
-import mara.mybox.value.AppVariables;
-import static mara.mybox.value.Languages.message;
+import mara.mybox.fxml.SingletonTask;
+import mara.mybox.tools.DoubleArrayTools;
 import mara.mybox.value.Languages;
+import mara.mybox.value.UserConfig;
 
 /**
  * @Author Mara
@@ -34,8 +29,6 @@ public class IlluminantsController extends ChromaticityBaseController {
     public XYZController sourceColorController;
     @FXML
     public WhitePointController sourceWPController, targetWPController;
-    @FXML
-    protected WebView webView;
     @FXML
     protected Button calculateButton;
     @FXML
@@ -63,25 +56,25 @@ public class IlluminantsController extends ChromaticityBaseController {
         initOptions();
 
         calculateButton.disableProperty().bind(Bindings.isEmpty(scaleInput.textProperty())
-                .or(scaleInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                .or(scaleInput.styleProperty().isEqualTo(UserConfig.badStyle()))
                 .or(Bindings.isEmpty(sourceColorController.xInput.textProperty()))
-                .or(sourceColorController.xInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                .or(sourceColorController.xInput.styleProperty().isEqualTo(UserConfig.badStyle()))
                 .or(Bindings.isEmpty(sourceColorController.yInput.textProperty()))
-                .or(sourceColorController.yInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                .or(sourceColorController.yInput.styleProperty().isEqualTo(UserConfig.badStyle()))
                 .or(Bindings.isEmpty(sourceColorController.zInput.textProperty()))
-                .or(sourceColorController.zInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                .or(sourceColorController.zInput.styleProperty().isEqualTo(UserConfig.badStyle()))
                 .or(Bindings.isEmpty(sourceWPController.xInput.textProperty()))
-                .or(sourceWPController.xInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                .or(sourceWPController.xInput.styleProperty().isEqualTo(UserConfig.badStyle()))
                 .or(Bindings.isEmpty(sourceWPController.yInput.textProperty()))
-                .or(sourceWPController.yInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                .or(sourceWPController.yInput.styleProperty().isEqualTo(UserConfig.badStyle()))
                 .or(Bindings.isEmpty(sourceWPController.zInput.textProperty()))
-                .or(sourceWPController.zInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                .or(sourceWPController.zInput.styleProperty().isEqualTo(UserConfig.badStyle()))
                 .or(Bindings.isEmpty(targetWPController.xInput.textProperty()))
-                .or(targetWPController.xInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                .or(targetWPController.xInput.styleProperty().isEqualTo(UserConfig.badStyle()))
                 .or(Bindings.isEmpty(targetWPController.yInput.textProperty()))
-                .or(targetWPController.yInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                .or(targetWPController.yInput.styleProperty().isEqualTo(UserConfig.badStyle()))
                 .or(Bindings.isEmpty(targetWPController.zInput.textProperty()))
-                .or(targetWPController.zInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                .or(targetWPController.zInput.styleProperty().isEqualTo(UserConfig.badStyle()))
         );
 
     }
@@ -91,7 +84,7 @@ public class IlluminantsController extends ChromaticityBaseController {
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 private StringTable table;
 
@@ -107,11 +100,7 @@ public class IlluminantsController extends ChromaticityBaseController {
                 }
 
             };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
     }
 
@@ -131,11 +120,11 @@ public class IlluminantsController extends ChromaticityBaseController {
                     sourceColorController.x, sourceColorController.y, sourceColorController.z,
                     swp[0], swp[1], swp[2], twp[0], twp[1], twp[2], algorithm, scale, true);
             double[] adaptedColor = (double[]) run.get("adaptedColor");
-            double[] mc = DoubleTools.scale(adaptedColor, scale);
+            double[] mc = DoubleArrayTools.scale(adaptedColor, scale);
             String s = Languages.message("CalculatedValues") + ":    X=" + mc[0] + "    Y=" + mc[1] + "    Z=" + mc[2] + "\n";
-            double[] mr = DoubleTools.scale(CIEDataTools.relative(mc), scale);
+            double[] mr = DoubleArrayTools.scale(CIEDataTools.relative(mc), scale);
             s += Languages.message("RelativeValues") + ":    X=" + mr[0] + "    Y=" + mr[1] + "    Z=" + mr[2] + "\n";
-            double[] mn = DoubleTools.scale(CIEDataTools.normalize(mc), scale);
+            double[] mn = DoubleArrayTools.scale(CIEDataTools.normalize(mc), scale);
             s += Languages.message("NormalizedValuesCC") + ":    x=" + mn[0] + "    y=" + mn[1] + "    z=" + mn[2] + "\n"
                     + "\n----------------" + Languages.message("CalculationProcedure") + "----------------\n"
                     + Languages.message("ReferTo") + "： \n"

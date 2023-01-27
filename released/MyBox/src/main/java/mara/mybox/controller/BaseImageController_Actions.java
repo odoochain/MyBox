@@ -10,7 +10,9 @@ import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.geometry.Point2D;
+import javafx.scene.control.CheckMenuItem;
 import javafx.scene.control.ContextMenu;
+import javafx.scene.control.Menu;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.image.Image;
@@ -25,7 +27,8 @@ import mara.mybox.fximage.TransformTools;
 import mara.mybox.fxml.ControllerTools;
 import mara.mybox.fxml.ImageClipboardTools;
 import mara.mybox.fxml.LocateTools;
-import mara.mybox.fxml.WindowTools;
+import mara.mybox.fxml.SingletonTask;
+import mara.mybox.fxml.style.StyleTools;
 import mara.mybox.imagefile.ImageFileWriters;
 import mara.mybox.value.Fxmls;
 import static mara.mybox.value.Languages.message;
@@ -39,6 +42,7 @@ import mara.mybox.value.UserConfig;
 public abstract class BaseImageController_Actions extends BaseImageController_Image {
 
     protected int currentAngle = 0, rotateAngle = 90;
+    protected Color bgColor = Color.WHITE;
 
     protected void initOperationBox() {
         try {
@@ -80,7 +84,7 @@ public abstract class BaseImageController_Actions extends BaseImageController_Im
         }
     }
 
-    protected Image scopeImage() {
+    public Image scopeImage() {
         Image inImage = imageView.getImage();
 
         if (maskRectangleLine != null && maskRectangleLine.isVisible()) {
@@ -88,38 +92,37 @@ public abstract class BaseImageController_Actions extends BaseImageController_Im
                     && maskRectangleData.getSmallY() == 0
                     && maskRectangleData.getBigX() == (int) inImage.getWidth() - 1
                     && maskRectangleData.getBigY() == (int) inImage.getHeight() - 1) {
-                return null;
+                return inImage;
             }
-            return CropTools.cropOutsideFx(inImage, maskRectangleData, Color.WHITE);
+            return CropTools.cropOutsideFx(inImage, maskRectangleData, bgColor);
 
         } else if (maskCircleLine != null && maskCircleLine.isVisible()) {
-            return CropTools.cropOutsideFx(inImage, maskCircleData, Color.WHITE);
+            return CropTools.cropOutsideFx(inImage, maskCircleData, bgColor);
 
         } else if (maskEllipseLine != null && maskEllipseLine.isVisible()) {
-            return CropTools.cropOutsideFx(inImage, maskEllipseData, Color.WHITE);
+            return CropTools.cropOutsideFx(inImage, maskEllipseData, bgColor);
 
         } else if (maskPolygonLine != null && maskPolygonLine.isVisible()) {
-            return CropTools.cropOutsideFx(inImage, maskPolygonData, Color.WHITE);
+            return CropTools.cropOutsideFx(inImage, maskPolygonData, bgColor);
 
         } else {
-            return null;
+            return inImage;
         }
     }
 
     public Image imageToHandle() {
-        Image selected = scopeImage();
+        Image selected = null;
+        if (UserConfig.getBoolean(baseName + "HandleSelectArea", true)) {
+            selected = scopeImage();
+        }
         if (selected == null) {
             selected = imageView.getImage();
         }
         return selected;
     }
 
-    public Object imageToSave() {
-        Image selected = scopeImage();
-        if (selected == null) {
-            selected = imageView.getImage();
-        }
-        return selected;
+    public Object imageToSaveAs() {
+        return imageToHandle();
     }
 
     @FXML
@@ -145,8 +148,7 @@ public abstract class BaseImageController_Actions extends BaseImageController_Im
     @FXML
     @Override
     public boolean popAction() {
-        ImagePopController controller = (ImagePopController) WindowTools.openChildStage(getMyWindow(), Fxmls.ImagePopFxml, false);
-        checkImage(controller);
+        ImagePopController.openImage(this, imageToHandle());
         return true;
     }
 
@@ -184,6 +186,12 @@ public abstract class BaseImageController_Actions extends BaseImageController_Im
     }
 
     @FXML
+    public void repeatAction() {
+        ImageRepeatController controller = (ImageRepeatController) openStage(Fxmls.ImageRepeatFxml);
+        checkImage(controller.sourceController);
+    }
+
+    @FXML
     public void sampleAction() {
         ImageSampleController controller = (ImageSampleController) openStage(Fxmls.ImageSampleFxml);
         checkImage(controller);
@@ -200,9 +208,7 @@ public abstract class BaseImageController_Actions extends BaseImageController_Im
 
     @FXML
     public void settings() {
-        SettingsController controller = (SettingsController) openStage(Fxmls.SettingsFxml);
-        controller.setParentController(this);
-        controller.parentFxml = myFxml;
+        SettingsController controller = SettingsController.oneOpen(this);
         controller.tabPane.getSelectionModel().select(controller.imageTab);
     }
 
@@ -222,7 +228,7 @@ public abstract class BaseImageController_Actions extends BaseImageController_Im
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 private Image areaImage;
 
@@ -238,11 +244,7 @@ public abstract class BaseImageController_Actions extends BaseImageController_Im
                 }
 
             };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
     }
 
@@ -255,7 +257,7 @@ public abstract class BaseImageController_Actions extends BaseImageController_Im
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 private Image areaImage;
 
@@ -271,11 +273,7 @@ public abstract class BaseImageController_Actions extends BaseImageController_Im
                 }
 
             };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
     }
 
@@ -306,49 +304,48 @@ public abstract class BaseImageController_Actions extends BaseImageController_Im
         ControllerTools.showImageMetaData(imageInformation);
     }
 
-    public void checkImage(BaseImageController controller) {
-        if (imageView == null || imageView.getImage() == null || controller == null) {
+    public void checkImage(BaseImageController imageController) {
+        if (imageView == null || imageView.getImage() == null || imageController == null) {
             return;
         }
-        controller.toFront();
+        imageController.requestMouse();
         if (maskRectangleLine == null || !maskRectangleLine.isVisible()) {
             if (imageChanged) {
-                controller.loadImage(imageView.getImage());
+                imageController.loadImage(imageView.getImage());
+
             } else {
-                if (controller instanceof ImageSampleController || controller instanceof ImageSplitController) {
-                    controller.loadImage(imageFile(), imageInformation, imageView.getImage(), imageChanged);
+                if (imageInformation != null && imageInformation.getRegion() != null) {
+                    imageController.loadRegion(imageInformation);
+                } else if (imageController instanceof ImageSampleController || imageController instanceof ImageSplitController) {
+                    imageController.loadImage(imageFile(), imageInformation, imageView.getImage(), imageChanged);
                 } else if (imageInformation != null && imageInformation.isIsScaled()) {
-                    controller.loadImage(imageView.getImage());
+                    imageController.loadImage(imageView.getImage());
                 } else {
-                    controller.loadImage(imageFile(), imageInformation, imageView.getImage(), imageChanged);
+                    imageController.loadImage(imageFile(), imageInformation, imageView.getImage(), imageChanged);
                 }
             }
             return;
         }
         synchronized (this) {
-            if (task != null && !task.isQuit()) {
-                return;
+            if (task != null) {
+                task.cancel();
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
-                private Image areaImage;
+                private Image targetImage;
 
                 @Override
                 protected boolean handle() {
-                    areaImage = imageToHandle();
-                    return areaImage != null;
+                    targetImage = imageToHandle();
+                    return targetImage != null;
                 }
 
                 @Override
                 protected void whenSucceeded() {
-                    controller.loadImage(areaImage);
+                    imageController.loadImage(targetImage);
                 }
             };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
     }
 
@@ -363,108 +360,143 @@ public abstract class BaseImageController_Actions extends BaseImageController_Im
 
             MenuItem menu;
 
-            menu = new MenuItem(message("Copy"));
-            menu.setOnAction((ActionEvent event) -> {
-                copyAction();
-            });
-            popMenu.getItems().add(menu);
+            if (selectAreaCheck != null) {
+                CheckMenuItem handleSelectCheck = new CheckMenuItem(message("ImageHandleSelectedArea"), StyleTools.getIconImage("iconRectangle.png"));
+                handleSelectCheck.setSelected(UserConfig.getBoolean(baseName + "HandleSelectArea", true));
+                handleSelectCheck.setOnAction(new EventHandler<ActionEvent>() {
+                    @Override
+                    public void handle(ActionEvent event) {
+                        UserConfig.setBoolean(baseName + "HandleSelectArea", handleSelectCheck.isSelected());
+                    }
+                });
+                popMenu.getItems().add(handleSelectCheck);
+                popMenu.getItems().add(new SeparatorMenuItem());
+            }
 
-            menu = new MenuItem(message("Pop"));
+            Menu viewMenu = new Menu(message("View"), StyleTools.getIconImage("iconView.png"));
+            popMenu.getItems().add(viewMenu);
+
+            menu = new MenuItem(message("Pop"), StyleTools.getIconImage("iconPop.png"));
             menu.setOnAction((ActionEvent event) -> {
                 popAction();
             });
-            popMenu.getItems().add(menu);
+            viewMenu.getItems().add(menu);
 
-            menu = new MenuItem(message("View"));
+            menu = new MenuItem(message("View"), StyleTools.getIconImage("iconView.png"));
             menu.setOnAction((ActionEvent event) -> {
                 viewAction();
             });
-            popMenu.getItems().add(menu);
+            viewMenu.getItems().add(menu);
 
-            menu = new MenuItem(message("Manufacture"));
+            if (imageInformation != null) {
+                menu = new MenuItem(message("Information"), StyleTools.getIconImage("iconInfo.png"));
+                menu.setOnAction((ActionEvent menuItemEvent) -> {
+                    infoAction();
+                });
+                viewMenu.getItems().add(menu);
+
+                menu = new MenuItem(message("MetaData"), StyleTools.getIconImage("iconMeta.png"));
+                menu.setOnAction((ActionEvent menuItemEvent) -> {
+                    metaAction();
+                });
+                viewMenu.getItems().add(menu);
+
+            }
+
+            if (imageFile() != null) {
+                menu = new MenuItem(message("Browse"), StyleTools.getIconImage("iconBrowse.png"));
+                menu.setOnAction((ActionEvent event) -> {
+                    browseAction();
+                });
+                viewMenu.getItems().add(menu);
+            }
+
+            menu = new MenuItem(message("Edit"), StyleTools.getIconImage("iconEdit.png"));
             menu.setOnAction((ActionEvent event) -> {
                 manufactureAction();
             });
             popMenu.getItems().add(menu);
 
-            menu = new MenuItem(message("Statistic"));
+            Menu handleMenu = new Menu(message("Operation"), StyleTools.getIconImage("iconAnalyse.png"));
+            popMenu.getItems().add(handleMenu);
+
+            menu = new MenuItem(message("Statistic"), StyleTools.getIconImage("iconStatistic.png"));
             menu.setOnAction((ActionEvent event) -> {
                 statisticAction();
 
             });
-            popMenu.getItems().add(menu);
+            handleMenu.getItems().add(menu);
 
-            menu = new MenuItem(message("OCR"));
+            menu = new MenuItem(message("OCR"), StyleTools.getIconImage("iconTxt.png"));
             menu.setOnAction((ActionEvent event) -> {
                 ocrAction();
             });
-            popMenu.getItems().add(menu);
+            handleMenu.getItems().add(menu);
 
-            menu = new MenuItem(message("Split"));
+            menu = new MenuItem(message("Split"), StyleTools.getIconImage("iconSplit.png"));
             menu.setOnAction((ActionEvent event) -> {
                 splitAction();
             });
-            popMenu.getItems().add(menu);
+            handleMenu.getItems().add(menu);
 
-            menu = new MenuItem(message("Sample"));
+            menu = new MenuItem(message("Sample"), StyleTools.getIconImage("iconSample.png"));
             menu.setOnAction((ActionEvent event) -> {
                 sampleAction();
 
             });
-            popMenu.getItems().add(menu);
+            handleMenu.getItems().add(menu);
+
+            menu = new MenuItem(message("Repeat"), StyleTools.getIconImage("iconRepeat.png"));
+            menu.setOnAction((ActionEvent event) -> {
+                repeatAction();
+            });
+            handleMenu.getItems().add(menu);
 
             if (imageFile() != null) {
-                menu = new MenuItem(message("Convert"));
+                menu = new MenuItem(message("Convert"), StyleTools.getIconImage("iconDelimiter.png"));
                 menu.setOnAction((ActionEvent event) -> {
                     convertAction();
                 });
-                popMenu.getItems().add(menu);
-
-                menu = new MenuItem(message("Browse"));
-                menu.setOnAction((ActionEvent event) -> {
-                    browseAction();
-                });
-                popMenu.getItems().add(menu);
+                handleMenu.getItems().add(menu);
             }
 
-            if (imageInformation != null) {
-                popMenu.getItems().add(new SeparatorMenuItem());
+            Menu copyMenu = new Menu(message("Copy"), StyleTools.getIconImage("iconCopy.png"));
+            popMenu.getItems().add(copyMenu);
 
-                menu = new MenuItem(message("Information"));
-                menu.setOnAction((ActionEvent menuItemEvent) -> {
-                    infoAction();
-                });
-                popMenu.getItems().add(menu);
+            menu = new MenuItem(message("CopyToSystemClipboard"), StyleTools.getIconImage("iconCopySystem.png"));
+            menu.setOnAction((ActionEvent event) -> {
+                copyToSystemClipboard();
+            });
+            copyMenu.getItems().add(menu);
 
-                menu = new MenuItem(message("MetaData"));
-                menu.setOnAction((ActionEvent menuItemEvent) -> {
-                    metaAction();
-                });
-                popMenu.getItems().add(menu);
-            }
+            menu = new MenuItem(message("CopyToMyBoxClipboard"), StyleTools.getIconImage("iconCopy.png"));
+            menu.setOnAction((ActionEvent event) -> {
+                copyToMyBoxClipboard();
+            });
+            copyMenu.getItems().add(menu);
 
-            popMenu.getItems().add(new SeparatorMenuItem());
-            menu = new MenuItem(message("ImagesInMyBoxClipboard"));
+            menu = new MenuItem(message("ImagesInSystemClipboard"), StyleTools.getIconImage("iconSystemClipboard.png"));
+            menu.setOnAction((ActionEvent event) -> {
+                ImageInSystemClipboardController.oneOpen();
+            });
+            copyMenu.getItems().add(menu);
+
+            menu = new MenuItem(message("ImagesInMyBoxClipboard"), StyleTools.getIconImage("iconClipboard.png"));
             menu.setOnAction((ActionEvent event) -> {
                 ImageInMyBoxClipboardController.oneOpen();
 
             });
-            popMenu.getItems().add(menu);
+            copyMenu.getItems().add(menu);
 
-            menu = new MenuItem(message("ImagesInSystemClipboard"));
-            menu.setOnAction((ActionEvent event) -> {
-                ImageInSystemClipboardController.oneOpen();
-            });
-            popMenu.getItems().add(menu);
-
-            menu = new MenuItem(message("Settings"));
+            popMenu.getItems().add(new SeparatorMenuItem());
+            menu = new MenuItem(message("Settings"), StyleTools.getIconImage("iconSetting.png"));
             menu.setOnAction((ActionEvent menuItemEvent) -> {
                 settings();
             });
             popMenu.getItems().add(menu);
 
             popMenu.getItems().add(new SeparatorMenuItem());
-            menu = new MenuItem(message("PopupClose"));
+            menu = new MenuItem(message("PopupClose"), StyleTools.getIconImage("iconCancel.png"));
             menu.setStyle("-fx-text-fill: #2e598a;");
             menu.setOnAction(new EventHandler<ActionEvent>() {
                 @Override
@@ -512,7 +544,7 @@ public abstract class BaseImageController_Actions extends BaseImageController_Im
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 private Image newImage;
 
@@ -531,11 +563,7 @@ public abstract class BaseImageController_Actions extends BaseImageController_Im
                 }
 
             };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
     }
 
@@ -560,7 +588,7 @@ public abstract class BaseImageController_Actions extends BaseImageController_Im
         if (file == null) {
             return;
         }
-        saveImage(imageFile(), file, imageToSave());
+        saveImage(imageFile(), file, imageToSaveAs());
     }
 
     public void saveImage(File srcFile, File newfile, Object imageToSave) {
@@ -571,7 +599,7 @@ public abstract class BaseImageController_Actions extends BaseImageController_Im
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 @Override
                 protected boolean handle() {
@@ -609,11 +637,7 @@ public abstract class BaseImageController_Actions extends BaseImageController_Im
                     }
                 }
             };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
     }
 

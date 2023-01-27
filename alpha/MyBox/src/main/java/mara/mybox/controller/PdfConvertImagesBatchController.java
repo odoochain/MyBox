@@ -7,23 +7,17 @@ import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.fxml.FXML;
 import javafx.scene.control.CheckBox;
-import mara.mybox.dev.MyBoxLog;
-import static mara.mybox.fxml.NodeStyleTools.badStyle;
+import javafx.scene.control.Toggle;
 import mara.mybox.bufferedimage.ImageAttributes;
 import mara.mybox.bufferedimage.ImageConvertTools;
-import mara.mybox.fxml.NodeStyleTools;
+import mara.mybox.db.data.VisitHistory;
+import mara.mybox.dev.MyBoxLog;
 import mara.mybox.imagefile.ImageFileWriters;
 import mara.mybox.tools.FileNameTools;
-import mara.mybox.tools.FileTools;
-import mara.mybox.value.AppVariables;
-import static mara.mybox.value.Languages.message;
 import mara.mybox.value.Languages;
 import mara.mybox.value.UserConfig;
 import org.apache.pdfbox.rendering.ImageType;
 import org.apache.pdfbox.rendering.PDFRenderer;
-import static mara.mybox.value.UserConfig.setString;
-import static mara.mybox.value.UserConfig.setString;
-import static mara.mybox.value.UserConfig.setBoolean;
 
 /**
  * @Author Mara
@@ -39,12 +33,17 @@ public class PdfConvertImagesBatchController extends BaseBatchPdfController {
     @FXML
     protected ControlImageFormat formatController;
     @FXML
-    protected CheckBox appendColorCheck, appendCompressionCheck, appendQualityCheck, appendDensityCheck;
+    protected CheckBox transparentBackgroundCheck,
+            appendColorCheck, appendCompressionCheck, appendQualityCheck, appendDensityCheck;
 
     public PdfConvertImagesBatchController() {
         baseTitle = Languages.message("PdfConvertImagesBatch");
         browseTargets = true;
+    }
 
+    @Override
+    public void setFileType() {
+        setFileType(VisitHistory.FileType.PDF, VisitHistory.FileType.Image);
     }
 
     @Override
@@ -54,14 +53,29 @@ public class PdfConvertImagesBatchController extends BaseBatchPdfController {
 
             formatController.setParameters(this, true);
 
+            formatController.formatGroup.selectedToggleProperty().addListener(new ChangeListener<Toggle>() {
+                @Override
+                public void changed(ObservableValue v, Toggle oldV, Toggle newV) {
+                    transparentBackgroundCheck.setVisible(formatController.pngRadio.isSelected() || formatController.tifRadio.isSelected());
+                }
+            });
+            transparentBackgroundCheck.setVisible(formatController.pngRadio.isSelected() || formatController.tifRadio.isSelected());
+
+            transparentBackgroundCheck.setSelected(UserConfig.getBoolean(baseName + "TransparentBackground", false));
+            transparentBackgroundCheck.selectedProperty().addListener(new ChangeListener<Boolean>() {
+                @Override
+                public void changed(ObservableValue ov, Boolean oldValue, Boolean newValue) {
+                    UserConfig.setBoolean(baseName + "TransparentBackground", transparentBackgroundCheck.isSelected());
+                }
+            });
+
             startButton.disableProperty().unbind();
             startButton.disableProperty().bind(Bindings.isEmpty(tableView.getItems())
-                            .or(Bindings.isEmpty(targetPathInput.textProperty()))
-                            .or(targetPathInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
-                            .or(formatController.qualitySelector.getEditor().styleProperty().isEqualTo(NodeStyleTools.badStyle))
-                            .or(formatController.dpiSelector.getEditor().styleProperty().isEqualTo(NodeStyleTools.badStyle))
-                            .or(formatController.profileInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
-                            .or(formatController.thresholdInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                    .or(targetPathController.valid.not())
+                    .or(formatController.qualitySelector.getEditor().styleProperty().isEqualTo(UserConfig.badStyle()))
+                    .or(formatController.dpiSelector.getEditor().styleProperty().isEqualTo(UserConfig.badStyle()))
+                    .or(formatController.profileInput.styleProperty().isEqualTo(UserConfig.badStyle()))
+                    .or(formatController.binaryController.thresholdInput.styleProperty().isEqualTo(UserConfig.badStyle()))
             );
 
         } catch (Exception e) {
@@ -141,8 +155,14 @@ public class PdfConvertImagesBatchController extends BaseBatchPdfController {
     public int handleCurrentPage() {
         try {
             File tFile = makeTargetFile();
-            BufferedImage pageImage = renderer.renderImageWithDPI(currentParameters.currentPage - 1,
-                    attributes.getDensity(), ImageType.ARGB);                              // 0-based
+            ImageType imageType = ImageType.RGB;
+            if (formatController.pngRadio.isSelected() || formatController.tifRadio.isSelected()) {
+                if (transparentBackgroundCheck.isSelected()) {
+                    imageType = ImageType.ARGB;
+                }
+            }
+            BufferedImage pageImage = renderer.renderImageWithDPI(currentParameters.currentPage - 1, // 0-based
+                    attributes.getDensity(), imageType);
             String targetFormat = attributes.getImageFormat();
             if ("ico".equals(targetFormat) || "icon".equals(targetFormat)) {
                 if (ImageConvertTools.convertToIcon(pageImage, attributes, tFile)) {
@@ -170,7 +190,7 @@ public class PdfConvertImagesBatchController extends BaseBatchPdfController {
 
     public File makeTargetFile() {
         try {
-            String namePrefix = FileNameTools.getFilePrefix(currentParameters.currentSourceFile.getName())
+            String namePrefix = FileNameTools.prefix(currentParameters.currentSourceFile.getName())
                     + "_page" + currentParameters.currentPage;
             if (!"ico".equals(attributes.getImageFormat())) {
                 if (appendColorCheck.isSelected()) {

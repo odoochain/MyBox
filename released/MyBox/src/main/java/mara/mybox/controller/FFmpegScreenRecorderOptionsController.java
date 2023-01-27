@@ -4,8 +4,8 @@ import java.awt.DisplayMode;
 import java.awt.GraphicsEnvironment;
 import java.awt.Rectangle;
 import java.io.BufferedReader;
-import java.io.InputStreamReader;
 import java.nio.charset.Charset;
+import java.util.List;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.fxml.FXML;
@@ -19,7 +19,7 @@ import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.NodeStyleTools;
+import mara.mybox.fxml.style.NodeStyleTools;
 import mara.mybox.tools.SystemTools;
 import mara.mybox.value.Languages;
 import mara.mybox.value.UserConfig;
@@ -98,7 +98,7 @@ public class FFmpegScreenRecorderOptionsController extends ControlFFmpegOptions 
                     audioComments.setText("alsa");
                     break;
                 case "mac":
-                    fullscreenRadio.fire();
+                    fullscreenRadio.setSelected(true);
                     videoBox.getChildren().removeAll(windowBox, rectBox);
                     checkDevicesMac();
                     break;
@@ -165,10 +165,10 @@ public class FFmpegScreenRecorderOptionsController extends ControlFFmpegOptions 
 
             checkScope();
 
-            delayController.permitInvalid(false).permitNotSetting(true)
+            delayController.permitInvalid(false).permitNotSet(true)
                     .init(baseName + "Delay", 5);
 
-            durationController.permitInvalid(false).permitNotSetting(true)
+            durationController.permitInvalid(false).permitNotSet(true)
                     .init(baseName + "Duration", -1);
 
         } catch (Exception e) {
@@ -199,8 +199,8 @@ public class FFmpegScreenRecorderOptionsController extends ControlFFmpegOptions 
             ).redirectErrorStream(true);
             audioDevice = null;
             final Process process = pb.start();
-            try ( BufferedReader inReader = new BufferedReader(
-                    new InputStreamReader(process.getInputStream(), Charset.forName("UTF-8")))) {
+
+            try ( BufferedReader inReader = process.inputReader(Charset.defaultCharset())) {
                 String line;
                 boolean audioNext = false;
                 while ((line = inReader.readLine()) != null) {
@@ -248,8 +248,7 @@ public class FFmpegScreenRecorderOptionsController extends ControlFFmpegOptions 
             ).redirectErrorStream(true);
             macVideo = macAudio = -1;
             final Process process = pb.start();
-            try ( BufferedReader inReader = new BufferedReader(
-                    new InputStreamReader(process.getInputStream(), Charset.forName("UTF-8")))) {
+            try ( BufferedReader inReader = process.inputReader(Charset.defaultCharset())) {
                 String line;
                 while ((line = inReader.readLine()) != null) {
                     try {
@@ -309,11 +308,10 @@ public class FFmpegScreenRecorderOptionsController extends ControlFFmpegOptions 
                             UserConfig.setString("FFmpegScreenRecorderAudio", newValue);
 
                         } else {
-                            audioThreadQueueSizeInput.setStyle(NodeStyleTools.badStyle);
+                            audioThreadQueueSizeInput.setStyle(UserConfig.badStyle());
                         }
                     } catch (Exception e) {
-                        MyBoxLog.error(e.toString());
-                        audioThreadQueueSizeInput.setStyle(NodeStyleTools.badStyle);
+                        audioThreadQueueSizeInput.setStyle(UserConfig.badStyle());
                     }
 
                 }
@@ -332,11 +330,10 @@ public class FFmpegScreenRecorderOptionsController extends ControlFFmpegOptions 
                             UserConfig.setString("FFmpegScreenRecorderAudio", newValue);
 
                         } else {
-                            videoThreadQueueSizeInput.setStyle(NodeStyleTools.badStyle);
+                            videoThreadQueueSizeInput.setStyle(UserConfig.badStyle());
                         }
                     } catch (Exception e) {
-                        MyBoxLog.error(e.toString());
-                        videoThreadQueueSizeInput.setStyle(NodeStyleTools.badStyle);
+                        videoThreadQueueSizeInput.setStyle(UserConfig.badStyle());
                     }
                 }
             });
@@ -374,10 +371,10 @@ public class FFmpegScreenRecorderOptionsController extends ControlFFmpegOptions 
                 xInput.setStyle(null);
                 UserConfig.setString("FFmpegScreenRecorderX", v + "");
             } else {
-                xInput.setStyle(NodeStyleTools.badStyle);
+                xInput.setStyle(UserConfig.badStyle());
             }
         } catch (Exception e) {
-            xInput.setStyle(NodeStyleTools.badStyle);
+            xInput.setStyle(UserConfig.badStyle());
         }
         try {
             int v = Integer.parseInt(yInput.getText().trim());
@@ -386,10 +383,10 @@ public class FFmpegScreenRecorderOptionsController extends ControlFFmpegOptions 
                 yInput.setStyle(null);
                 UserConfig.setString("FFmpegScreenRecorderY", v + "");
             } else {
-                yInput.setStyle(NodeStyleTools.badStyle);
+                yInput.setStyle(UserConfig.badStyle());
             }
         } catch (Exception e) {
-            yInput.setStyle(NodeStyleTools.badStyle);
+            yInput.setStyle(UserConfig.badStyle());
         }
 
         try {
@@ -399,10 +396,10 @@ public class FFmpegScreenRecorderOptionsController extends ControlFFmpegOptions 
                 widthInput.setStyle(null);
                 UserConfig.setString("FFmpegScreenRecorderWidth", v + "");
             } else {
-                widthInput.setStyle(NodeStyleTools.badStyle);
+                widthInput.setStyle(UserConfig.badStyle());
             }
         } catch (Exception e) {
-            widthInput.setStyle(NodeStyleTools.badStyle);
+            widthInput.setStyle(UserConfig.badStyle());
         }
         try {
             int v = Integer.parseInt(heightInput.getText().trim());
@@ -411,17 +408,17 @@ public class FFmpegScreenRecorderOptionsController extends ControlFFmpegOptions 
                 heightInput.setStyle(null);
                 UserConfig.setString("FFmpegScreenRecorderHeight", v + "");
             } else {
-                heightInput.setStyle(NodeStyleTools.badStyle);
+                heightInput.setStyle(UserConfig.badStyle());
             }
         } catch (Exception e) {
-            heightInput.setStyle(NodeStyleTools.badStyle);
+            heightInput.setStyle(UserConfig.badStyle());
         }
 
     }
 
     protected void checkWindow() {
         if (titleInput.getText().trim().isBlank()) {
-            titleInput.setStyle(NodeStyleTools.badStyle);
+            titleInput.setStyle(UserConfig.badStyle());
         } else {
             titleInput.setStyle(null);
         }
@@ -432,12 +429,185 @@ public class FFmpegScreenRecorderOptionsController extends ControlFFmpegOptions 
     @Override
     public void defaultAction() {
         super.defaultAction();
-        fullscreenRadio.fire();
+        fullscreenRadio.setSelected(true);
         audioThreadQueueSizeInput.setText("128");
         videoThreadQueueSizeInput.setText("128");
         delayController.select(5);
         durationController.select(-1);
 
+    }
+
+    @Override
+    protected boolean disableAudio() {
+        return !audioCheck.isSelected() || disableAudio;
+    }
+
+    @Override
+    protected boolean disableVideo() {
+        return !videoCheck.isSelected() || disableVideo;
+    }
+
+    // http://trac.ffmpeg.org/wiki/Capture/Desktop
+    @Override
+    protected List<String> makeSpecialParameters(List<String> parameters) {
+        switch (os) {
+            case "win":
+                if (!winParameters(parameters)) {
+                    return null;
+                }
+                break;
+            case "linux":
+                if (!linuxParameters(parameters)) {
+                    return null;
+                }
+                break;
+            case "mac":
+                if (!macParameters(parameters)) {
+                    return null;
+                }
+                break;
+            default:
+                return null;
+        }
+        return parameters;
+    }
+
+    protected boolean winParameters(List<String> parameters) {
+        try {
+            if (!"win".equals(os) || parameters == null) {
+                return false;
+            }
+            // ffmpeg  -f gdigrab  -thread_queue_size 128 -probesize 200M  -i desktop -f dshow  -thread_queue_size 128 -i audio="立体声混音 (Realtek High Definition Audio)" -vcodec libx264 -acodec aac out.mp4   -y
+            if (disableVideo()) {
+                parameters.add("-vn");
+            } else {
+                parameters.add("-f");
+                parameters.add("gdigrab");
+                // https://stackoverflow.com/questions/57903639/why-getting-and-how-to-fix-the-warning-error-on-ffmpeg-not-enough-frames-to-es
+                parameters.add("-probesize");
+                parameters.add("100M");
+                parameters.add("-thread_queue_size");
+                parameters.add(videoThreadQueueSize + "");
+
+                if (rectangleRadio.isSelected() && width > 0 && height > 0) {
+                    // -offset_x 10 -offset_y 20 -video_size 640x480 -show_region 1 -i desktop
+                    parameters.add("-offset_x");
+                    parameters.add(x + "");
+                    parameters.add("-offset_y");
+                    parameters.add(y + "");
+                    parameters.add("-video_size");
+                    parameters.add(width + "x" + height);
+                    parameters.add("-show_region");
+                    parameters.add("0");
+                    parameters.add("-i");
+                    parameters.add("desktop");
+
+                } else if (windowRadio.isSelected()) {
+                    parameters.add("-i");
+                    parameters.add("title=" + titleInput.getText().trim());
+
+                } else if (fullscreenRadio.isSelected()) {
+                    parameters.add("-i");
+                    parameters.add("desktop");
+                } else {
+                    return false;
+                }
+            }
+
+            if (!audioCheck.isSelected() || audioDevice == null || disableAudio) {
+                parameters.add("-an");
+            } else {
+                parameters.add("-f");
+                parameters.add("dshow");
+                parameters.add("-thread_queue_size");
+                parameters.add(audioThreadQueueSize + "");
+                parameters.add("-i");
+                parameters.add("audio=" + audioDevice);
+
+            }
+
+        } catch (Exception e) {
+            MyBoxLog.error(e.toString());
+        }
+        return true;
+    }
+
+    protected boolean linuxParameters(List<String> parameters) {
+        try {
+            if (!"linux".equals(os) || parameters == null) {
+                return false;
+            }
+            // ffmpeg -video_size 1024x768 -framerate 25 -f x11grab -i :0.0+100,200 -f alsa -ac 2 -i hw:0 output.mkv
+            if (!videoCheck.isSelected() || disableVideo) {
+                parameters.add("-vn");
+            } else {
+                String offsets;
+                if (rectangleRadio.isSelected() && width > 0 && height > 0) {
+                    parameters.add("-video_size");
+                    parameters.add(width + "x" + height);
+                    offsets = x + "," + y;
+
+                } else if (fullscreenRadio.isSelected()) {
+                    parameters.add("-video_size");
+                    parameters.add(screenWidth + "x" + screenHeight);
+                    offsets = "0,0";
+                } else {
+                    return false;
+                }
+
+                parameters.add("-f");
+                parameters.add("x11grab");
+                // https://stackoverflow.com/questions/57903639/why-getting-and-how-to-fix-the-warning-error-on-ffmpeg-not-enough-frames-to-es
+                parameters.add("-probesize");
+                parameters.add("100M");
+                parameters.add("-thread_queue_size");
+                parameters.add(videoThreadQueueSize + "");
+                parameters.add("-i");
+                parameters.add(":0.0+" + offsets);
+            }
+
+            if (!audioCheck.isSelected() || disableAudio) {
+                parameters.add("-an");
+            } else {
+                parameters.add("-f");
+                parameters.add("alsa");
+                parameters.add("-thread_queue_size");
+                parameters.add(audioThreadQueueSize + "");
+                parameters.add("-i");
+                parameters.add("hw:0");
+            }
+
+        } catch (Exception e) {
+            MyBoxLog.error(e.toString());
+        }
+        return true;
+    }
+
+    protected boolean macParameters(List<String> parameters) {
+        try {
+            if (!"mac".equals(os) || parameters == null) {
+                return false;
+            }
+            // ffmpeg -f avfoundation -i "<screen device index>:<audio device index>" -r 30 -s 3360x2100 -pix_fmt uyvy422 output.yuv
+            parameters.add("-f");
+            parameters.add("avfoundation");
+            if (videoCheck.isSelected()) {
+                parameters.add("-i");
+                if (audioCheck.isSelected()) {
+                    parameters.add(macVideo + ":" + macAudio);
+                } else {
+                    parameters.add(macVideo + "");
+                }
+            } else {
+                if (audioCheck.isSelected()) {
+                    parameters.add(":" + macAudio);
+                }
+            }
+
+        } catch (Exception e) {
+            MyBoxLog.error(e.toString());
+        }
+        return true;
     }
 
 }

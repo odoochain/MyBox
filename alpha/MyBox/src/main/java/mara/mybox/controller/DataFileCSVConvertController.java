@@ -7,15 +7,11 @@ import java.util.List;
 import javafx.fxml.FXML;
 import mara.mybox.db.data.VisitHistory;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.NodeStyleTools;
-import static mara.mybox.fxml.NodeStyleTools.badStyle;
-import mara.mybox.tools.FileNameTools;
+import mara.mybox.tools.CsvTools;
 import mara.mybox.tools.FileTools;
 import mara.mybox.tools.TextFileTools;
-import mara.mybox.value.AppVariables;
 import static mara.mybox.value.Languages.message;
-import mara.mybox.value.Languages;
-import org.apache.commons.csv.CSVFormat;
+import mara.mybox.value.UserConfig;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
 
@@ -27,10 +23,10 @@ import org.apache.commons.csv.CSVRecord;
 public class DataFileCSVConvertController extends BaseDataConvertController {
 
     @FXML
-    protected ControlCsvOptions csvReadController;
+    protected ControlTextOptions csvReadController;
 
     public DataFileCSVConvertController() {
-        baseTitle = Languages.message("CsvConvert");
+        baseTitle = message("CsvConvert");
     }
 
     @Override
@@ -42,9 +38,8 @@ public class DataFileCSVConvertController extends BaseDataConvertController {
     public void initOptionsSection() {
         try {
             super.initOptionsSection();
-            csvReadController.setControls(baseName + "Read");
-            convertController.setControls(this, pdfOptionsController);
 
+            csvReadController.setControls(baseName + "Read", true, false);
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
         }
@@ -52,7 +47,7 @@ public class DataFileCSVConvertController extends BaseDataConvertController {
 
     @Override
     public boolean makeMoreParameters() {
-        if (csvReadController.delimiterInput.getStyle().equals(NodeStyleTools.badStyle)
+        if (csvReadController.delimiterController.delimiterInput.getStyle().equals(UserConfig.badStyle())
                 || (!csvReadController.autoDetermine && csvReadController.charset == null)) {
             return false;
         }
@@ -70,29 +65,30 @@ public class DataFileCSVConvertController extends BaseDataConvertController {
 
     public String withHeader(File srcFile, File targetPath) {
         String result;
-        CSVFormat csvFormat = CSVFormat.DEFAULT
-                .withFirstRecordAsHeader().withDelimiter(csvReadController.delimiter)
-                .withIgnoreEmptyLines().withTrim().withNullString("");
         Charset fileCharset;
         if (csvReadController.autoDetermine) {
             fileCharset = TextFileTools.charset(srcFile);
         } else {
             fileCharset = csvReadController.charset;
         }
-        try ( CSVParser parser = CSVParser.parse(srcFile, fileCharset, csvFormat)) {
-            List<String> names = parser.getHeaderNames();
-            convertController.names = names;
-            String filePrefix = FileNameTools.getFilePrefix(srcFile.getName());
-            convertController.openWriters(filePrefix);
+        File validFile = FileTools.removeBOM(srcFile);
+        try ( CSVParser parser = CSVParser.parse(validFile, fileCharset,
+                CsvTools.csvFormat(csvReadController.getDelimiterName(), true))) {
+            List<String> names = new ArrayList<>();
+            names.addAll(parser.getHeaderNames());
+            convertController.setParameters(targetPath, names, filePrefix(srcFile), skip);
             for (CSVRecord record : parser) {
+                if (task == null || task.isCancelled()) {
+                    return message("Cancelled");
+                }
                 List<String> rowData = new ArrayList<>();
-                for (String name : names) {
-                    rowData.add(record.get(name));
+                for (String v : record) {
+                    rowData.add(v);
                 }
                 convertController.writeRow(rowData);
             }
             convertController.closeWriters();
-            result = Languages.message("Handled");
+            result = message("Handled");
         } catch (Exception e) {
             result = e.toString();
         }
@@ -101,35 +97,35 @@ public class DataFileCSVConvertController extends BaseDataConvertController {
 
     public String withoutHeader(File srcFile, File targetPath) {
         String result;
-        CSVFormat csvFormat = CSVFormat.DEFAULT
-                .withDelimiter(csvReadController.delimiter)
-                .withIgnoreEmptyLines().withTrim().withNullString("");
         Charset fileCharset;
         if (csvReadController.autoDetermine) {
             fileCharset = TextFileTools.charset(srcFile);
         } else {
             fileCharset = csvReadController.charset;
         }
-        try ( CSVParser parser = CSVParser.parse(srcFile, fileCharset, csvFormat)) {
+        File validFile = FileTools.removeBOM(srcFile);
+        try ( CSVParser parser = CSVParser.parse(validFile, fileCharset,
+                CsvTools.csvFormat(csvReadController.getDelimiterName(), false))) {
             List<String> names = null;
             for (CSVRecord record : parser) {
+                if (task == null || task.isCancelled()) {
+                    return message("Cancelled");
+                }
                 if (names == null) {
                     names = new ArrayList<>();
                     for (int i = 1; i <= record.size(); i++) {
-                        names.add(Languages.message("col") + i);
+                        names.add(message("Column") + i);
                     }
-                    convertController.names = names;
-                    String filePrefix = FileNameTools.getFilePrefix(srcFile.getName());
-                    convertController.openWriters(filePrefix);
+                    convertController.setParameters(targetPath, names, filePrefix(srcFile), skip);
                 }
                 List<String> rowData = new ArrayList<>();
-                for (int i = 0; i < record.size(); i++) {
-                    rowData.add(record.get(i));
+                for (String v : record) {
+                    rowData.add(v);
                 }
                 convertController.writeRow(rowData);
             }
             convertController.closeWriters();
-            result = Languages.message("Handled");
+            result = message("Handled");
         } catch (Exception e) {
             result = e.toString();
         }

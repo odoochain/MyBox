@@ -5,10 +5,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import javafx.application.Platform;
-import javafx.beans.binding.Bindings;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
-import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
@@ -21,13 +19,14 @@ import javafx.stage.Window;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fxml.ImageClipboardMonitor;
 import mara.mybox.fxml.ImageClipboardTools;
-import mara.mybox.fxml.NodeStyleTools;
-import mara.mybox.fxml.StyleTools;
 import mara.mybox.fxml.ValidationTools;
 import mara.mybox.fxml.WindowTools;
+import mara.mybox.fxml.style.NodeStyleTools;
+import mara.mybox.fxml.style.StyleTools;
 import static mara.mybox.value.AppVariables.imageClipboardMonitor;
 import mara.mybox.value.Fxmls;
 import static mara.mybox.value.Languages.message;
+import mara.mybox.value.UserConfig;
 
 /**
  * @Author Mara
@@ -38,14 +37,15 @@ public class ImageInSystemClipboardController extends ImageViewerController {
 
     private int scaledWidth;
     private String filePrefix;
-    private Clipboard clipboard;
 
     @FXML
-    protected Button openPathButton, clearBoardButton;
+    protected ControlPathInput targetPathInputController;
+    @FXML
+    protected Button openFolderButton, clearBoardButton;
     @FXML
     protected CheckBox saveCheck, copyCheck;
     @FXML
-    protected Label recordLabel;
+    protected Label recordLabel, numberLabel, filesLabel;
     @FXML
     protected ComboBox<String> intervalSelector, widthSelector;
 
@@ -59,12 +59,11 @@ public class ImageInSystemClipboardController extends ImageViewerController {
         try {
             super.initControls();
 
-            clipboard = Clipboard.getSystemClipboard();
-
             saveCheck.setSelected(ImageClipboardTools.isSave());
             saveCheck.selectedProperty().addListener(new ChangeListener<Boolean>() {
                 @Override
                 public void changed(ObservableValue<? extends Boolean> ov, Boolean oldValue, Boolean newValue) {
+                    checkTargetPath();
                     ImageClipboardTools.setSave(newValue);
                 }
             });
@@ -118,17 +117,40 @@ public class ImageInSystemClipboardController extends ImageViewerController {
                             ImageClipboardTools.setMonitorInterval(v);
                             startMonitor();
                         } else {
-                            intervalSelector.getEditor().setStyle(NodeStyleTools.badStyle);
+                            intervalSelector.getEditor().setStyle(UserConfig.badStyle());
                         }
                     } catch (Exception e) {
-                        intervalSelector.getEditor().setStyle(NodeStyleTools.badStyle);
+                        intervalSelector.getEditor().setStyle(UserConfig.badStyle());
                     }
                 }
             });
 
-            openPathButton.disableProperty().bind(Bindings.isEmpty(targetPathInput.textProperty())
-                    .or(targetPathInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
-            );
+            targetPathInputController.baseName(baseName).init();
+
+            targetPathInputController.notify.addListener(new ChangeListener<Boolean>() {
+                @Override
+                public void changed(ObservableValue<? extends Boolean> ov, Boolean oldValue, Boolean newValue) {
+                    checkTargetPath();
+                }
+            });
+
+            targetPrefixInput.textProperty().addListener(new ChangeListener<String>() {
+                @Override
+                public void changed(ObservableValue<? extends String> ov, String oldValue, String newValue) {
+                    checkTargetPath();
+                }
+            });
+
+            formatController.notify.addListener(new ChangeListener<Boolean>() {
+                @Override
+                public void changed(ObservableValue<? extends Boolean> ov, Boolean oldValue, Boolean newValue) {
+                    if (imageClipboardMonitor != null) {
+                        imageClipboardMonitor.setAttributes(formatController.getAttributes());
+                    }
+                }
+            });
+
+            openFolderButton.disableProperty().bind(targetPathInputController.valid.not());
 
         } catch (Exception e) {
             MyBoxLog.debug(e.toString());
@@ -147,7 +169,7 @@ public class ImageInSystemClipboardController extends ImageViewerController {
     public void setControlsStyle() {
         try {
             super.setControlsStyle();
-            NodeStyleTools.setTooltip(clearButton, new Tooltip(message("DeleteSysTemporaryPathFiles")));
+            NodeStyleTools.setTooltip(clearButton, new Tooltip(message("DeleteJavaIOTemporaryPathFiles")));
             NodeStyleTools.setTooltip(clearBoardButton, new Tooltip(message("ClearSystemClipboard")));
         } catch (Exception e) {
             MyBoxLog.debug(e.toString());
@@ -155,33 +177,52 @@ public class ImageInSystemClipboardController extends ImageViewerController {
     }
 
     @FXML
-    protected void openTargetPath(ActionEvent event) {
-        view(new File(targetPathInput.getText()));
+    public void openFolder() {
+        view(targetPathInputController.file);
     }
 
     @FXML
     public void clearTmp() {
-        WindowTools.openStage(Fxmls.FilesDeleteSysTempFxml);
+        WindowTools.openStage(Fxmls.FilesDeleteJavaTempFxml);
     }
 
     public void startMonitor() {
         try {
-            if (targetPath != null) {
+            if (imageClipboardMonitor != null) {
+                imageClipboardMonitor.cancel();
+                imageClipboardMonitor = null;
+            }
+            checkTargetPath();
+            imageClipboardMonitor = new ImageClipboardMonitor()
+                    .start(ImageClipboardTools.getMonitorInterval(), formatController.getAttributes(), filePrefix);
+        } catch (Exception e) {
+            MyBoxLog.debug(e.toString());
+        }
+    }
+
+    public void checkTargetPath() {
+        try {
+            targetPath = targetPathInputController.file;
+            filesLabel.setText("");
+            if (targetPath != null && targetPath.exists()) {
                 if (targetPrefixInput.getText().trim().isEmpty()) {
                     filePrefix = targetPath.getAbsolutePath() + File.separator;
                 } else {
                     filePrefix = targetPath.getAbsolutePath() + File.separator
                             + targetPrefixInput.getText().trim() + "-";
                 }
+                if (imageClipboardMonitor != null) {
+                    filesLabel.setText(message("FilesSaved") + ": " + imageClipboardMonitor.getSavedNumber());
+                }
             } else {
                 filePrefix = null;
+                if (ImageClipboardTools.isSave()) {
+                    filesLabel.setText(message("ImageNotSaveDueInvalidPath"));
+                }
             }
             if (imageClipboardMonitor != null) {
-                imageClipboardMonitor.cancel();
-                imageClipboardMonitor = null;
+                imageClipboardMonitor.setFilePrefix(filePrefix);
             }
-            imageClipboardMonitor = new ImageClipboardMonitor()
-                    .start(ImageClipboardTools.getMonitorInterval(), attributes, filePrefix);
         } catch (Exception e) {
             MyBoxLog.debug(e.toString());
         }
@@ -218,16 +259,27 @@ public class ImageInSystemClipboardController extends ImageViewerController {
             } else {
                 NodeStyleTools.setTooltip(copyToSystemClipboardButton, new Tooltip(message("CopyToSystemClipboard") + "\nCTRL+c / ALT+c"));
             }
-            if (ImageClipboardTools.isSave() && filePrefix == null) {
-                popError(message("ImageNotSaveDueInvalidPath"));
-            }
+            checkTargetPath();
+            updateNumbers();
         } catch (Exception e) {
             MyBoxLog.debug(e.toString());
         }
     }
 
+    public void updateNumbers() {
+        if (imageClipboardMonitor != null) {
+            numberLabel.setText(message("Read") + ": " + imageClipboardMonitor.getRecordNumber() + "   "
+                    + message("Saved") + ": " + imageClipboardMonitor.getSavedNumber() + "   "
+                    + message("Copied") + ": " + imageClipboardMonitor.getCopiedNumber());
+        } else {
+            numberLabel.setText("");
+        }
+        filesLabel.setText("");
+    }
+
     @FXML
     public void refreshAction() {
+        Clipboard clipboard = Clipboard.getSystemClipboard();
         if (!clipboard.hasImage()) {
             popError(message("NoImageInClipboard"));
             return;
@@ -235,17 +287,22 @@ public class ImageInSystemClipboardController extends ImageViewerController {
         loadClip(clipboard.getImage());
     }
 
-    public synchronized void loadClip(Image clip) {
+    public void loadClip(Image clip) {
+        updateNumbers();
         if (clip == null) {
             return;
         }
         loadImage(clip);
     }
 
+    public void filesInfo(String info) {
+        filesLabel.setText(info);
+    }
+
     @FXML
     @Override
     public void clearAction() {
-        clipboard.clear();
+        Clipboard.getSystemClipboard().clear();
         loadImage(null);
     }
 
@@ -268,9 +325,8 @@ public class ImageInSystemClipboardController extends ImageViewerController {
         ImageInSystemClipboardController controller = running();
         if (controller == null) {
             controller = (ImageInSystemClipboardController) WindowTools.openStage(Fxmls.ImageInSystemClipboardFxml);
-        } else {
-            controller.toFront();
         }
+        controller.requestMouse();
         return controller;
     }
 

@@ -11,8 +11,6 @@ import mara.mybox.color.SRGB;
 import mara.mybox.db.data.ColorData;
 import mara.mybox.db.table.TableColor;
 import mara.mybox.value.AppValues;
-import static mara.mybox.value.Languages.message;
-
 import mara.mybox.value.Languages;
 
 /**
@@ -104,8 +102,24 @@ public class FxColorTools {
         return ColorConvertTools.converColor(new java.awt.Color(value, true));
     }
 
+    public static Color invert(Color color) {
+        return new Color(1 - color.getRed(), 1 - color.getGreen(), 1 - color.getBlue(), color.getOpacity());
+    }
+
+    public static boolean isLightColor(Color color) {
+        return color.grayscale().getRed() > 0.5;
+    }
+
+    public static boolean isTransparent(Color color) {
+        return color.equals(Color.TRANSPARENT);
+    }
+
+    public static Color foreColor(Color backColor) {
+        return isLightColor(backColor) ? Color.BLACK : Color.WHITE;
+    }
+
     public static int color2Value(Color color) {
-        return ColorConvertTools.converColor(color).getRGB();
+        return color == null ? AppValues.InvalidInteger : ColorConvertTools.converColor(color).getRGB();
     }
 
     public static int web2Value(String web) {
@@ -126,7 +140,7 @@ public class FxColorTools {
 
     public static String randomRGB() {
         Random random = new Random();
-        return randomRGBA(random);
+        return randomRGB(random);
     }
 
     public static String randomRGB(Random random) {
@@ -181,6 +195,14 @@ public class FxColorTools {
                 return color;
             }
         }
+    }
+
+    public static Color randomColor() {
+        return Color.web(randomRGB());
+    }
+
+    public static Color randomColor(Random random) {
+        return Color.web(randomRGB(random));
     }
 
     public static List<String> randomRGBA(int size) {

@@ -7,18 +7,16 @@ package mara.mybox.value;
  */
 public class AppValues {
 
-    public static final String AppVersion = "6.4.7";
-    public static final String AppVersionDate = "2021-8-17";
+    public static final boolean Alpha = false;
+    public static final String AppVersion = "6.7";
+    public static final String AppVersionDate = "2023-1-21";
     public static final String AppDerbyUser = "mara";
     public static final String AppDerbyPassword = "mybox";
+    public static final int AppYear = 2023;
 
     public static final String MyBoxSeparator = "##MyBox#";
     public static final String MyBoxStyle = "/styles/MyBox.css";
-    public static final String MyBoxInternetDataPath = "https://github.com/Mararsh/MyBox_data";
 
-    public static final String DataIgnoreChars
-            = "\\$|\\(|\\)|\\*|\\?|\\/|\\^|\\{|\\}|\\||\\[|\\]|\"|"
-            + "[`~!@#%&_=<>:,;'·！￥…（）—《》？：“”【】、；‘'，。、]";
     public static final String FileNameSpecialChars
             = "[:<>/&%]|\\*|\\?|\\\\|\n|\"|\\s+|\\||&nbsp;|&lt;|&gt;|&amp;|&quot;";
 
@@ -26,10 +24,12 @@ public class AppValues {
     public static final int IOBufferLength = 8024;
     public static final String HttpsProtocal = "TLSv1.2";
 
-    public static final short InvalidShort = Short.MIN_VALUE;
-    public static final long InvalidLong = Long.MIN_VALUE;
+    public static final short InvalidShort = Short.MAX_VALUE;
+    public static final long InvalidLong = Long.MAX_VALUE;
+    public static final float InvalidFloat = Float.MAX_VALUE;
+    public static final int InvalidInteger = Integer.MAX_VALUE;
     public static final double InvalidDouble = Double.MAX_VALUE;
-    public static final int InvalidInteger = Integer.MIN_VALUE;
+    public static final double TinyDouble = Float.MIN_VALUE;
 
     public static final String GaoDeMapWebKey = "06b9e078a51325a843dfefd57ffd876c";
     public static final String GaoDeMapServiceKey = "d7444d9a7fae01fa850236d909ad4450";

@@ -9,15 +9,16 @@ import javafx.event.Event;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
+import javafx.scene.control.Button;
 import javafx.scene.control.Tab;
-import javafx.scene.control.TabPane;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.Pane;
 import javafx.stage.Window;
 import mara.mybox.db.data.VisitHistory;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.StyleTools;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.fxml.WindowTools;
+import mara.mybox.fxml.style.StyleTools;
 import mara.mybox.tools.FileNameTools;
 import mara.mybox.tools.FileTools;
 import mara.mybox.tools.HtmlReadTools;
@@ -32,15 +33,11 @@ import static mara.mybox.value.Languages.message;
  */
 public class WebBrowserController extends BaseController {
 
-    protected Map<Tab, ControlWebView> tabControllers;
+    protected Map<Tab, WebAddressController> tabControllers;
     protected Tab hisTab, favoriteTab;
 
     @FXML
-    protected TabPane tabPane;
-    @FXML
-    protected Tab addTab;
-    @FXML
-    protected ImageView addIcon;
+    protected Button addTabButton;
 
     public WebBrowserController() {
         baseTitle = message("WebBrowser");
@@ -65,7 +62,7 @@ public class WebBrowserController extends BaseController {
     public void setControlsStyle() {
         try {
             super.setControlsStyle();
-            StyleTools.setIconTooltips(addIcon, "iconAdd.png", message("Add"));
+            StyleTools.setIconTooltips(addTabButton, "iconAdd.png", "");
         } catch (Exception e) {
             MyBoxLog.debug(e.toString());
         }
@@ -87,25 +84,23 @@ public class WebBrowserController extends BaseController {
         newTab(true);
     }
 
-    protected ControlWebView newTab(boolean focus) {
+    protected WebAddressController newTab(boolean focus) {
         try {
             FXMLLoader fxmlLoader = new FXMLLoader(WindowTools.class.getResource(
-                    Fxmls.ControlWebViewFxml), AppVariables.currentBundle);
+                    Fxmls.WebAddressFxml), AppVariables.currentBundle);
             Pane pane = fxmlLoader.load();
             Tab tab = new Tab();
-            ImageView tabImage = new ImageView("img/MyBox.png");
-            tabImage.setFitWidth(20);
-            tabImage.setFitHeight(20);
+            ImageView tabImage = StyleTools.getIconImage("iconMyBox.png");
             tab.setGraphic(tabImage);
             tab.setContent(pane);
-            tabPane.getTabs().remove(addTab);
-            tabPane.getTabs().addAll(tab, addTab);
+            tabPane.getTabs().add(tabPane.getTabs().size() - 1, tab);
             if (focus) {
+                getMyStage().setIconified(false);
                 tabPane.getSelectionModel().select(tab);
             }
             refreshStyle(pane);
 
-            ControlWebView controller = (ControlWebView) fxmlLoader.getController();
+            WebAddressController controller = (WebAddressController) fxmlLoader.getController();
             controller.initTab(this, tab);
             if (tabControllers == null) {
                 tabControllers = new HashMap();
@@ -124,24 +119,24 @@ public class WebBrowserController extends BaseController {
         }
     }
 
-    public ControlWebView loadAddress(String address, boolean focus) {
-        ControlWebView controller = newTab(focus);
+    public WebAddressController loadAddress(String address, boolean focus) {
+        WebAddressController controller = newTab(focus);
         if (address != null) {
             controller.loadAddress(address);
         }
         return controller;
     }
 
-    public ControlWebView loadContents(String contents, boolean focus) {
-        ControlWebView controller = newTab(focus);
+    public WebAddressController loadContents(String contents, boolean focus) {
+        WebAddressController controller = newTab(focus);
         if (contents != null) {
             controller.loadContents(contents);
         }
         return controller;
     }
 
-    public ControlWebView loadFile(File file) {
-        ControlWebView controller = newTab(true);
+    public WebAddressController loadFile(File file) {
+        WebAddressController controller = newTab(true);
         controller.loadFile(file);
         return controller;
     }
@@ -157,8 +152,8 @@ public class WebBrowserController extends BaseController {
             String dname;
             if (name != null && !name.isBlank()) {
                 dname = name;
-                String nameSuffix = FileNameTools.getFileSuffix(name);
-                String addrSuffix = FileNameTools.getFileSuffix(address);
+                String nameSuffix = FileNameTools.suffix(name);
+                String addrSuffix = FileNameTools.suffix(address);
                 if (addrSuffix != null && !addrSuffix.isBlank()) {
                     if (nameSuffix == null || nameSuffix.isBlank()
                             || !addrSuffix.equalsIgnoreCase(nameSuffix)) {
@@ -176,7 +171,7 @@ public class WebBrowserController extends BaseController {
             if (dnFile == null) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 @Override
                 protected boolean handle() {
@@ -191,11 +186,7 @@ public class WebBrowserController extends BaseController {
                 }
 
             };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
     }
 
@@ -221,7 +212,6 @@ public class WebBrowserController extends BaseController {
             if (object != null && object instanceof WebBrowserController) {
                 try {
                     controller = (WebBrowserController) object;
-                    controller.toFront();
                     break;
                 } catch (Exception e) {
                 }
@@ -230,6 +220,7 @@ public class WebBrowserController extends BaseController {
         if (controller == null) {
             controller = (WebBrowserController) WindowTools.openStage(Fxmls.WebBrowserFxml);
         }
+        controller.requestMouse();
         return controller;
     }
 
@@ -241,12 +232,20 @@ public class WebBrowserController extends BaseController {
         return controller;
     }
 
-    public static WebBrowserController oneOpen(String address) {
+    public static WebBrowserController oneOpen(String address, boolean focus) {
         WebBrowserController controller = oneOpen();
         if (controller != null && address != null) {
-            controller.loadAddress(address, true);
+            controller.loadAddress(address, focus);
         }
         return controller;
+    }
+
+    public static WebAddressController oneLoad(String contents, boolean focus) {
+        WebBrowserController controller = oneOpen();
+        if (controller != null && contents != null) {
+            return controller.loadContents(contents, focus);
+        }
+        return null;
     }
 
 }

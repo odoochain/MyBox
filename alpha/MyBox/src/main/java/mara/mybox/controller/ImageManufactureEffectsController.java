@@ -32,10 +32,12 @@ import mara.mybox.data.DoubleRectangle;
 import mara.mybox.data.StringTable;
 import mara.mybox.db.data.ConvolutionKernel;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.NodeStyleTools;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.fxml.WindowTools;
+import mara.mybox.fxml.style.NodeStyleTools;
 import mara.mybox.imagefile.ImageFileWriters;
-import mara.mybox.value.AppVariables;
+import mara.mybox.value.AppPaths;
+import mara.mybox.value.AppValues;
 import mara.mybox.value.Fxmls;
 import mara.mybox.value.Languages;
 
@@ -69,6 +71,8 @@ public class ImageManufactureEffectsController extends ImageManufactureOperation
     @Override
     public void initPane() {
         try {
+            super.initPane();
+
             optionsController.setValues(this);
 
         } catch (Exception e) {
@@ -100,7 +104,7 @@ public class ImageManufactureEffectsController extends ImageManufactureOperation
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 private Image newImage;
                 private String value = null;
@@ -156,7 +160,8 @@ public class ImageManufactureEffectsController extends ImageManufactureOperation
                                 value = optionsController.intPara1 + "";
                                 break;
                             case Thresholding:
-                                pixelsOperation = PixelsOperationFactory.create(imageView.getImage(), scopeController.scope, optionsController.effectType);
+                                pixelsOperation = PixelsOperationFactory.create(imageView.getImage(),
+                                        scopeController.scope, optionsController.effectType);
                                 pixelsOperation.setIntPara1(optionsController.intPara1);
                                 pixelsOperation.setIntPara2(optionsController.intPara2);
                                 pixelsOperation.setIntPara3(optionsController.intPara3);
@@ -164,22 +169,10 @@ public class ImageManufactureEffectsController extends ImageManufactureOperation
                                 newImage = pixelsOperation.operateFxImage();
                                 break;
                             case BlackOrWhite:
-                                ImageBinary imageBinary;
-                                switch (optionsController.intPara1) {
-                                    case 2:
-                                        imageBinary = new ImageBinary(imageView.getImage(), scopeController.scope, -1);
-                                        break;
-                                    case 3:
-                                        imageBinary = new ImageBinary(imageView.getImage(), scopeController.scope, optionsController.intPara2);
-                                        value = optionsController.intPara2 + "";
-                                        break;
-                                    default:
-                                        int t = ImageBinary.calculateThreshold(imageView.getImage());
-                                        imageBinary = new ImageBinary(imageView.getImage(), scopeController.scope, t);
-                                        value = t + "";
-                                        break;
-                                }
-                                imageBinary.setIsDithering(optionsController.valueCheck.isSelected());
+                                int threshold = optionsController.binaryController.threshold();
+                                value = threshold + "";
+                                ImageBinary imageBinary = new ImageBinary(imageView.getImage(), scopeController.scope, threshold);
+                                imageBinary.setIsDithering(optionsController.binaryController.dither());
                                 newImage = imageBinary.operateFxImage();
                                 break;
                             case Gray:
@@ -250,11 +243,7 @@ public class ImageManufactureEffectsController extends ImageManufactureOperation
                     }
                 }
             };
-            imageController.handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            imageController.start(task);
         }
     }
 
@@ -292,13 +281,14 @@ public class ImageManufactureEffectsController extends ImageManufactureOperation
                     BufferedImage bufferedImage;
                     String tmpFile;
 
-                    BufferedImage outlineSource = SwingFXUtils.fromFXImage(new Image("img/NetworkTools.png"), null);
+                    BufferedImage outlineSource = SwingFXUtils.fromFXImage(
+                            new Image("img/cover" + AppValues.AppYear + "g4.png"), null);
                     ImageScope scope = new ImageScope(SwingFXUtils.toFXImage(image, null));
                     scope.setScopeType(ImageScope.ScopeType.Outline);
                     if (sourceFile != null) {
                         scope.setFile(sourceFile.getAbsolutePath());
                     }
-                    scope.setRectangle(new DoubleRectangle(0, 0, image.getWidth(), image.getHeight()));
+                    scope.setRectangle(new DoubleRectangle(0, 0, image.getWidth() - 1, image.getHeight() - 1));
                     BufferedImage[] outline = AlphaTools.outline(outlineSource,
                             scope.getRectangle(), image.getWidth(), image.getHeight(),
                             false, ColorConvertTools.converColor(Color.WHITE), false);
@@ -309,7 +299,7 @@ public class ImageManufactureEffectsController extends ImageManufactureOperation
                             = ImageQuantizationFactory.create(image, scope,
                                     QuantizationAlgorithm.PopularityQuantization, 16, 256, 2, 4, 3, false, true, true);
                     bufferedImage = quantization.operateImage();
-                    tmpFile = AppVariables.MyBoxTempPath + File.separator
+                    tmpFile = AppPaths.getGeneratedPath() + File.separator
                             + Languages.message("Posterizing") + ".png";
                     if (ImageFileWriters.writeImageFile(bufferedImage, tmpFile)) {
                         files.add(tmpFile);
@@ -322,7 +312,7 @@ public class ImageManufactureEffectsController extends ImageManufactureOperation
                     pixelsOperation.setIntPara3(255);
                     pixelsOperation.setIsDithering(false);
                     bufferedImage = pixelsOperation.operateImage();
-                    tmpFile = AppVariables.MyBoxTempPath + File.separator
+                    tmpFile = AppPaths.getGeneratedPath() + File.separator
                             + Languages.message("Thresholding") + ".png";
                     if (ImageFileWriters.writeImageFile(bufferedImage, tmpFile)) {
                         files.add(tmpFile);
@@ -330,7 +320,7 @@ public class ImageManufactureEffectsController extends ImageManufactureOperation
 
                     ImageGray imageGray = new ImageGray(image, scope);
                     bufferedImage = imageGray.operate();
-                    tmpFile = AppVariables.MyBoxTempPath + File.separator
+                    tmpFile = AppPaths.getGeneratedPath() + File.separator
                             + Languages.message("Gray") + ".png";
                     if (ImageFileWriters.writeImageFile(bufferedImage, tmpFile)) {
                         files.add(tmpFile);
@@ -340,7 +330,7 @@ public class ImageManufactureEffectsController extends ImageManufactureOperation
                             image, scope, OperationType.Sepia);
                     pixelsOperation.setIntPara1(60);
                     bufferedImage = pixelsOperation.operate();
-                    tmpFile = AppVariables.MyBoxTempPath + File.separator
+                    tmpFile = AppPaths.getGeneratedPath() + File.separator
                             + Languages.message("Sepia") + ".png";
                     if (ImageFileWriters.writeImageFile(bufferedImage, tmpFile)) {
                         files.add(tmpFile);
@@ -349,7 +339,7 @@ public class ImageManufactureEffectsController extends ImageManufactureOperation
                     ImageBinary imageBinary = new ImageBinary(imageView.getImage(), scope, -1);
                     imageBinary.setIsDithering(true);
                     bufferedImage = imageBinary.operate();
-                    tmpFile = AppVariables.MyBoxTempPath + File.separator
+                    tmpFile = AppPaths.getGeneratedPath() + File.separator
                             + Languages.message("BlackOrWhite") + ".png";
                     if (ImageFileWriters.writeImageFile(bufferedImage, tmpFile)) {
                         files.add(tmpFile);
@@ -359,7 +349,7 @@ public class ImageManufactureEffectsController extends ImageManufactureOperation
                     imageConvolution = ImageConvolution.create().
                             setImage(image).setScope(scope).setKernel(kernel);
                     bufferedImage = imageConvolution.operateImage();
-                    tmpFile = AppVariables.MyBoxTempPath + File.separator
+                    tmpFile = AppPaths.getGeneratedPath() + File.separator
                             + Languages.message("EdgeDetection") + ".png";
                     if (ImageFileWriters.writeImageFile(bufferedImage, tmpFile)) {
                         files.add(tmpFile);
@@ -369,7 +359,7 @@ public class ImageManufactureEffectsController extends ImageManufactureOperation
                     imageConvolution = ImageConvolution.create().
                             setImage(image).setScope(scope).setKernel(kernel);
                     bufferedImage = imageConvolution.operate();
-                    tmpFile = AppVariables.MyBoxTempPath + File.separator
+                    tmpFile = AppPaths.getGeneratedPath() + File.separator
                             + Languages.message("Emboss") + ".png";
                     if (ImageFileWriters.writeImageFile(bufferedImage, tmpFile)) {
                         files.add(tmpFile);
@@ -378,7 +368,7 @@ public class ImageManufactureEffectsController extends ImageManufactureOperation
                     ImageMosaic mosaic = ImageMosaic.create(
                             image, scope, ImageMosaic.MosaicType.Mosaic, 30);
                     bufferedImage = mosaic.operate();
-                    tmpFile = AppVariables.MyBoxTempPath + File.separator
+                    tmpFile = AppPaths.getGeneratedPath() + File.separator
                             + Languages.message("Mosaic") + ".png";
                     if (ImageFileWriters.writeImageFile(bufferedImage, tmpFile)) {
                         files.add(tmpFile);
@@ -387,7 +377,7 @@ public class ImageManufactureEffectsController extends ImageManufactureOperation
                     mosaic = ImageMosaic.create(image, scope,
                             ImageMosaic.MosaicType.FrostedGlass, 20);
                     bufferedImage = mosaic.operate();
-                    tmpFile = AppVariables.MyBoxTempPath + File.separator
+                    tmpFile = AppPaths.getGeneratedPath() + File.separator
                             + Languages.message("FrostedGlass") + ".png";
                     if (ImageFileWriters.writeImageFile(bufferedImage, tmpFile)) {
                         files.add(tmpFile);
@@ -422,10 +412,7 @@ public class ImageManufactureEffectsController extends ImageManufactureOperation
             }
 
         };
-        Thread thread = new Thread(demoTask);
-        thread.setDaemon(false);
-        thread.start();
-
+        start(demoTask, false);
     }
 
     public void addColors() {

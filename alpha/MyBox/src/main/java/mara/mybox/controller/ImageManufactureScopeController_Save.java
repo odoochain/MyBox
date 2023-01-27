@@ -10,20 +10,23 @@ import mara.mybox.bufferedimage.ImageScope;
 import mara.mybox.data.IntPoint;
 import mara.mybox.db.table.TableImageScope;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.NodeStyleTools;
+import mara.mybox.fxml.style.NodeStyleTools;
+import mara.mybox.fxml.SingletonTask;
+import static mara.mybox.value.Languages.message;
+import mara.mybox.value.UserConfig;
 
 /**
  * @Author Mara
  * @CreateDate 2021-8-13
  * @License Apache License Version 2.0
  */
-public class ImageManufactureScopeController_Save extends ImageManufactureScopeController_Set {
+public abstract class ImageManufactureScopeController_Save extends ImageManufactureScopeController_Set {
 
     public void initSaveTab() {
         try {
             saveScopeButton.disableProperty().bind(scopeNameInput.textProperty().isEmpty()
                     .or(scopeDistanceSelector.visibleProperty()
-                            .and(scopeDistanceSelector.getEditor().styleProperty().isEqualTo(NodeStyleTools.badStyle)))
+                            .and(scopeDistanceSelector.getEditor().styleProperty().isEqualTo(UserConfig.badStyle())))
             );
 
         } catch (Exception e) {
@@ -38,15 +41,18 @@ public class ImageManufactureScopeController_Save extends ImageManufactureScopeC
             return;
         }
         synchronized (this) {
-            if (task != null && !task.isQuit()) {
-                return;
-            }
             String name = scopeNameInput.getText().trim();
             if (name.isEmpty()) {
+                popError(message("InvalidParameters"));
                 return;
             }
             scope.setName(name);
-            task = new SingletonTask<Void>() {
+            if (sourceFile != null) {
+                scope.setFile(sourceFile.getAbsolutePath());
+            } else {
+                scope.setFile("Unknown");
+            }
+            SingletonTask saveTask = new SingletonTask<Void>(this) {
 
                 @Override
                 protected boolean handle() {
@@ -56,14 +62,11 @@ public class ImageManufactureScopeController_Save extends ImageManufactureScopeC
 
                 @Override
                 protected void whenSucceeded() {
-                    scopesSavedController.loadScopes();
+                    scopesSavedController.loadTableData();
+                    popSaved();
                 }
             };
-            parentController.handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(saveTask, false);
 
         }
     }
@@ -99,37 +102,37 @@ public class ImageManufactureScopeController_Save extends ImageManufactureScopeC
                 scopeTypeGroup.selectToggle(null);
                 break;
             case Matting:
-                scopeMattingRadio.fire();
+                scopeMattingRadio.setSelected(true);
                 break;
             case Color:
-                scopeColorRadio.fire();
+                scopeColorRadio.setSelected(true);
                 break;
             case Rectangle:
-                scopeRectangleRadio.fire();
+                scopeRectangleRadio.setSelected(true);
                 break;
             case RectangleColor:
-                scopeRectangleColorRadio.fire();
+                scopeRectangleColorRadio.setSelected(true);
                 break;
             case Circle:
-                scopeCircleRadio.fire();
+                scopeCircleRadio.setSelected(true);
                 break;
             case CircleColor:
-                scopeCircleColorRadio.fire();
+                scopeCircleColorRadio.setSelected(true);
                 break;
             case Ellipse:
-                scopeEllipseRadio.fire();
+                scopeEllipseRadio.setSelected(true);
                 break;
             case EllipseColor:
-                scopeEllipseColorRadio.fire();
+                scopeEllipseColorRadio.setSelected(true);
                 break;
             case Polygon:
-                scopePolygonRadio.fire();
+                scopePolygonRadio.setSelected(true);
                 break;
             case PolygonColor:
-                scopePolygonColorRadio.fire();
+                scopePolygonColorRadio.setSelected(true);
                 break;
             case Outline:
-                scopeOutlineRadio.fire();
+                scopeOutlineRadio.setSelected(true);
                 break;
         }
         return true;
@@ -227,25 +230,25 @@ public class ImageManufactureScopeController_Save extends ImageManufactureScopeC
             }
             switch (scope.getColorScopeType()) {
                 case Color:
-                    colorRGBRadio.fire();
+                    colorRGBRadio.setSelected(true);
                     break;
                 case Red:
-                    colorRedRadio.fire();
+                    colorRedRadio.setSelected(true);
                     break;
                 case Green:
-                    colorGreenRadio.fire();
+                    colorGreenRadio.setSelected(true);
                     break;
                 case Blue:
-                    colorBlueRadio.fire();
+                    colorBlueRadio.setSelected(true);
                     break;
                 case Hue:
-                    colorHueRadio.fire();
+                    colorHueRadio.setSelected(true);
                     break;
                 case Brightness:
-                    colorBrightnessRadio.fire();
+                    colorBrightnessRadio.setSelected(true);
                     break;
                 case Saturation:
-                    colorSaturationRadio.fire();
+                    colorSaturationRadio.setSelected(true);
                     break;
             }
 

@@ -3,9 +3,8 @@ package mara.mybox.controller;
 import java.util.Arrays;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
-import javafx.event.EventHandler;
+import javafx.fxml.FXML;
 import javafx.scene.Cursor;
-import javafx.scene.Node;
 import javafx.scene.control.Toggle;
 import javafx.scene.control.Tooltip;
 import javafx.scene.input.MouseEvent;
@@ -15,8 +14,8 @@ import mara.mybox.data.DoublePoint;
 import mara.mybox.db.table.TableColor;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fximage.ImageViewTools;
-import mara.mybox.fxml.NodeStyleTools;
 import mara.mybox.fxml.ValidationTools;
+import mara.mybox.fxml.style.NodeStyleTools;
 import mara.mybox.value.Languages;
 import mara.mybox.value.UserConfig;
 
@@ -24,6 +23,12 @@ import mara.mybox.value.UserConfig;
  * @Author Mara
  * @CreateDate 2020-9-15
  * @License Apache License Version 2.0
+ *
+ * ImageManufactureScopeController < ImageManufactureScopeController_Save <
+ * ImageManufactureScopeController_Set < ImageManufactureScopeController_Outline
+ * < ImageManufactureScopeController_Colors <
+ * ImageManufactureScopeController_Points < ImageManufactureScopeController_Area
+ * ImageManufactureScopeController_Base < ImageViewerController
  */
 public class ImageManufactureScopeController extends ImageManufactureScopeController_Save {
 
@@ -66,19 +71,6 @@ public class ImageManufactureScopeController extends ImageManufactureScopeContro
                             UserConfig.setString(baseName + "ScopePanePosition", newValue.doubleValue() + "");
                         }
                     });
-
-            // https://stackoverflow.com/questions/40707295/how-to-add-listener-to-divider-position?r=SearchResults
-            splitPane.requestLayout();
-            splitPane.applyCss();
-            for (Node node : splitPane.lookupAll(".split-pane-divider")) {
-                node.setOnMouseReleased(new EventHandler<MouseEvent>() {
-                    @Override
-                    public void handle(MouseEvent event) {
-                        MyBoxLog.console("paneSize");
-                        paneSize();
-                    }
-                });
-            }
 
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
@@ -227,22 +219,6 @@ public class ImageManufactureScopeController extends ImageManufactureScopeContro
         }
     }
 
-//    public void initSplitDivider() {
-//        try {
-//            // https://stackoverflow.com/questions/40707295/how-to-add-listener-to-divider-position?r=SearchResults
-//            for (Node node : splitPane.lookupAll(".split-pane-divider")) {
-//                node.setOnMouseReleased(new EventHandler<MouseEvent>() {
-//                    @Override
-//                    public void handle(MouseEvent event) {
-//                        paneSize();
-//                    }
-//                });
-//            }
-//
-//        } catch (Exception e) {
-//            MyBoxLog.error(e.toString());
-//        }
-//    }
     public void setParameters(ImageManufactureController parent) {
         try {
             this.parentController = parent;
@@ -257,7 +233,7 @@ public class ImageManufactureScopeController extends ImageManufactureScopeContro
 
             loadImage(sourceFile, imageInformation, imageController.image, parent.imageChanged);
             checkScopeType();
-            scopeAllRadio.fire();
+            scopeAllRadio.setSelected(true);
         } catch (Exception e) {
             MyBoxLog.debug(e.toString());
         }
@@ -266,7 +242,7 @@ public class ImageManufactureScopeController extends ImageManufactureScopeContro
     @Override
     public void viewSizeChanged(double change) {
         super.viewSizeChanged(change);
-        if (change < sizeChangeAware || isSettingValues
+        if (isSettingValues || change < sizeChangeAware
                 || imageView == null || imageView.getImage() == null
                 || scope == null || scope.getScopeType() == null || !scopeView.isVisible()) {
             return;
@@ -274,10 +250,6 @@ public class ImageManufactureScopeController extends ImageManufactureScopeContro
         // Following handlers can conflict with threads' status changes which must check variables carefully
         switch (scope.getScopeType()) {
             case Operate:
-                scopeView.setFitWidth(imageView.getFitWidth());
-                scopeView.setFitHeight(imageView.getFitHeight());
-                scopeView.setLayoutX(imageView.getLayoutX());
-                scopeView.setLayoutY(imageView.getLayoutY());
                 break;
             case Outline:
                 makeOutline();
@@ -289,8 +261,18 @@ public class ImageManufactureScopeController extends ImageManufactureScopeContro
     }
 
     @Override
+    public void refinePane() {
+        super.refinePane();
+        scopeView.setFitWidth(imageView.getFitWidth());
+        scopeView.setFitHeight(imageView.getFitHeight());
+        scopeView.setLayoutX(imageView.getLayoutX());
+        scopeView.setLayoutY(imageView.getLayoutY());
+    }
+
+    @Override
     public void paneSizeChanged(double change) {
-        paneSize();
+        refinePane();
+        drawMaskControls();
     }
 
     @Override
@@ -375,4 +357,12 @@ public class ImageManufactureScopeController extends ImageManufactureScopeContro
 
     }
 
+    @FXML
+    public void refreshAction() {
+        isSettingValues = false;
+        if (task != null) {
+            task.cancel();
+        }
+        viewSizeChanged(sizeChangeAware + 1);
+    }
 }

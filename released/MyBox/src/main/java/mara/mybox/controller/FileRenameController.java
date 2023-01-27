@@ -3,15 +3,16 @@ package mara.mybox.controller;
 import java.io.File;
 import javafx.fxml.FXML;
 import javafx.scene.control.Label;
+import javafx.scene.control.RadioButton;
 import javafx.scene.control.TextField;
+import javafx.scene.control.ToggleGroup;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.NodeTools;
 import mara.mybox.fxml.PopTools;
 import mara.mybox.tools.FileNameTools;
 import mara.mybox.tools.FileTools;
 import mara.mybox.value.AppVariables;
-import static mara.mybox.value.Languages.message;
 import mara.mybox.value.Languages;
+import static mara.mybox.value.Languages.message;
 
 /**
  * @Author Mara
@@ -22,6 +23,12 @@ public class FileRenameController extends BaseController {
 
     protected File file, newFile;
 
+    @FXML
+    protected ToggleGroup targetExistGroup;
+    @FXML
+    protected RadioButton targetReplaceRadio, targetRenameRadio, targetSkipRadio;
+    @FXML
+    protected TextField targetAppendInput;
     @FXML
     protected Label fileLabel, pathLabel, suffixLabel;
     @FXML
@@ -42,8 +49,8 @@ public class FileRenameController extends BaseController {
             this.file = file;
             fileLabel.setText(file.getAbsolutePath());
             pathLabel.setText(file.getParent() + File.separator);
-            suffixLabel.setText("." + FileNameTools.getFileSuffix(file));
-            nameInput.setText(FileNameTools.getFilePrefix(file.getName()));
+            suffixLabel.setText("." + FileNameTools.suffix(file.getName()));
+            nameInput.setText(FileNameTools.prefix(file.getName()));
             nameInput.requestFocus();
             nameInput.selectAll();
 
@@ -62,17 +69,17 @@ public class FileRenameController extends BaseController {
     public void okAction() {
         try {
             if (file == null || !file.exists() || !file.isFile()) {
-                popError("InvalidParameters");
+                popError(message("InvalidParameters"));
                 closeStage();
                 return;
             }
-            File theFile = new File(pathLabel.getText() + FileNameTools.filenameFilter(nameInput.getText() + suffixLabel.getText()));
-            if (theFile.getAbsolutePath().equals(file.getAbsolutePath())) {
-                popError("Same");
+            File theFile = new File(pathLabel.getText() + FileNameTools.filter(nameInput.getText() + suffixLabel.getText()));
+            if (theFile.equals(file)) {
+                popError(message("Unchanged"));
                 return;
             }
             if (theFile.exists()) {
-                if (!PopTools.askSure(getBaseTitle(), Languages.message("SureReplaceExistedFile"))) {
+                if (!PopTools.askSure(this, getBaseTitle(), Languages.message("SureReplaceExistedFile"))) {
                     return;
                 }
             }

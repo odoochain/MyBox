@@ -1,6 +1,7 @@
 package mara.mybox.controller;
 
 import java.util.Arrays;
+import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.fxml.FXML;
@@ -25,10 +26,12 @@ import mara.mybox.db.data.VisitHistory;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fximage.ImageViewTools;
 import mara.mybox.fxml.LocateTools;
-import mara.mybox.fxml.NodeStyleTools;
 import mara.mybox.fxml.NodeTools;
+import mara.mybox.fxml.SingletonTask;
+import mara.mybox.fxml.style.NodeStyleTools;
 import mara.mybox.tools.DateTools;
 import mara.mybox.tools.FileTools;
+import static mara.mybox.value.AppVariables.sceneFontSize;
 import static mara.mybox.value.Languages.message;
 import mara.mybox.value.UserConfig;
 
@@ -43,7 +46,8 @@ public abstract class BaseImageController_ImageView extends BaseController {
     protected ImageInformation imageInformation;
     protected Image image;
     protected ImageAttributes attributes;
-    protected boolean isPickingColor, imageChanged, operateOriginalSize;
+    protected final SimpleBooleanProperty loadNotify;
+    protected boolean imageChanged, isPickingColor, operateOriginalSize;
     protected int loadWidth, defaultLoadWidth, framesNumber, frameIndex, // 0-based
             sizeChangeAware, zoomStep, xZoomStep, yZoomStep;
     protected LoadingController loadingController;
@@ -68,14 +72,18 @@ public abstract class BaseImageController_ImageView extends BaseController {
     protected Button imageSizeButton, paneSizeButton, zoomInButton, zoomOutButton,
             rotateLeftButton, rotateRightButton, turnOverButton;
     @FXML
-    protected CheckBox pickColorCheck, rulerXCheck, rulerYCheck, coordinateCheck, contextMenuCheck, selectAreaCheck;
+    protected CheckBox pickColorCheck, rulerXCheck, gridCheck, coordinateCheck, contextMenuCheck,
+            selectAreaCheck;
     @FXML
     protected ComboBox<String> zoomStepSelector, loadWidthBox;
     @FXML
     protected HBox operationBox;
+    @FXML
+    protected ControlImageRender renderController;
 
     public BaseImageController_ImageView() {
         baseTitle = message("Image");
+        loadNotify = new SimpleBooleanProperty(false);
     }
 
     @Override
@@ -140,6 +148,10 @@ public abstract class BaseImageController_ImageView extends BaseController {
         }
     }
 
+    public void notifyLoad() {
+        loadNotify.set(!loadNotify.get());
+    }
+
     protected void initImageView() {
         if (imageView == null) {
             return;
@@ -200,10 +212,10 @@ public abstract class BaseImageController_ImageView extends BaseController {
                                 yZoomStep = zoomStep;
                                 zoomStepChanged();
                             } else {
-                                zoomStepSelector.getEditor().setStyle(NodeStyleTools.badStyle);
+                                zoomStepSelector.getEditor().setStyle(UserConfig.badStyle());
                             }
                         } catch (Exception e) {
-                            zoomStepSelector.getEditor().setStyle(NodeStyleTools.badStyle);
+                            zoomStepSelector.getEditor().setStyle(UserConfig.badStyle());
                         }
                     }
                 });
@@ -261,7 +273,7 @@ public abstract class BaseImageController_ImageView extends BaseController {
     }
 
     public void refinePane() {
-        if (scrollPane == null || imageView == null || imageView.getImage() == null) {
+        if (isSettingValues || scrollPane == null || imageView == null || imageView.getImage() == null) {
             return;
         }
         LocateTools.moveCenter(scrollPane, imageView);
@@ -415,8 +427,14 @@ public abstract class BaseImageController_ImageView extends BaseController {
                 if (sizeText != null) {
                     sizeText.setText((int) (imageView.getImage().getWidth()) + "x" + (int) (imageView.getImage().getHeight()));
                     sizeText.setTextAlignment(TextAlignment.LEFT);
-                    sizeText.setX(borderLine.getBoundsInParent().getMinX());
-                    sizeText.setY(borderLine.getBoundsInParent().getMinY() - sizeText.getBoundsInParent().getHeight() - 1);
+                    if (imageView.getImage().getWidth() >= imageView.getImage().getHeight()) {
+                        sizeText.setX(borderLine.getBoundsInParent().getMinX());
+                        sizeText.setY(borderLine.getBoundsInParent().getMinY() - sceneFontSize - 1);
+                    } else {
+                        sizeText.setX(borderLine.getBoundsInParent().getMinX() - sizeText.getBoundsInParent().getWidth() - sceneFontSize);
+                        sizeText.setY(borderLine.getBoundsInParent().getMaxY() - sceneFontSize - 1);
+                    }
+
                 }
             }
         } catch (Exception e) {

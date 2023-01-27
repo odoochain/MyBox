@@ -8,7 +8,7 @@ import javafx.scene.control.RadioButton;
 import javafx.scene.control.Tooltip;
 import mara.mybox.bufferedimage.ImageScope;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.NodeStyleTools;
+import mara.mybox.fxml.style.NodeStyleTools;
 import mara.mybox.fxml.ValidationTools;
 import mara.mybox.tools.DateTools;
 import static mara.mybox.value.Languages.message;
@@ -18,7 +18,7 @@ import static mara.mybox.value.Languages.message;
  * @CreateDate 2021-8-13
  * @License Apache License Version 2.0
  */
-public class ImageManufactureScopeController_Set extends ImageManufactureScopeController_Outline {
+public abstract class ImageManufactureScopeController_Set extends ImageManufactureScopeController_Outline {
 
     protected void setScopeName() {
         if (scope == null) {
@@ -33,7 +33,7 @@ public class ImageManufactureScopeController_Set extends ImageManufactureScopeCo
 
     protected void setScopeControls() {
         try {
-            setBox.setVisible(scope != null && scope.getScopeType() != ImageScope.ScopeType.All);
+            setBox.setVisible(!scopeWhole());
             tabPane.getTabs().clear();
             scopeTips.setText("");
             NodeStyleTools.removeTooltip(scopeTips);
@@ -50,13 +50,13 @@ public class ImageManufactureScopeController_Set extends ImageManufactureScopeCo
                     break;
                 case Matting:
                     tips = message("ScopeMattingTips");
-                    tabPane.getTabs().addAll(pointsTab, matchTab, saveTab);
+                    tabPane.getTabs().addAll(pointsTab, matchTab, optionsTab, saveTab);
                     tabPane.getSelectionModel().select(pointsTab);
                     break;
 
                 case Rectangle:
                     tips = message("ScopeRectangleTips");
-                    tabPane.getTabs().addAll(areaTab, saveTab);
+                    tabPane.getTabs().addAll(areaTab, optionsTab, saveTab);
                     tabPane.getSelectionModel().select(areaTab);
                     areaBox.getChildren().clear();
                     areaBox.getChildren().add(rectangleBox);
@@ -65,7 +65,7 @@ public class ImageManufactureScopeController_Set extends ImageManufactureScopeCo
 
                 case Circle:
                     tips = message("ScopeCircleTips");
-                    tabPane.getTabs().addAll(areaTab, saveTab);
+                    tabPane.getTabs().addAll(areaTab, optionsTab, saveTab);
                     tabPane.getSelectionModel().select(areaTab);
                     areaBox.getChildren().clear();
                     areaBox.getChildren().add(circleBox);
@@ -73,7 +73,7 @@ public class ImageManufactureScopeController_Set extends ImageManufactureScopeCo
 
                 case Ellipse:
                     tips = message("ScopeEllipseTips");
-                    tabPane.getTabs().addAll(areaTab, saveTab);
+                    tabPane.getTabs().addAll(areaTab, optionsTab, saveTab);
                     tabPane.getSelectionModel().select(areaTab);
                     areaBox.getChildren().clear();
                     areaBox.getChildren().add(rectangleBox);
@@ -82,19 +82,19 @@ public class ImageManufactureScopeController_Set extends ImageManufactureScopeCo
 
                 case Polygon:
                     tips = message("ScopePolygonTips");
-                    tabPane.getTabs().addAll(pointsTab, saveTab);
+                    tabPane.getTabs().addAll(pointsTab, optionsTab, saveTab);
                     tabPane.getSelectionModel().select(pointsTab);
                     break;
 
                 case Color:
                     tips = message("ScopeColorTips");
-                    tabPane.getTabs().addAll(colorsTab, matchTab, saveTab);
+                    tabPane.getTabs().addAll(colorsTab, matchTab, optionsTab, saveTab);
                     tabPane.getSelectionModel().select(colorsTab);
                     break;
 
                 case RectangleColor:
                     tips = message("ScopeRectangleColorsTips");
-                    tabPane.getTabs().addAll(areaTab, colorsTab, matchTab, saveTab);
+                    tabPane.getTabs().addAll(areaTab, colorsTab, matchTab, optionsTab, saveTab);
                     tabPane.getSelectionModel().select(areaTab);
                     areaBox.getChildren().clear();
                     areaBox.getChildren().add(rectangleBox);
@@ -103,7 +103,7 @@ public class ImageManufactureScopeController_Set extends ImageManufactureScopeCo
 
                 case CircleColor:
                     tips = message("ScopeCircleColorsTips");
-                    tabPane.getTabs().addAll(areaTab, colorsTab, matchTab, saveTab);
+                    tabPane.getTabs().addAll(areaTab, colorsTab, matchTab, optionsTab, saveTab);
                     tabPane.getSelectionModel().select(areaTab);
                     areaBox.getChildren().clear();
                     areaBox.getChildren().add(circleBox);
@@ -111,7 +111,7 @@ public class ImageManufactureScopeController_Set extends ImageManufactureScopeCo
 
                 case EllipseColor:
                     tips = message("ScopeEllipseColorsTips");
-                    tabPane.getTabs().addAll(areaTab, colorsTab, matchTab, saveTab);
+                    tabPane.getTabs().addAll(areaTab, colorsTab, matchTab, optionsTab, saveTab);
                     tabPane.getSelectionModel().select(areaTab);
                     areaBox.getChildren().clear();
                     areaBox.getChildren().add(rectangleBox);
@@ -120,13 +120,13 @@ public class ImageManufactureScopeController_Set extends ImageManufactureScopeCo
 
                 case PolygonColor:
                     tips = message("ScopePolygonColorsTips");
-                    tabPane.getTabs().addAll(pointsTab, colorsTab, matchTab, saveTab);
+                    tabPane.getTabs().addAll(pointsTab, colorsTab, matchTab, optionsTab, saveTab);
                     tabPane.getSelectionModel().select(pointsTab);
                     break;
 
                 case Outline:
                     tips = message("ScopeOutlineTips");
-                    tabPane.getTabs().addAll(pixTab, saveTab);
+                    tabPane.getTabs().addAll(pixTab, optionsTab, saveTab);
                     tabPane.getSelectionModel().select(pixTab);
                     if (outlinesList.getItems().isEmpty()) {
                         initPixTab();

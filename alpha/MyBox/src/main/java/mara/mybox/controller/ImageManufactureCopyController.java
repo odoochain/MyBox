@@ -13,6 +13,7 @@ import mara.mybox.controller.ImageManufactureController_Image.ImageOperation;
 import mara.mybox.db.data.ImageClipboard;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fximage.ScopeTools;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.value.UserConfig;
 
 /**
@@ -34,6 +35,8 @@ public class ImageManufactureCopyController extends ImageManufactureOperationCon
     @Override
     public void initPane() {
         try {
+            super.initPane();
+
             colorSetController.init(this, baseName + "CopyColor");
 
             clipboardCheck.selectedProperty().addListener(new ChangeListener<Boolean>() {
@@ -61,7 +64,9 @@ public class ImageManufactureCopyController extends ImageManufactureOperationCon
     protected void paneExpanded() {
         imageController.showRightPane();
         imageController.resetImagePane();
-        imageController.scopeTab();
+        if (scopeController != null && !scopeController.scopeWhole()) {
+            imageController.scopeTab();
+        }
     }
 
     @FXML
@@ -71,7 +76,7 @@ public class ImageManufactureCopyController extends ImageManufactureOperationCon
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 private Image newImage;
 
@@ -83,8 +88,7 @@ public class ImageManufactureCopyController extends ImageManufactureOperationCon
                             newImage = imageView.getImage();
 
                         } else if (includeRadio.isSelected()) {
-                            if (scopeController.scope == null
-                                    || scopeController.scope.getScopeType() == ImageScope.ScopeType.All
+                            if (scopeController.scopeWhole()
                                     || scopeController.scope.getScopeType() == ImageScope.ScopeType.Operate) {
                                 newImage = imageView.getImage();
                             } else {
@@ -126,11 +130,7 @@ public class ImageManufactureCopyController extends ImageManufactureOperationCon
                     }
                 }
             };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
     }
 

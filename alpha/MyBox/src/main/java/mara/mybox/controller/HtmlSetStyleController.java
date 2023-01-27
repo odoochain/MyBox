@@ -9,14 +9,10 @@ import javafx.scene.control.CheckBox;
 import javafx.scene.control.TextArea;
 import mara.mybox.db.data.VisitHistory;
 import mara.mybox.dev.MyBoxLog;
+import mara.mybox.fxml.style.HtmlStyles;
 import mara.mybox.tools.FileNameTools;
-import mara.mybox.tools.FileTools;
 import mara.mybox.tools.HtmlWriteTools;
-
 import mara.mybox.tools.TextFileTools;
-import mara.mybox.value.AppVariables;
-import mara.mybox.value.HtmlStyles;
-import static mara.mybox.value.Languages.message;
 import mara.mybox.value.Languages;
 import mara.mybox.value.UserConfig;
 
@@ -27,7 +23,6 @@ import mara.mybox.value.UserConfig;
  */
 public class HtmlSetStyleController extends BaseBatchFileController {
 
-    protected Charset charset;
     protected String css;
 
     @FXML
@@ -69,7 +64,7 @@ public class HtmlSetStyleController extends BaseBatchFileController {
 
     @Override
     public boolean matchType(File file) {
-        String suffix = FileNameTools.getFileSuffix(file.getName());
+        String suffix = FileNameTools.suffix(file.getName());
         if (suffix == null) {
             return false;
         }
@@ -84,7 +79,8 @@ public class HtmlSetStyleController extends BaseBatchFileController {
             if (target == null) {
                 return Languages.message("Skip");
             }
-            String changed = HtmlWriteTools.setStyle(srcFile, css, ignoreCheck.isSelected());
+            Charset charset = TextFileTools.charset(srcFile);
+            String changed = HtmlWriteTools.setStyle(srcFile, charset, css, ignoreCheck.isSelected());
             if (changed == null) {
                 return Languages.message("Failed");
             }
@@ -100,7 +96,7 @@ public class HtmlSetStyleController extends BaseBatchFileController {
     @Override
     public File makeTargetFile(File sourceFile, File targetPath) {
         try {
-            String namePrefix = FileNameTools.getFilePrefix(sourceFile.getName());
+            String namePrefix = FileNameTools.prefix(sourceFile.getName());
             String nameSuffix = "";
             if (sourceFile.isFile()) {
                 nameSuffix = ".html";

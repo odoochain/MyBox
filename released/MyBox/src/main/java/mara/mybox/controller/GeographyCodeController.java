@@ -1,6 +1,7 @@
 package mara.mybox.controller;
 
 import java.io.File;
+import java.sql.Connection;
 import java.util.List;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
@@ -15,15 +16,16 @@ import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.Region;
 import javafx.scene.paint.Color;
-import mara.mybox.data.CoordinateSystem;
+import mara.mybox.data.GeoCoordinateSystem;
+import mara.mybox.db.data.BaseDataAdaptor;
 import mara.mybox.db.data.GeographyCode;
 import mara.mybox.db.data.GeographyCodeTools;
-import mara.mybox.db.table.DataFactory;
 import mara.mybox.db.table.TableGeographyCode;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fximage.FxColorTools;
 import mara.mybox.fxml.FxFileTools;
 import mara.mybox.fxml.LocateTools;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.fxml.cell.TableCoordinateSystemCell;
 import mara.mybox.fxml.cell.TableLatitudeCell;
 import mara.mybox.fxml.cell.TableLongitudeCell;
@@ -54,7 +56,7 @@ public class GeographyCodeController extends BaseDataManageController<GeographyC
     @FXML
     protected TableColumn<GeographyCode, String> sourceColumn;
     @FXML
-    protected TableColumn<GeographyCode, CoordinateSystem> coordinateSystemColumn;
+    protected TableColumn<GeographyCode, GeoCoordinateSystem> coordinateSystemColumn;
     @FXML
     protected ColorSet predefinedColorSetController, inputtedColorSetController;
 
@@ -70,6 +72,7 @@ public class GeographyCodeController extends BaseDataManageController<GeographyC
     @Override
     protected void initColumns() {
         try {
+            super.initColumns();
 
             levelColumn.setCellValueFactory(new PropertyValueFactory<>("levelName"));
             chinesenameColumn.setCellValueFactory(new PropertyValueFactory<>("chineseName"));
@@ -147,7 +150,7 @@ public class GeographyCodeController extends BaseDataManageController<GeographyC
     }
 
     public boolean mapCurrentPage() {
-        return !paginate || mapController.mapOptionsController.currentPageRadio.isSelected();
+        return true;
     }
 
     @FXML
@@ -163,10 +166,10 @@ public class GeographyCodeController extends BaseDataManageController<GeographyC
     }
 
     @Override
-    public List<GeographyCode> readPageData() {
+    public List<GeographyCode> readPageData(Connection conn) {
         setPageSQL();
 //        MyBoxLog.debug(dataQuerySQL);
-        return TableGeographyCode.queryCodes(pageQuerySQL, true);
+        return TableGeographyCode.queryCodes(conn, pageQuerySQL, true);
     }
 
     @Override
@@ -212,13 +215,12 @@ public class GeographyCodeController extends BaseDataManageController<GeographyC
             if (backgroundTask != null && !backgroundTask.isQuit()) {
                 return;
             }
-            backgroundTask = new SingletonTask<Void>() {
+            backgroundTask = new SingletonTask<Void>(this) {
                 private List<GeographyCode> mapData;
 
                 @Override
                 protected boolean handle() {
-                    mapData = TableGeographyCode.queryCodes(dataQuerySQL,
-                            mapController.mapOptionsController.dataMax, true);
+                    mapData = TableGeographyCode.queryCodes(dataQuerySQL, -1, true);
                     return true;
                 }
 
@@ -234,11 +236,7 @@ public class GeographyCodeController extends BaseDataManageController<GeographyC
                     backgroundTask = null;
                 }
             };
-            handling(backgroundTask);
-            backgroundTask.setSelf(backgroundTask);
-            Thread thread = new Thread(backgroundTask);
-            thread.setDaemon(false);
-            thread.start();
+            start(backgroundTask);
         }
     }
 
@@ -255,7 +253,7 @@ public class GeographyCodeController extends BaseDataManageController<GeographyC
 
     @FXML
     @Override
-    public void addAction(ActionEvent event) {
+    public void addAction() {
         try {
             GeographyCodeEditController controller = (GeographyCodeEditController) openStage(Fxmls.GeographyCodeEditFxml);
             controller.load(this, null);
@@ -267,7 +265,7 @@ public class GeographyCodeController extends BaseDataManageController<GeographyC
 
     @FXML
     @Override
-    public void editAction(ActionEvent event) {
+    public void editAction() {
         GeographyCode selected = (GeographyCode) tableView.getSelectionModel().getSelectedItem();
         if (selected == null) {
             return;
@@ -288,7 +286,7 @@ public class GeographyCodeController extends BaseDataManageController<GeographyC
         if (selected == null) {
             return;
         }
-        HtmlReadTools.htmlTable(Languages.message("GeographyCode"), DataFactory.displayData(tableDefinition, selected, null, true));
+        HtmlReadTools.htmlTable(Languages.message("GeographyCode"), BaseDataAdaptor.displayData(tableDefinition, selected, null, true));
     }
 
     @FXML
@@ -298,8 +296,8 @@ public class GeographyCodeController extends BaseDataManageController<GeographyC
             if (code == null) {
                 return;
             }
-            LocationInMapController controller = (LocationInMapController) openStage(Fxmls.LocationInMapFxml);
-            controller.loadCoordinate(null, code.getLongitude(), code.getLatitude());
+            LocationInMapController.load(code.getLongitude(), code.getLatitude());
+
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
         }
@@ -395,7 +393,7 @@ public class GeographyCodeController extends BaseDataManageController<GeographyC
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 @Override
                 protected boolean handle() {
@@ -408,11 +406,7 @@ public class GeographyCodeController extends BaseDataManageController<GeographyC
                     refreshAction();
                 }
             };
-            loading = handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            loading = start(task);
         }
     }
 
@@ -421,11 +415,11 @@ public class GeographyCodeController extends BaseDataManageController<GeographyC
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 @Override
                 protected boolean handle() {
-                    File file = FxFileTools.getInternalFile("/data/db/Geography_Code_china_towns_internal.csv",
+                    File file = FxFileTools.getInternalFile("/data/examples/Geography_Code_china_towns_internal.csv",
                             "data", "Geography_Code_china_towns_internal.csv");
                     GeographyCodeTools.importInternalCSV(loading, file, true);
                     return true;
@@ -436,11 +430,7 @@ public class GeographyCodeController extends BaseDataManageController<GeographyC
                     refreshAction();
                 }
             };
-            loading = handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            loading = start(task);
         }
     }
 
@@ -492,7 +482,7 @@ public class GeographyCodeController extends BaseDataManageController<GeographyC
             if (task != null && !task.isQuit()) {
                 return;
             }
-            task = new SingletonTask<Void>() {
+            task = new SingletonTask<Void>(this) {
 
                 @Override
                 protected boolean handle() {
@@ -513,11 +503,7 @@ public class GeographyCodeController extends BaseDataManageController<GeographyC
                     refreshAction();
                 }
             };
-            handling(task);
-            task.setSelf(task);
-            Thread thread = new Thread(task);
-            thread.setDaemon(false);
-            thread.start();
+            start(task);
         }
     }
 

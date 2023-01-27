@@ -5,11 +5,9 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.TextInputControl;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
-import javafx.scene.web.WebView;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fxml.NodeTools;
-import mara.mybox.fxml.TextClipboardTools;
-import mara.mybox.fxml.WebViewTools;
+import mara.mybox.fxml.WindowTools;
 import mara.mybox.value.AppVariables;
 
 /**
@@ -21,16 +19,15 @@ public abstract class BaseController_KeyEvents extends BaseController_Actions {
 
     private KeyEvent keyEvent;
 
+    // Flter from top level. Always handle at higher level at first.
     public void monitorKeyEvents() {
         try {
             if (thisPane != null) {
                 thisPane.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
                     keyEvent = event;
                     if (keyEventsFilter(event)) {
-//                        MyBoxLog.debug("consume:" + this.getClass() + " text:" + event.getText() + " code:" + event.getCode());
                         event.consume();
                     }
-                    keyEvent = null;
                 });
             }
         } catch (Exception e) {
@@ -40,22 +37,44 @@ public abstract class BaseController_KeyEvents extends BaseController_Actions {
 
     // return whether handled
     public boolean keyEventsFilter(KeyEvent event) {
-//        MyBoxLog.debug("filter:" + this.getClass() + " text:" + event.getText() + " code:" + event.getCode()
-//                + " source:" + event.getSource().getClass() + " target:" + event.getTarget().getClass());
-        if (event.isControlDown()) {
-            return controlAltFilter(event);
+        try {
+//            MyBoxLog.debug("window:" + getMyWindow().getClass() + "   isFocused:" + getMyWindow().isFocused()
+//                    + "  " + "filter:" + this.getClass() + " text:" + event.getText() + " code:" + event.getCode()
+//                    + " source:" + event.getSource().getClass() + " target:" + (event.getTarget() == null ? "null" : event.getTarget()));
+            keyEvent = event;
+            if (event.isControlDown()) {
+                return controlAltFilter(event);
 
-        } else if (event.isAltDown()) {
-            return altFilter(event);
+            } else if (event.isAltDown()) {
+                return altFilter(event);
 
-        } else if (event.getCode() != null) {
-            return keyFilter(event);
+            } else if (event.getCode() != null) {
+                return keyFilter(event);
 
+            }
+        } catch (Exception e) {
+            MyBoxLog.error(e.toString());
         }
         return false;
     }
 
+    // Shortcuts like PageDown/PageUp/Home/End/Ctrl-c/v/x/z/y/a should work for text editing preferentially
+    public boolean targetIsTextInput() {
+        if (keyEvent == null || keyEvent.getTarget() == null) {
+            return false;
+        }
+        String t = keyEvent.getTarget().toString();
+//        MyBoxLog.console(this.getClass() + "  " + keyEvent.getCode() + "  " + t);
+        if (t.contains("TextField") || t.contains("ComboBox")
+                || t.contains("TextArea") || t.contains("WebView")) {
+            return true;
+        }
+        // When popup is shown, event target is always popup pane even when focus is actually in text input
+        return NodeTools.textInputFocus(getMyScene()) != null;
+    }
+
     public boolean altFilter(KeyEvent event) {
+        keyEvent = event;
         if (!event.isAltDown() || event.getCode() == null) {
             return false;
         }
@@ -115,6 +134,7 @@ public abstract class BaseController_KeyEvents extends BaseController_Actions {
     }
 
     public boolean controlAltFilter(KeyEvent event) {
+        keyEvent = event;
         if (event.getCode() == null) {
             return false;
         }
@@ -218,43 +238,9 @@ public abstract class BaseController_KeyEvents extends BaseController_Actions {
         return false;
     }
 
-    // Shortcuts like PageDown/PageUp/Home/End/Ctrl-c/v/x/z/y/a should work for text editing preferentially
-    public boolean defaultHandled() {
-        if (keyEvent == null) {
-            return false;
-        }
-        return NodeTools.isTextInput(keyEvent.getTarget()) != null;
-    }
-
-    public boolean controlAltCTextInput() {
-        if (keyEvent == null) {
-            return false;
-        }
-        EventTarget target = keyEvent.getTarget();
-        if (target != null) {
-            if (target instanceof TextInputControl) {
-                TextClipboardTools.copyToSystemClipboard(myController, (TextInputControl) target);
-                return true;
-            }
-            if (target instanceof ComboBox) {
-                ComboBox cb = (ComboBox) target;
-                if (cb.isEditable()) {
-                    TextClipboardTools.copyToSystemClipboard(myController, cb.getEditor());
-                    return true;
-                }
-            }
-            if (target instanceof WebView) {
-                WebView webview = (WebView) target;
-                TextClipboardTools.copyToSystemClipboard(myController, WebViewTools.selectedText(webview.getEngine()));
-                return true;
-            }
-        }
-        return false;
-    }
-
     public boolean controlAltC() {
-        if (controlAltCTextInput()) {
-            return true;
+        if (targetIsTextInput()) {
+            return false;
         }
         if (copyButton != null) {
             if (!copyButton.isDisabled() && copyButton.isVisible()) {
@@ -277,7 +263,7 @@ public abstract class BaseController_KeyEvents extends BaseController_Actions {
     }
 
     public boolean controlAltV() {
-        if (defaultHandled()) {
+        if (targetIsTextInput()) {
             return false;
         }
         if (pasteButton != null) {
@@ -300,7 +286,7 @@ public abstract class BaseController_KeyEvents extends BaseController_Actions {
     }
 
     public boolean controlAltA() {
-        if (defaultHandled()) {
+        if (targetIsTextInput()) {
             return false;
         }
         if (allButton != null) {
@@ -340,7 +326,12 @@ public abstract class BaseController_KeyEvents extends BaseController_Actions {
             return true;
         } else if (addButton != null) {
             if (!addButton.isDisabled() && addButton.isVisible()) {
-                addAction(null);
+                addAction();
+            }
+            return true;
+        } else if (addRowsButton != null) {
+            if (!addRowsButton.isDisabled() && addRowsButton.isVisible()) {
+                addRowsAction();
             }
             return true;
         }
@@ -378,7 +369,7 @@ public abstract class BaseController_KeyEvents extends BaseController_Actions {
     }
 
     public boolean controlAltD() {
-        if (defaultHandled()) {
+        if (targetIsTextInput()) {
             return false;
         }
         if (deleteButton != null) {
@@ -401,7 +392,7 @@ public abstract class BaseController_KeyEvents extends BaseController_Actions {
     }
 
     public boolean controlAltX() {
-        if (defaultHandled()) {
+        if (targetIsTextInput()) {
             return false;
         }
         if (cropButton != null) {
@@ -434,7 +425,7 @@ public abstract class BaseController_KeyEvents extends BaseController_Actions {
     }
 
     public boolean controlAltZ() {
-        if (defaultHandled()) {
+        if (targetIsTextInput()) {
             return false;
         }
         if (undoButton != null) {
@@ -447,7 +438,7 @@ public abstract class BaseController_KeyEvents extends BaseController_Actions {
     }
 
     public boolean controlAltY() {
-        if (defaultHandled()) {
+        if (targetIsTextInput()) {
             return false;
         }
         if (redoButton != null) {
@@ -551,6 +542,7 @@ public abstract class BaseController_KeyEvents extends BaseController_Actions {
     }
 
     public boolean keyFilter(KeyEvent event) {
+        keyEvent = event;
         KeyCode code = event.getCode();
         if (code == null) {
             return false;
@@ -614,7 +606,7 @@ public abstract class BaseController_KeyEvents extends BaseController_Actions {
                 return keyESC();
 
         }
-        if (NodeTools.textInputFocus(getMyScene()) == null) {
+        if (!isPopup() && !targetIsTextInput()) {
             return controlAltFilter(event);
         }
         return false;
@@ -625,28 +617,28 @@ public abstract class BaseController_KeyEvents extends BaseController_Actions {
     }
 
     public boolean keyHome() {
-        if (defaultHandled()) {
+        if (targetIsTextInput()) {
             return false;
         }
         return altHome();
     }
 
     public boolean keyEnd() {
-        if (defaultHandled()) {
+        if (targetIsTextInput()) {
             return false;
         }
         return altEnd();
     }
 
     public boolean keyPageUp() {
-        if (defaultHandled()) {
+        if (targetIsTextInput()) {
             return false;
         }
         return altPageUp();
     }
 
     public boolean keyPageDown() {
-        if (defaultHandled()) {
+        if (targetIsTextInput()) {
             return false;
         }
         return altPageDown();
@@ -701,8 +693,9 @@ public abstract class BaseController_KeyEvents extends BaseController_Actions {
     }
 
     public boolean keyF6() {
-        closePopup();
-        return false; // continue to close
+        WindowTools.closeAllPopup();
+        MenuController.closeAll();
+        return true;
     }
 
     public boolean keyF7() {
@@ -739,11 +732,9 @@ public abstract class BaseController_KeyEvents extends BaseController_Actions {
         } else if (withdrawButton != null && !withdrawButton.isDisabled() && withdrawButton.isVisible()) {
             withdrawAction();
         }
-        closePopup();
-//                else if (stopButton != null && !stopButton.isDisabled()) {
-//                    stopAction();
-//                }
-        return false;  // continue to close
+        WindowTools.closeAllPopup();
+        MenuController.closeAll();
+        return true;
     }
 
 }

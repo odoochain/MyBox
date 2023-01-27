@@ -16,7 +16,7 @@ import javafx.scene.control.ToggleGroup;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.NodeStyleTools;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.fxml.TextClipboardTools;
 import mara.mybox.tools.ByteTools;
 import mara.mybox.tools.DateTools;
@@ -190,7 +190,7 @@ public class MessageDigestController extends BaseController {
     @Override
     public void startAction() {
         if (inputType == InputType.File) {
-            if (sourceFile == null || NodeStyleTools.badStyle.equals(sourceFileInput.getStyle())) {
+            if (sourceFile == null || UserConfig.badStyle().equals(sourceFileInput.getStyle())) {
                 resultArea.clear();
                 popError(Languages.message("InvalidData"));
                 return;
@@ -207,7 +207,7 @@ public class MessageDigestController extends BaseController {
                 if (task != null && !task.isQuit()) {
                     return;
                 }
-                task = new SingletonTask<Void>() {
+                task = new SingletonTask<Void>(this) {
 
                     private long datalen;
 
@@ -239,11 +239,7 @@ public class MessageDigestController extends BaseController {
                     }
 
                 };
-                handling(task);
-                task.setSelf(task);
-                Thread thread = new Thread(task);
-                thread.setDaemon(false);
-                thread.start();
+                start(task);
             }
 
         } catch (Exception e) {

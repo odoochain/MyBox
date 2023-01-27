@@ -2,11 +2,10 @@ package mara.mybox.controller;
 
 import java.io.File;
 import java.util.Iterator;
+import mara.mybox.db.data.VisitHistory;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.imagefile.ImageFileWriters;
 import mara.mybox.tools.FileNameTools;
-import mara.mybox.tools.FileTools;
-import mara.mybox.value.AppVariables;
 import mara.mybox.value.Languages;
 import org.apache.pdfbox.cos.COSName;
 import org.apache.pdfbox.pdmodel.PDPage;
@@ -27,6 +26,11 @@ public class PdfExtractImagesBatchController extends BaseBatchPdfController {
     }
 
     @Override
+    public void setFileType() {
+        setFileType(VisitHistory.FileType.PDF, VisitHistory.FileType.Image);
+    }
+
+    @Override
     public int handleCurrentPage() {
         int index = 0;
         try {
@@ -44,7 +48,7 @@ public class PdfExtractImagesBatchController extends BaseBatchPdfController {
                         continue;
                     }
                     PDImageXObject pdxObject = (PDImageXObject) pdResources.getXObject(cosName);
-                    String namePrefix = FileNameTools.getFilePrefix(currentParameters.currentSourceFile.getName())
+                    String namePrefix = FileNameTools.prefix(currentParameters.currentSourceFile.getName())
                             + "_page" + currentParameters.currentPage + "_index" + index;
                     String suffix = pdxObject.getSuffix();
                     File tFile = makeTargetFile(namePrefix, "." + suffix, currentParameters.currentTargetPath);

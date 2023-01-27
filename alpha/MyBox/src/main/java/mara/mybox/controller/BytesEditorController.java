@@ -1,7 +1,6 @@
 package mara.mybox.controller;
 
 import java.nio.charset.Charset;
-import java.util.List;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
@@ -12,15 +11,13 @@ import javafx.scene.Node;
 import javafx.scene.control.IndexRange;
 import javafx.scene.control.RadioButton;
 import javafx.scene.control.TextField;
-import javafx.scene.control.Toggle;
 import javafx.scene.input.ContextMenuEvent;
 import javafx.stage.Popup;
 import mara.mybox.data.FileEditInformation.Line_Break;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.NodeStyleTools;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.tools.ByteTools;
-import mara.mybox.tools.TextTools;
-import mara.mybox.value.Languages;
+import static mara.mybox.value.Languages.message;
 import mara.mybox.value.UserConfig;
 
 /**
@@ -38,9 +35,8 @@ public class BytesEditorController extends BaseFileEditorController {
     protected RadioButton lbWidthRadio, bytesRadio, lbLFRadio, lbCRRadio, lbCRLFRsadio;
 
     public BytesEditorController() {
-        baseTitle = Languages.message("BytesEditer");
+        baseTitle = message("BytesEditer");
         TipsLabelKey = "BytesEditerTips";
-
     }
 
     @Override
@@ -48,20 +44,26 @@ public class BytesEditorController extends BaseFileEditorController {
         setBytesType();
     }
 
+    @FXML
     @Override
-    protected void initLineBreakTab() {
+    public void refreshAction() {
         try {
-            super.initLineBreakTab();
+            if (sourceFile == null) {
+                formatMainArea();
+                updateInterface(false);
+            } else {
+                sourceInformation.setTotalNumberRead(false);
+                openFile(sourceFile);
+            }
+        } catch (Exception e) {
+            MyBoxLog.console(e);
+        }
+    }
 
-            lineBreakGroup.selectedToggleProperty().addListener(new ChangeListener<Toggle>() {
-                @Override
-                public void changed(ObservableValue<? extends Toggle> ov, Toggle old_toggle, Toggle new_toggle) {
-                    if (!isSettingValues) {
-                        checkLineBreakGroup();
-                    }
-                }
-            });
-
+    @Override
+    protected void initLineBreakGroup() {
+        try {
+            lbBytesInput.setText(UserConfig.getString(baseName + "LineBreakValue", "0D 0A "));
             lbBytesInput.textProperty().addListener(new ChangeListener<String>() {
                 @Override
                 public void changed(ObservableValue<? extends String> ov, String oldValue, String newValue) {
@@ -71,6 +73,7 @@ public class BytesEditorController extends BaseFileEditorController {
                 }
             });
 
+            lbWidthInput.setText(UserConfig.getString(baseName + "LineBreakWidth", "30"));
             lbWidthInput.textProperty().addListener(new ChangeListener<String>() {
                 @Override
                 public void changed(ObservableValue<? extends String> ov,
@@ -81,64 +84,49 @@ public class BytesEditorController extends BaseFileEditorController {
                 }
             });
 
-            isSettingValues = true;
-            lbBytesInput.setText(UserConfig.getString(baseName + "LineBreakValue", "0D 0A "));
-            lbWidthInput.setText(UserConfig.getString(baseName + "LineBreakWidth", "30"));
             String savedLB = UserConfig.getString(baseName + "LineBreak", "Width");
             if (savedLB.equals(Line_Break.Value.toString())) {
-                bytesRadio.fire();
+                bytesRadio.setSelected(true);
             } else if (savedLB.equals(Line_Break.LF.toString())) {
-                lbLFRadio.fire();
+                lbLFRadio.setSelected(true);
             } else if (savedLB.equals(Line_Break.CR.toString())) {
-                lbCRRadio.fire();
+                lbCRRadio.setSelected(true);
             } else if (savedLB.equals(Line_Break.CRLF.toString())) {
-                lbCRLFRsadio.fire();
+                lbCRLFRsadio.setSelected(true);
             } else {
-                lbWidthRadio.fire();
+                lbWidthRadio.setSelected(true);
             }
-            isSettingValues = false;
-            checkLineBreakGroup();
 
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
         }
     }
 
+    @Override
     protected void checkLineBreakGroup() {
         try {
-            isSettingValues = true;
-            RadioButton selected = (RadioButton) lineBreakGroup.getSelectedToggle();
-            if (Languages.message("BytesNumber").equals(selected.getText())) {
+            if (lbWidthRadio.isSelected()) {
                 lineBreak = Line_Break.Width;
-            } else if (Languages.message("BytesHex").equals(selected.getText())) {
+
+            } else if (bytesRadio.isSelected()) {
                 lineBreak = Line_Break.Value;
-            } else if (Languages.message("LFHex").equals(selected.getText())) {
+
+            } else if (lbLFRadio.isSelected()) {
                 lineBreak = Line_Break.LF;
                 lineBreakValue = "0A ";
-                sourceInformation.setLineBreakValue("0A ");
-            } else if (Languages.message("CRHex").equals(selected.getText())) {
+
+            } else if (lbCRRadio.isSelected()) {
                 lineBreak = Line_Break.CR;
                 lineBreakValue = "0D ";
-                sourceInformation.setLineBreakValue("0D ");
-            } else if (Languages.message("CRLFHex").equals(selected.getText())) {
+
+            } else if (lbCRLFRsadio.isSelected()) {
                 lineBreak = Line_Break.CRLF;
                 lineBreakValue = "0D 0A ";
-                sourceInformation.setLineBreakValue("0D 0A ");
             }
             UserConfig.setString(baseName + "LineBreak", lineBreak.toString());
-            sourceInformation.setLineBreak(lineBreak);
             checkBytesHex();
             checkBytesNumber();
-            isSettingValues = false;
 
-            if (sourceFile == null) {
-                validMainArea();
-                updateInterface(false);
-            } else {
-                sourceInformation.setTotalNumberRead(false);
-                openFile(sourceFile);
-
-            }
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
         }
@@ -150,9 +138,9 @@ public class BytesEditorController extends BaseFileEditorController {
                 lbBytesInput.setStyle(null);
                 return;
             }
-            final String v = ByteTools.validateTextHex(lbBytesInput.getText());
+            final String v = ByteTools.formatTextHex(lbBytesInput.getText());
             if (v == null || v.isEmpty()) {
-                lbBytesInput.setStyle(NodeStyleTools.badStyle);
+                lbBytesInput.setStyle(UserConfig.badStyle());
             } else {
                 lineBreakValue = v;
                 lbBytesInput.setStyle(null);
@@ -166,19 +154,10 @@ public class BytesEditorController extends BaseFileEditorController {
                     }
                 });
                 UserConfig.setString(baseName + "LineBreakValue", lineBreakValue);
-                sourceInformation.setLineBreakValue(lineBreakValue);
-                if (!isSettingValues) {
-                    if (sourceFile == null) {
-                        updateInterface(false);
-                    } else {
-                        sourceInformation.setObjectsNumber(-1);
-                        openFile(sourceFile);
-                    }
-                }
             }
 
         } catch (Exception e) {
-            lbBytesInput.setStyle(NodeStyleTools.badStyle);
+            lbBytesInput.setStyle(UserConfig.badStyle());
         }
 
     }
@@ -194,51 +173,25 @@ public class BytesEditorController extends BaseFileEditorController {
                 lineBreakWidth = v;
                 lbWidthInput.setStyle(null);
                 UserConfig.setInt(baseName + "LineBreakWidth", v);
-                sourceInformation.setLineBreakWidth(lineBreakWidth);
-                if (!isSettingValues) {
-                    if (sourceFile == null) {
-                        updateInterface(false);
-                    } else {
-                        sourceInformation.setTotalNumberRead(false);
-                        openFile(sourceFile);
-                    }
-                }
             } else {
-                lbWidthInput.setStyle(NodeStyleTools.badStyle);
+                lbWidthInput.setStyle(UserConfig.badStyle());
             }
 
         } catch (Exception e) {
-            lbWidthInput.setStyle(NodeStyleTools.badStyle);
+            lbWidthInput.setStyle(UserConfig.badStyle());
         }
     }
 
     @Override
-    protected void initCharsetTab() {
-        List<String> setNames = TextTools.getCharsetNames();
-        encodeSelector.getItems().addAll(setNames);
-        encodeSelector.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<String>() {
-            @Override
-            public void changed(ObservableValue ov, String oldValue, String newValue) {
-                sourceInformation.setCharset(Charset.forName(newValue));
-                UserConfig.setString(baseName + "Charset", newValue);
-                charsetByUser = true;
-                refreshPairAction();
-                updateNumbers(fileChanged.get());
-
-            }
-        });
-        encodeSelector.getSelectionModel().select(UserConfig.getString(baseName + "Charset", "UTF-8"));
-    }
-
-    @Override
-    protected boolean validMainArea() {
+    protected boolean validateMainArea() {
         return ByteTools.isBytesHex(mainArea.getText());
     }
 
+    @FXML
     @Override
     protected boolean formatMainArea() {
         String text = mainArea.getText();
-        text = ByteTools.validateTextHex(text);
+        text = ByteTools.formatTextHex(text);
         if (text != null) {
             if (text.isEmpty()) {
                 return true;
@@ -249,7 +202,7 @@ public class BytesEditorController extends BaseFileEditorController {
             isSettingValues = false;
             return true;
         } else {
-            popError(Languages.message("InvalidData"));
+            popError(message("InvalidData"));
             return false;
         }
     }
@@ -278,8 +231,13 @@ public class BytesEditorController extends BaseFileEditorController {
         if (pairArea.isDisable() || !splitPane.getItems().contains(rightPane)) {
             return;
         }
+        String c = charsetSelector.getSelectionModel().getSelectedItem();
+        if (c == null) {
+            return;
+        }
+        sourceInformation.setCharset(Charset.forName(c));
         pairArea.setDisable(true);
-        SingletonTask pairTask = new SingletonTask<Void>() {
+        SingletonTask pairTask = new SingletonTask<Void>(this) {
 
             private String pairText;
 
@@ -291,10 +249,11 @@ public class BytesEditorController extends BaseFileEditorController {
                         String[] lines = text.split("\n");
                         StringBuilder bytes = new StringBuilder();
                         String lineText;
-                        for (String line : lines) {
+                        for (String line
+                                : lines) {
                             byte[] hex = ByteTools.hexFormatToBytes(line);
                             if (hex == null) {
-                                error = Languages.message("InvalidData");
+                                error = message("InvalidData");
                                 return false;
                             }
                             lineText = new String(hex, sourceInformation.getCharset());
@@ -324,6 +283,7 @@ public class BytesEditorController extends BaseFileEditorController {
                     isSettingValues = false;
                     setPairAreaSelection();
                 }
+                updateNumbers(fileChanged.get());
             }
 
             @Override
@@ -331,10 +291,7 @@ public class BytesEditorController extends BaseFileEditorController {
                 pairArea.setDisable(false);
             }
         };
-        pairTask.setSelf(pairTask);
-        Thread thread = new Thread(pairTask);
-        thread.setDaemon(false);
-        thread.start();
+        start(pairTask, false, null);
     }
 
     @Override
@@ -368,7 +325,7 @@ public class BytesEditorController extends BaseFileEditorController {
     @FXML
     @Override
     public boolean popAction() {
-        BytesPopController.open(this, mainArea.getText());
+        BytesPopController.open(this, mainArea);
         return true;
     }
 

@@ -2,21 +2,22 @@ package mara.mybox.db.table;
 
 import java.io.File;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import mara.mybox.db.DerbyBase;
-import mara.mybox.db.data.ImageEditHistory;
-import mara.mybox.db.table.ColumnDefinition.ColumnType;
-import mara.mybox.dev.MyBoxLog;
 import mara.mybox.bufferedimage.ImageScope;
+import mara.mybox.db.DerbyBase;
+import mara.mybox.db.data.ColumnDefinition;
+import mara.mybox.db.data.ColumnDefinition.ColumnType;
+import mara.mybox.db.data.ImageEditHistory;
+import mara.mybox.dev.MyBoxLog;
 import mara.mybox.tools.DateTools;
 import mara.mybox.tools.FileDeleteTools;
 import mara.mybox.tools.FileNameTools;
-import mara.mybox.tools.FileTools;
-import mara.mybox.value.AppVariables;
+import mara.mybox.value.AppPaths;
 import mara.mybox.value.UserConfig;
 
 /**
@@ -43,7 +44,7 @@ public class TableImageEditHistory extends BaseTable<ImageEditHistory> {
     }
 
     public final TableImageEditHistory defineColumns() {
-        addColumn(new ColumnDefinition("iehid", ColumnType.Long, true, true).setIsID(true));
+        addColumn(new ColumnDefinition("iehid", ColumnType.Long, true, true).setAuto(true));
         addColumn(new ColumnDefinition("image_location", ColumnType.String, true).setLength(FilenameMaxLength));
         addColumn(new ColumnDefinition("history_location", ColumnType.String, true).setLength(FilenameMaxLength));
         addColumn(new ColumnDefinition("operation_time", ColumnType.Datetime, true));
@@ -51,7 +52,7 @@ public class TableImageEditHistory extends BaseTable<ImageEditHistory> {
         addColumn(new ColumnDefinition("object_type", ColumnType.String).setLength(128));
         addColumn(new ColumnDefinition("op_type", ColumnType.String).setLength(128));
         addColumn(new ColumnDefinition("scope_type", ColumnType.String).setLength(128));
-        addColumn(new ColumnDefinition("scope_name", ColumnType.String).setLength(4096));
+        addColumn(new ColumnDefinition("scope_name", ColumnType.String).setLength(StringMaxLength));
         return this;
     }
 
@@ -67,6 +68,7 @@ public class TableImageEditHistory extends BaseTable<ImageEditHistory> {
         }
         try ( Connection conn = DerbyBase.getConnection();
                  Statement statement = conn.createStatement()) {
+            List<ImageEditHistory> invalid = new ArrayList<>();
             String sql = " SELECT * FROM Image_Edit_History WHERE image_location='" + filename + "' ORDER BY operation_time DESC";
             try ( ResultSet results = statement.executeQuery(sql)) {
                 while (results.next()) {
@@ -79,26 +81,16 @@ public class TableImageEditHistory extends BaseTable<ImageEditHistory> {
                     his.setScopeType(results.getString("scope_type"));
                     his.setScopeName(results.getString("scope_name"));
                     his.setOperationTime(results.getTimestamp("operation_time"));
-                    records.add(his);
+
+                    if (!new File(his.getHistoryLocation()).exists() || records.size() >= max) {
+                        invalid.add(his);
+                    } else {
+                        records.add(his);
+                    }
                 }
             }
-            List<ImageEditHistory> valid = new ArrayList<>();
-            for (int i = 0; i < records.size(); ++i) {
-                String hisname = records.get(i).getHistoryLocation();
-                File hisFile = new File(hisname);
-                if (!hisFile.exists()) {
-                    deleteRecord(conn, filename, hisname);
-                    continue;
-                }
-                valid.add(records.get(i));
-            }
-            if (valid.size() > max) {
-                for (int i = max; i < valid.size(); ++i) {
-                    deleteRecord(conn, filename, valid.get(i).getHistoryLocation());
-                }
-                records = valid.subList(0, max);
-            } else {
-                records = valid;
+            for (ImageEditHistory h : invalid) {
+                deleteRecord(conn, h.getImage(), h.getHistoryLocation());
             }
         } catch (Exception e) {
             MyBoxLog.error(e);
@@ -120,7 +112,7 @@ public class TableImageEditHistory extends BaseTable<ImageEditHistory> {
         try {
             File hisFile = new File(hisname);
             FileDeleteTools.delete(hisFile);
-            File thumbFile = new File(FileNameTools.appendName(hisname, "_thumbnail"));
+            File thumbFile = new File(FileNameTools.append(hisname, "_thumbnail"));
             FileDeleteTools.delete(thumbFile);
         } catch (Exception e) {
             MyBoxLog.debug(e.toString());
@@ -247,7 +239,7 @@ public class TableImageEditHistory extends BaseTable<ImageEditHistory> {
                     FileDeleteTools.delete(results.getString("history_location"));
                 }
             }
-            String imageHistoriesPath = AppVariables.getImageHisPath();
+            String imageHistoriesPath = AppPaths.getImageHisPath();
             File path = new File(imageHistoriesPath);
             if (path.exists()) {
                 File[] files = path.listFiles();
@@ -263,6 +255,32 @@ public class TableImageEditHistory extends BaseTable<ImageEditHistory> {
             MyBoxLog.error(e);
             return -1;
         }
+    }
+
+    public int clearInvalid(Connection conn) {
+        int count = 0;
+        try {
+            conn.setAutoCommit(true);
+            List<ImageEditHistory> invalid = new ArrayList<>();
+            try ( PreparedStatement query = conn.prepareStatement(queryAllStatement());
+                     ResultSet results = query.executeQuery()) {
+                while (results.next()) {
+                    ImageEditHistory data = readData(results);
+                    if (data.getHistoryLocation() == null || !new File(data.getHistoryLocation()).exists()) {
+                        invalid.add(data);
+                    }
+                }
+
+            } catch (Exception e) {
+                MyBoxLog.debug(e, tableName);
+            }
+            count = invalid.size();
+            deleteData(conn, invalid);
+            conn.setAutoCommit(true);
+        } catch (Exception e) {
+            MyBoxLog.error(e, tableName);
+        }
+        return count;
     }
 
 }

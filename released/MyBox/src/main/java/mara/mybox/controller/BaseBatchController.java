@@ -28,18 +28,16 @@ import mara.mybox.data.FileInformation.FileSelectorType;
 import mara.mybox.data.ProcessParameters;
 import mara.mybox.dev.MyBoxLog;
 import mara.mybox.fxml.ControllerTools;
-import mara.mybox.fxml.NodeStyleTools;
-import mara.mybox.fxml.NodeTools;
-import static mara.mybox.fxml.NodeStyleTools.badStyle;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.fxml.SoundTools;
-import mara.mybox.fxml.StyleTools;
 import mara.mybox.fxml.ValidationTools;
+import mara.mybox.fxml.style.StyleTools;
 import mara.mybox.tools.DateTools;
 import mara.mybox.tools.DoubleTools;
 import mara.mybox.tools.FileNameTools;
 import mara.mybox.tools.StringTools;
 import mara.mybox.value.FileFilters;
-import mara.mybox.value.Languages;
+import static mara.mybox.value.Languages.message;
 import mara.mybox.value.UserConfig;
 
 /**
@@ -63,8 +61,6 @@ public abstract class BaseBatchController<T> extends BaseTaskController {
     protected FileSelectorType fileSelectorType;
     protected SimpleBooleanProperty optionsValid;
     protected ProcessParameters actualParameters, previewParameters, currentParameters;
-    protected StringBuffer newLogs;
-    protected int logsNewlines;
     protected Date processStartTime, fileStartTime;
     protected String finalTargetName;
 
@@ -106,10 +102,10 @@ public abstract class BaseBatchController<T> extends BaseTaskController {
     public String handleFile(File srcFile, File targetPath) {
         File target = makeTargetFile(srcFile, targetPath);
         if (target == null) {
-            return Languages.message("Skip");
+            return message("Skip");
         }
-        targetFileGenerated(target);
-        return Languages.message("Successful");
+        targetFileGenerated(target, true);
+        return message("Successful");
     }
 
     public void donePost() {
@@ -126,7 +122,7 @@ public abstract class BaseBatchController<T> extends BaseTaskController {
         } else if (targetFiles == null || targetFiles.size() == 1) {
             if (finalTargetName == null
                     || !new File(finalTargetName).exists()) {
-                alertInformation(Languages.message("NoDataNotSupported"));
+                alertInformation(message("NoDataNotSupported"));
             } else {
                 viewTarget(new File(finalTargetName));
             }
@@ -137,7 +133,7 @@ public abstract class BaseBatchController<T> extends BaseTaskController {
                 openTarget(null);
             }
         } else {
-            popInformation(Languages.message("NoFileGenerated"));
+            popInformation(message("NoFileGenerated"));
         }
     }
 
@@ -159,8 +155,8 @@ public abstract class BaseBatchController<T> extends BaseTaskController {
                 path = new File(finalTargetName).getParentFile();
             } else if (actualParameters != null && actualParameters.targetPath != null) {
                 path = new File(actualParameters.targetPath);
-            } else if (targetPathInput != null) {
-                String p = targetPathInput.getText();
+            } else if (targetPathController != null) {
+                String p = targetPathController.text();
                 if (targetPrefixInput != null && targetSubdirCheck != null && targetSubdirCheck.isSelected()) {
                     if (p.endsWith("/") || p.endsWith("\\")) {
                         p += targetPrefixInput.getText();
@@ -168,7 +164,7 @@ public abstract class BaseBatchController<T> extends BaseTaskController {
                         p += "/" + targetPrefixInput.getText();
                     }
                     if (!new File(p).exists()) {
-                        p = targetPathInput.getText();
+                        p = targetPathController.text();
                     }
                 }
                 path = new File(p);
@@ -177,7 +173,7 @@ public abstract class BaseBatchController<T> extends BaseTaskController {
                 browseURI(path.toURI());
                 recordFileOpened(path);
             } else {
-                popInformation(Languages.message("NoFileGenerated"));
+                popInformation(message("NoFileGenerated"));
             }
 
         } catch (Exception e) {
@@ -291,34 +287,34 @@ public abstract class BaseBatchController<T> extends BaseTaskController {
     public void initTargetSection() {
         try {
             if (startButton != null) {
-                if (targetPathInput != null) {
+                if (targetPathController != null) {
                     if (tableView != null) {
                         startButton.disableProperty().bind(
                                 Bindings.isEmpty(tableView.getItems())
-                                        .or(Bindings.isEmpty(targetPathInput.textProperty()))
-                                        .or(targetPathInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                                        .or(Bindings.isEmpty(targetPathController.fileInput.textProperty()))
+                                        .or(targetPathController.fileInput.styleProperty().isEqualTo(UserConfig.badStyle()))
                                         .or(optionsValid.not())
                         );
                     } else {
                         startButton.disableProperty().bind(
-                                Bindings.isEmpty(targetPathInput.textProperty())
-                                        .or(targetPathInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                                Bindings.isEmpty(targetPathController.fileInput.textProperty())
+                                        .or(targetPathController.fileInput.styleProperty().isEqualTo(UserConfig.badStyle()))
                                         .or(optionsValid.not())
                         );
                     }
 
-                } else if (targetFileInput != null) {
+                } else if (targetFileController != null) {
                     if (tableView != null) {
                         startButton.disableProperty().bind(
                                 Bindings.isEmpty(tableView.getItems())
-                                        .or(Bindings.isEmpty(targetFileInput.textProperty()))
-                                        .or(targetFileInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                                        .or(Bindings.isEmpty(targetFileController.fileInput.textProperty()))
+                                        .or(targetFileController.fileInput.styleProperty().isEqualTo(UserConfig.badStyle()))
                                         .or(optionsValid.not())
                         );
                     } else {
                         startButton.disableProperty().bind(
-                                Bindings.isEmpty(targetFileInput.textProperty())
-                                        .or(targetFileInput.styleProperty().isEqualTo(NodeStyleTools.badStyle))
+                                Bindings.isEmpty(targetFileController.fileInput.textProperty())
+                                        .or(targetFileController.fileInput.styleProperty().isEqualTo(UserConfig.badStyle()))
                                         .or(optionsValid.not())
                         );
                     }
@@ -408,7 +404,7 @@ public abstract class BaseBatchController<T> extends BaseTaskController {
         }
         isPreview = false;
         if (!makeActualParameters()) {
-            popError(Languages.message("InvalidParameters"));
+            popError(message("InvalidParameters"));
             actualParameters = null;
             return;
         }
@@ -455,16 +451,15 @@ public abstract class BaseBatchController<T> extends BaseTaskController {
         fileSelectorSize = tableController.fileSelectorSize;
         fileSelectorTime = tableController.fileSelectorTime;
 
-        if (targetFileInput != null) {
-            finalTargetName = targetFileInput.getText();
-            try {
-                targetFile = new File(finalTargetName);
-                targetPath = new File(targetFileInput.getText()).getParentFile();
-            } catch (Exception e) {
+        if (targetFileController != null) {
+            targetFile = targetFileController.file();
+            if (targetFile != null) {
+                finalTargetName = targetFile.getAbsolutePath();
+                targetPath = targetFile.getParentFile();
             }
         }
-        if (targetPathInput != null) {
-            targetPath = new File(targetPathInput.getText());
+        if (targetPathController != null) {
+            targetPath = targetPathController.file();
         }
         if (targetPath != null) {
             actualParameters.targetRootPath = targetPath.getAbsolutePath();
@@ -495,43 +490,44 @@ public abstract class BaseBatchController<T> extends BaseTaskController {
     }
 
     public boolean makeMoreParameters() {
-        if (tableData == null || tableData.isEmpty()) {
-            actualParameters = null;
+        try {
+            if (tableData == null || tableData.isEmpty()) {
+                actualParameters = null;
+                return false;
+            }
+            ObservableList<Integer> selected = tableView.getSelectionModel().getSelectedIndices();
+            for (int i = 0; i < tableData.size(); ++i) {
+                FileInformation d = tableController.fileInformation(i);
+                if (d == null) {
+                    continue;
+                }
+                d.setHandled("");
+                if (selected != null && !selected.isEmpty() && !selected.contains(i)) {
+                    continue;
+                }
+                File file = d.getFile();
+                if (!sourceFiles.contains(file)) {
+                    sourceFiles.add(file);
+                    if (isPreview) {
+                        break;
+                    }
+                }
+            }
+
+            initLogs();
+            totalFilesHandled = totalItemsHandled = 0;
+            processStartTime = new Date();
+            fileStartTime = new Date();
+            return true;
+        } catch (Exception e) {
+            MyBoxLog.debug(e.toString());
             return false;
         }
-        for (int i = 0; i < tableData.size(); ++i) {
-            FileInformation d = tableController.fileInformation(i);
-            if (d == null) {
-                continue;
-            }
-            d.setHandled("");
-            File file = d.getFile();
-            if (!isPreview && !sourceFiles.contains(file)) {
-                sourceFiles.add(file);
-            }
-        }
-        if (isPreview) {
-            int index = 0;
-            ObservableList<Integer> selected = tableView.getSelectionModel().getSelectedIndices();
-            if (selected != null && !selected.isEmpty()) {
-                index = selected.get(0);
-            }
-            File file = tableController.file(index);
-            if (!sourceFiles.contains(file)) {
-                sourceFiles.add(file);
-            }
-        }
-
-        initLogs();
-        totalFilesHandled = totalItemsHandled = 0;
-        processStartTime = new Date();
-        fileStartTime = new Date();
-        return true;
     }
 
     public boolean makePreviewParameters() {
         if (!makeActualParameters()) {
-            popError(Languages.message("Invalid"));
+            popError(message("Invalid"));
             actualParameters = null;
             return false;
         }
@@ -544,23 +540,6 @@ public abstract class BaseBatchController<T> extends BaseTaskController {
         currentParameters = previewParameters;
         isPreview = true;
         return true;
-    }
-
-    @Override
-    protected void initLogs() {
-        if (logsTextArea != null) {
-            logsTextArea.setText("");
-            newLogs = new StringBuffer();
-            logsNewlines = 0;
-            logsTotalLines = 0;
-            if (maxLinesinput != null) {
-                try {
-                    logsMaxLines = Integer.parseInt(maxLinesinput.getText());
-                } catch (Exception e) {
-                    logsMaxLines = 5000;
-                }
-            }
-        }
     }
 
     public File getCurrentFile() {
@@ -578,8 +557,9 @@ public abstract class BaseBatchController<T> extends BaseTaskController {
                 }
                 processStartTime = new Date();
                 totalFilesHandled = totalItemsHandled = 0;
+                tableController.markFileHandling(-1);
                 updateInterface("Started");
-                task = new SingletonTask<Void>() {
+                task = new SingletonTask<Void>(this) {
 
                     @Override
                     protected boolean handle() {
@@ -625,13 +605,11 @@ public abstract class BaseBatchController<T> extends BaseTaskController {
                         super.taskQuit();
                         quitProcess();
                         task = null;
+                        tableController.markFileHandling(-1);
                     }
 
                 };
-                task.setSelf(task);
-                Thread thread = new Thread(task);
-                thread.setDaemon(false);
-                thread.start();
+                start(task, false, null);
             }
 
         } catch (Exception e) {
@@ -687,15 +665,15 @@ public abstract class BaseBatchController<T> extends BaseTaskController {
             String result;
             countHandling(currentParameters.currentSourceFile);
             if (!currentParameters.currentSourceFile.exists()) {
-                result = Languages.message("NotFound");
+                result = message("NotFound");
             } else if (currentParameters.currentSourceFile.isFile()) {
                 result = handleFile(currentParameters.currentSourceFile);
             } else if (currentParameters.currentSourceFile.isDirectory()) {
                 result = handleDirectory(currentParameters.currentSourceFile);
             } else {
-                result = Languages.message("Invalid");
+                result = message("Invalid");
             }
-            if (!Languages.message("Successful").equals(result)) {
+            if (!message("Successful").equals(result)) {
                 updateLogs(result, true, true);
             }
             tableController.markFileHandled(currentParameters.currentIndex, result);
@@ -707,10 +685,10 @@ public abstract class BaseBatchController<T> extends BaseTaskController {
     public String handleFile(File file) {
         try {
             if (task == null || task.isCancelled()) {
-                return Languages.message("Canceled");
+                return message("Canceled");
             }
             if (file == null || !file.isFile() || !match(file)) {
-                return Languages.message("Skip" + ": " + file);
+                return message("Skip" + ": " + file);
             }
             if (currentParameters.targetPath != null) {
                 return handleFile(file, new File(currentParameters.targetPath));
@@ -738,7 +716,7 @@ public abstract class BaseBatchController<T> extends BaseTaskController {
             sourceFilesSelector = new String[0];
         }
         String fname = file.getName();
-        String suffix = FileNameTools.getFileSuffix(fname);
+        String suffix = FileNameTools.suffix(fname);
         switch (fileSelectorType) {
 
             case ExtensionEuqalAny:
@@ -859,10 +837,10 @@ public abstract class BaseBatchController<T> extends BaseTaskController {
             } else {
                 handleDirectory(dir, null);
             }
-            return MessageFormat.format(Languages.message("DirHandledSummary"), dirFilesNumber, dirFilesHandled);
+            return MessageFormat.format(message("DirHandledSummary"), dirFilesNumber, dirFilesHandled);
         } catch (Exception e) {
             MyBoxLog.debug(e.toString());
-            return Languages.message("Failed");
+            return message("Failed");
         }
     }
 
@@ -889,8 +867,8 @@ public abstract class BaseBatchController<T> extends BaseTaskController {
                         continue;
                     }
                     String result = handleFile(srcFile, targetPath);
-                    if (!Languages.message("Failed").equals(result)
-                            && !Languages.message("Skip").equals(result)) {
+                    if (!message("Failed").equals(result)
+                            && !message("Skip").equals(result)) {
                         dirFilesHandled++;
                     }
                 } else if (srcFile.isDirectory() && sourceCheckSubdir) {
@@ -975,8 +953,8 @@ public abstract class BaseBatchController<T> extends BaseTaskController {
         } catch (Exception e) {
         }
         fileStartTime = new Date();
-        String msg = MessageFormat.format(Languages.message("HandlingObject"), name);
-        updateStatusLabel(msg + "    " + Languages.message("StartTime") + ": " + DateTools.datetimeToString(fileStartTime));
+        String msg = MessageFormat.format(message("HandlingObject"), name);
+        updateStatusLabel(msg + "    " + message("StartTime") + ": " + DateTools.datetimeToString(fileStartTime));
         updateLogs(msg, true, true);
     }
 
@@ -995,75 +973,29 @@ public abstract class BaseBatchController<T> extends BaseTaskController {
     }
 
     @Override
-    protected void updateLogs(final String line) {
-        updateLogs(line, true, false);
-    }
-
-    protected void updateLogs(final String line, boolean immediate) {
-        updateLogs(line, true, immediate);
-    }
-
-    protected void updateLogs(final String line, boolean showTime, boolean immediate) {
-        if (logsTextArea == null) {
-            return;
-        }
-        Platform.runLater(() -> {
-            synchronized (logsTextArea) {
-                try {
-                    if (showTime) {
-                        newLogs.append(DateTools.datetimeToString(new Date())).append("  ");
-                    }
-                    newLogs.append(line).append("\n");
-                    logsNewlines++;
-                    long past = new Date().getTime() - processStartTime.getTime();
-                    if (immediate || logsTotalLines % 300 == 0 || past > 5000) {
-                        logsTextArea.appendText(newLogs.toString());
-                        logsTotalLines += logsNewlines;
-                        newLogs = new StringBuffer();
-                        logsNewlines = 0;
-                        if (logsTotalLines > logsMaxLines + logsCacheLines) {
-//                        logsTextArea.deleteText(0, newLogs.length());
-                            logsTextArea.clear();
-                            logsTotalLines = 0;
-                        }
-
-                    }
-                } catch (Exception e) {
-                    MyBoxLog.debug(e.toString());
-                }
-            }
-        }
-        );
-    }
-
-    @FXML
-    @Override
-    protected void clearLogs() {
-        logsTextArea.setText("");
-    }
-
-    @Override
-    public File makeTargetFile(String fileName, File targetPath) {
+    public File makeTargetFile(File srcFile, File targetPath) {
         File path = targetPath;
         if (targetSubdirCheck != null && targetSubdirCheck.isSelected()) {
-            path = new File(targetPath, FileNameTools.namePrefix(fileName));
+            path = new File(targetPath, FileNameTools.prefix(srcFile.getName()));
         }
-        return super.makeTargetFile(fileName, path);
+        return super.makeTargetFile(srcFile, path);
     }
 
     @Override
-    protected boolean targetFileGenerated(File target) {
+    public boolean targetFileGenerated(File target, int type, boolean record) {
         if (target == null || !target.exists() || target.length() == 0) {
             return false;
         }
         finalTargetName = target.getAbsolutePath();
         targetFiles.add(target);
         String msg;
-        msg = MessageFormat.format(Languages.message("FilesGenerated"), finalTargetName);
-        msg += "  " + Languages.message("Cost") + ":" + DateTools.datetimeMsDuration(new Date(), fileStartTime);
+        msg = MessageFormat.format(message("FilesGenerated"), finalTargetName);
+        msg += "  " + message("Cost") + ":" + DateTools.datetimeMsDuration(new Date(), fileStartTime);
         updateStatusLabel(msg);
         updateLogs(msg, true, true);
-        recordFileWritten(target);
+        if (record) {
+            recordFileWritten(target, type, type);
+        }
         return true;
     }
 
@@ -1075,13 +1007,14 @@ public abstract class BaseBatchController<T> extends BaseTaskController {
         targetFiles.addAll(tFiles);
         String msg;
         if (tFiles.size() == 1) {
-            msg = MessageFormat.format(Languages.message("FilesGenerated"), finalTargetName);
+            msg = MessageFormat.format(message("FilesGenerated"), finalTargetName);
         } else {
-            msg = MessageFormat.format(Languages.message("FilesGenerated"), tFiles.size());
+            msg = MessageFormat.format(message("FilesGenerated"), tFiles.size());
         }
-        msg += "  " + Languages.message("Cost") + ":" + DateTools.datetimeMsDuration(new Date(), fileStartTime);
+        msg += "  " + message("Cost") + ":" + DateTools.datetimeMsDuration(new Date(), fileStartTime);
         updateStatusLabel(msg);
         updateLogs(msg, true, true);
+        recordFileWritten(tFiles.get(0));
     }
 
     public void updateInterface(final String newStatus) {
@@ -1090,7 +1023,7 @@ public abstract class BaseBatchController<T> extends BaseTaskController {
             switch (newStatus) {
 
                 case "Started":
-                    StyleTools.setNameIcon(startButton, Languages.message("Stop"), "iconStop.png");
+                    StyleTools.setNameIcon(startButton, message("Stop"), "iconStop.png");
                     startButton.applyCss();
                     startButton.setOnAction((ActionEvent event) -> {
                         cancelProcess(event);
@@ -1098,7 +1031,7 @@ public abstract class BaseBatchController<T> extends BaseTaskController {
                     if (allowPaused) {
                         pauseButton.setVisible(true);
                         pauseButton.setDisable(false);
-                        StyleTools.setNameIcon(pauseButton, Languages.message("Pause"), "iconPause.png");
+                        StyleTools.setNameIcon(pauseButton, message("Pause"), "iconPause.png");
                         startButton.applyCss();
                         pauseButton.setOnAction((ActionEvent event) -> {
                             pauseProcess(event);
@@ -1114,21 +1047,21 @@ public abstract class BaseBatchController<T> extends BaseTaskController {
                 case "Done":
                 default:
                     if (paused) {
-                        StyleTools.setNameIcon(startButton, Languages.message("Stop"), "iconStop.png");
+                        StyleTools.setNameIcon(startButton, message("Stop"), "iconStop.png");
                         startButton.applyCss();
                         startButton.setOnAction((ActionEvent event) -> {
                             cancelProcess(event);
                         });
                         pauseButton.setVisible(true);
                         pauseButton.setDisable(false);
-                        StyleTools.setNameIcon(pauseButton, Languages.message("Start"), "iconStart.png");
+                        StyleTools.setNameIcon(pauseButton, message("Start"), "iconStart.png");
                         pauseButton.applyCss();
                         pauseButton.setOnAction((ActionEvent event) -> {
                             startAction();
                         });
                         disableControls(true);
                     } else {
-                        StyleTools.setNameIcon(startButton, Languages.message("Start"), "iconStart.png");
+                        StyleTools.setNameIcon(startButton, message("Start"), "iconStart.png");
                         startButton.applyCss();
                         startButton.setOnAction((ActionEvent event) -> {
                             startAction();
@@ -1157,32 +1090,32 @@ public abstract class BaseBatchController<T> extends BaseTaskController {
         long cost = new Date().getTime() - processStartTime.getTime();
         String s;
         if (paused) {
-            s = Languages.message("Paused");
+            s = message("Paused");
         } else {
-            s = Languages.message(currentParameters.status);
+            s = message(currentParameters.status);
         }
         String space = "   ";
         String avgString = "";
         if (totalFilesHandled > 0) {
-            s += ". " + Languages.message("HandledFiles") + ":" + totalFilesHandled + space;
-            avgString = DateTools.datetimeMsDuration(Math.round(countAverageTime(cost))) + " " + Languages.message("PerFile");
+            s += ". " + message("HandledFiles") + ":" + totalFilesHandled + space;
+            avgString = DateTools.datetimeMsDuration(Math.round(countAverageTime(cost))) + " " + message("PerFile");
         }
         if (totalItemsHandled > 0) {
-            s += ". " + Languages.message("HandledItems") + ":" + totalItemsHandled + space;
-            avgString += " " + DoubleTools.scale3((double) cost / totalItemsHandled) + " " + Languages.message("PerItem");
+            s += ". " + message("HandledItems") + ":" + totalItemsHandled + space;
+            avgString += " " + DoubleTools.scale3((double) cost / totalItemsHandled) + " " + message("PerItem");
         }
         int count = 0;
         if (targetFiles != null && !targetFiles.isEmpty()) {
             count = targetFiles.size();
-            popInformation(MessageFormat.format(Languages.message("FilesGenerated"), count));
+            popInformation(MessageFormat.format(message("FilesGenerated"), count));
         }
         if (count > 0) {
-            s += MessageFormat.format(Languages.message("FilesGenerated"), count) + space;
+            s += MessageFormat.format(message("FilesGenerated"), count) + space;
         }
-        s += Languages.message("Cost") + ": " + DateTools.datetimeMsDuration(new Date(), processStartTime) + "." + space
-                + Languages.message("Average") + ":" + avgString + " "
-                + Languages.message("StartTime") + ":" + DateTools.datetimeToString(processStartTime) + space
-                + Languages.message("EndTime") + ":" + DateTools.datetimeToString(new Date());
+        s += message("Cost") + ": " + DateTools.datetimeMsDuration(new Date(), processStartTime) + "." + space
+                + message("Average") + ":" + avgString + " "
+                + message("StartTime") + ":" + DateTools.datetimeToString(processStartTime) + space
+                + message("EndTime") + ":" + DateTools.datetimeToString(new Date());
         if (statusLabel != null) {
             statusLabel.setText(s);
         }

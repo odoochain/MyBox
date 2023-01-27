@@ -1,8 +1,6 @@
 package mara.mybox.db.data;
 
 import java.io.File;
-import java.io.FileWriter;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -14,7 +12,8 @@ import mara.mybox.db.DerbyBase;
 import mara.mybox.db.table.TableColor;
 import mara.mybox.db.table.TableColorPalette;
 import mara.mybox.dev.MyBoxLog;
-import org.apache.commons.csv.CSVFormat;
+import mara.mybox.tools.CsvTools;
+import mara.mybox.tools.FileTools;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.csv.CSVRecord;
@@ -46,7 +45,7 @@ public class ColorDataTools {
 
     public static void exportCSV(TableColor tableColor, File file) {
         try ( Connection conn = DerbyBase.getConnection();
-                 CSVPrinter printer = new CSVPrinter(new FileWriter(file, Charset.forName("utf-8")), CSVFormat.DEFAULT)) {
+                 CSVPrinter printer = CsvTools.csvPrinter(file)) {
             conn.setReadOnly(true);
             printHeader(printer, false);
             String sql = " SELECT * FROM Color ORDER BY color_value";
@@ -65,7 +64,7 @@ public class ColorDataTools {
 
     public static void exportCSV(TableColorPalette tableColorPalette, File file, ColorPaletteName palette) {
         try ( Connection conn = DerbyBase.getConnection();
-                 CSVPrinter printer = new CSVPrinter(new FileWriter(file, Charset.forName("utf-8")), CSVFormat.DEFAULT)) {
+                 CSVPrinter printer = CsvTools.csvPrinter(file)) {
             conn.setReadOnly(true);
             printHeader(printer, true);
             String sql = "SELECT * FROM Color_Palette_View WHERE paletteid=" + palette.getCpnid() + " ORDER BY order_number";
@@ -89,7 +88,7 @@ public class ColorDataTools {
     }
 
     public static void exportCSV(List<ColorData> dataList, File file, boolean orderNumber) {
-        try (final CSVPrinter printer = new CSVPrinter(new FileWriter(file, Charset.forName("utf-8")), CSVFormat.DEFAULT)) {
+        try (final CSVPrinter printer = CsvTools.csvPrinter(file)) {
             printHeader(printer, orderNumber);
             List<String> row = new ArrayList<>();
             for (ColorData data : dataList) {
@@ -137,8 +136,8 @@ public class ColorDataTools {
 
     public static List<ColorData> readCSV(File file, boolean reOrder) {
         List<ColorData> data = new ArrayList();
-        try (final CSVParser parser = CSVParser.parse(file, StandardCharsets.UTF_8,
-                CSVFormat.DEFAULT.withFirstRecordAsHeader().withDelimiter(',').withTrim().withNullString(""))) {
+        File validFile = FileTools.removeBOM(file);
+        try ( CSVParser parser = CSVParser.parse(validFile, StandardCharsets.UTF_8, CsvTools.csvFormat())) {
             List<String> names = parser.getHeaderNames();
             if (names == null || (!names.contains("rgba") && !names.contains("rgb"))) {
                 return null;
@@ -147,14 +146,14 @@ public class ColorDataTools {
             for (CSVRecord record : parser) {
                 try {
                     ColorData item = new ColorData();
-                    if (names.contains("name")) {
-                        item.setColorName(record.get("name"));
-                    }
                     if (names.contains("rgba")) {
                         item.setWeb(record.get("rgba"));
                     }
                     if (names.contains("rgb")) {
                         item.setRgb(record.get("rgb"));
+                    }
+                    if (names.contains("name")) {
+                        item.setColorName(record.get("name"));
                     }
                     try {
                         item.setColorValue(Integer.parseInt(record.get("value")));

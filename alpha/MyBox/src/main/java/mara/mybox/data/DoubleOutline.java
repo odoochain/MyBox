@@ -22,7 +22,7 @@ public class DoubleOutline extends DoubleRectangle {
 
     public DoubleOutline(BufferedImage image, int color) {
         this.image = image;
-        rectangle = new DoubleRectangle(0, 0, image.getWidth(), image.getHeight());
+        rectangle = new DoubleRectangle(0, 0, image.getWidth() - 1, image.getHeight() - 1);
         this.insideColor = color;
         offsetX = rectangle.getSmallX() >= 0 ? 0 : rectangle.getSmallX();
         offsetY = rectangle.getSmallY() >= 0 ? 0 : rectangle.getSmallY();
@@ -55,9 +55,9 @@ public class DoubleOutline extends DoubleRectangle {
     }
 
     @Override
-    public boolean include(double x, double y) {
+    public boolean contains(double x, double y) {
         try {
-            return isValid() && rectangle.include(x, y)
+            return isValid() && rectangle.contains(x, y)
                     && (image.getRGB((int) (x - offsetX), (int) (y - offsetY)) == insideColor);
         } catch (Exception e) {
 //            MyBoxLog.debug(e.toString());
@@ -72,10 +72,7 @@ public class DoubleOutline extends DoubleRectangle {
 
     @Override
     public DoubleOutline move(double offset) {
-        DoubleRectangle nRectangle = new DoubleRectangle(
-                smallX + offset, smallY + offset,
-                bigX + offset, bigY + offset);
-        return new DoubleOutline(image, nRectangle, insideColor);
+        return move(offset, offset);
     }
 
     @Override

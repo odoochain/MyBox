@@ -12,14 +12,16 @@ import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Separator;
 import javafx.scene.input.ContextMenuEvent;
 import javafx.scene.input.MouseEvent;
-import javafx.stage.Popup;
+import javafx.stage.Window;
+import mara.mybox.data.FileEditInformation;
 import mara.mybox.db.data.VisitHistory;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.NodeStyleTools;
-import mara.mybox.fxml.PopTools;
+import mara.mybox.fxml.WindowTools;
+import mara.mybox.fxml.style.NodeStyleTools;
 import mara.mybox.tools.ByteTools;
 import mara.mybox.value.Fxmls;
 import mara.mybox.value.Languages;
+import static mara.mybox.value.Languages.message;
 
 /**
  * @Author Mara
@@ -65,6 +67,8 @@ public class MenuBytesEditController extends MenuTextEditController {
                     @Override
                     public void handle(ActionEvent event) {
                         textInput.insertText(textInput.getSelection().getStart(), value);
+                        parentController.getMyWindow().requestFocus();
+                        textInput.requestFocus();
                     }
                 });
                 NodeStyleTools.setTooltip(button, value);
@@ -82,6 +86,8 @@ public class MenuBytesEditController extends MenuTextEditController {
                     @Override
                     public void handle(ActionEvent event) {
                         textInput.insertText(textInput.getSelection().getStart(), value);
+                        parentController.getMyWindow().requestFocus();
+                        textInput.requestFocus();
                     }
                 });
                 NodeStyleTools.setTooltip(button, value);
@@ -99,6 +105,8 @@ public class MenuBytesEditController extends MenuTextEditController {
                     @Override
                     public void handle(ActionEvent event) {
                         textInput.insertText(textInput.getSelection().getStart(), value);
+                        parentController.getMyWindow().requestFocus();
+                        textInput.requestFocus();
                     }
                 });
                 NodeStyleTools.setTooltip(button, value);
@@ -127,6 +135,8 @@ public class MenuBytesEditController extends MenuTextEditController {
                     @Override
                     public void handle(ActionEvent event) {
                         textInput.insertText(textInput.getSelection().getStart(), value);
+                        parentController.getMyWindow().requestFocus();
+                        textInput.requestFocus();
                     }
                 });
                 NodeStyleTools.setTooltip(button, value);
@@ -156,12 +166,36 @@ public class MenuBytesEditController extends MenuTextEditController {
     }
 
     @FXML
+    public void hexAction() {
+        String text = textInput.getText();
+        text = ByteTools.formatTextHex(text);
+        if (text != null) {
+            if (text.isEmpty()) {
+                return;
+            }
+            String hex;
+            if (parentController instanceof BytesEditorController) {
+                BytesEditorController c = (BytesEditorController) parentController;
+                FileEditInformation info = c.sourceInformation;
+                hex = ByteTools.formatHex(text, info.getLineBreak(), info.getLineBreakWidth(), info.getLineBreakValue());
+            } else {
+                hex = ByteTools.formatHex(text, FileEditInformation.Line_Break.Width, 30, "0A");
+            }
+            isSettingValues = true;
+            textInput.setText(hex);
+            isSettingValues = false;
+        } else {
+            popError(message("InvalidData"));
+        }
+    }
+
+    @FXML
     @Override
     public boolean popAction() {
         if (textInput == null) {
             return false;
         }
-        BytesPopController.open(parentController, textInput.getText());
+        BytesPopController.open(parentController, textInput);
         return true;
     }
 
@@ -173,15 +207,22 @@ public class MenuBytesEditController extends MenuTextEditController {
             if (parent == null || node == null) {
                 return null;
             }
-            Popup popup = PopTools.popWindow(parent, Fxmls.MenuBytesEditFxml, node, x, y);
-            if (popup == null) {
-                return null;
+            List<Window> windows = new ArrayList<>();
+            windows.addAll(Window.getWindows());
+            for (Window window : windows) {
+                Object object = window.getUserData();
+                if (object != null && object instanceof MenuBytesEditController) {
+                    try {
+                        MenuBytesEditController controller = (MenuBytesEditController) object;
+                        if (controller.textInput != null && controller.textInput.equals(node)) {
+                            controller.close();
+                        }
+                    } catch (Exception e) {
+                    }
+                }
             }
-            Object object = popup.getUserData();
-            if (object == null && !(object instanceof MenuBytesEditController)) {
-                return null;
-            }
-            MenuBytesEditController controller = (MenuBytesEditController) object;
+            MenuBytesEditController controller = (MenuBytesEditController) WindowTools.openChildStage(
+                    parent.getMyWindow(), Fxmls.MenuBytesEditFxml, false);
             controller.setParameters(parent, node, x, y);
             return controller;
         } catch (Exception e) {

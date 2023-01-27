@@ -17,6 +17,7 @@ import javafx.scene.control.Label;
 import javafx.scene.control.RadioButton;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.SplitPane;
+import javafx.scene.control.TabPane;
 import javafx.scene.control.TextField;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.image.ImageView;
@@ -27,11 +28,11 @@ import javafx.stage.FileChooser;
 import javafx.stage.Popup;
 import javafx.stage.Stage;
 import javafx.stage.Window;
-import mara.mybox.data.BaseTask;
 import mara.mybox.db.data.VisitHistory.FileType;
 import mara.mybox.db.data.VisitHistoryTools;
 import mara.mybox.fxml.LocateTools;
 import mara.mybox.fxml.PopTools;
+import mara.mybox.fxml.SingletonTask;
 import mara.mybox.value.Languages;
 import mara.mybox.value.UserConfig;
 
@@ -47,7 +48,7 @@ public abstract class BaseController_Attributes {
     protected int SourceFileType = -1, SourcePathType, TargetFileType, TargetPathType, AddFileType, AddPathType,
             operationType, dpi;
     protected List<FileChooser.ExtensionFilter> sourceExtensionFilter, targetExtensionFilter;
-    protected String myFxml, parentFxml, currentStatus, baseTitle, baseName, TipsLabelKey;
+    protected String myFxml, parentFxml, currentStatus, baseTitle, baseName, interfaceName, TipsLabelKey;
     protected Stage myStage;
     protected Scene myScene;
     protected Window myWindow;
@@ -55,18 +56,13 @@ public abstract class BaseController_Attributes {
     protected Timer popupTimer, timer;
     protected Popup popup;
     protected ContextMenu popMenu;
-    protected String targetFileSuffix, targetNameAppend;
+    protected String error, targetFileSuffix;
     protected boolean isSettingValues, isPop;
     protected File sourceFile, sourcePath, targetPath, targetFile;
     protected SaveAsType saveAsType;
-    protected TargetExistType targetExistType;
 
     protected enum SaveAsType {
-        Load, Open, None
-    }
-
-    public static enum TargetExistType {
-        Rename, Replace, Skip
+        Load, Open, Edit, None
     }
 
     @FXML
@@ -74,18 +70,21 @@ public abstract class BaseController_Attributes {
     @FXML
     protected MainMenuController mainMenuController;
     @FXML
-    protected TextField sourceFileInput, sourcePathInput, targetAppendInput,
-            targetPathInput, targetPrefixInput, targetFileInput, statusLabel;
+    protected TextField sourceFileInput, sourcePathInput, targetPrefixInput, statusLabel;
     @FXML
     protected OperationController operationBarController;
+    @FXML
+    protected ControlTargetPath targetPathController;
+    @FXML
+    protected ControlTargetFile targetFileController;
     @FXML
     protected Button selectFileButton, okButton, startButton, goButton, previewButton, playButton, stopButton,
             editButton, deleteButton, saveButton, cropButton, saveAsButton, undoButton, redoButton,
             clearButton, createButton, cancelButton, addButton, recoverButton, viewButton, popButton,
-            copyButton, copyToSystemClipboardButton, copyToMyBoxClipboardButton,
+            copyButton, copyToSystemClipboardButton, copyToMyBoxClipboardButton, addRowsButton,
             pasteButton, pasteContentInSystemClipboardButton, loadContentInSystemClipboardButton,
             myBoxClipboardButton, systemClipboardButton, selectButton, selectAllButton, selectNoneButton,
-            renameButton, tipsButton, setButton, allButton, menuButton, synchronizeButton,
+            renameButton, tipsButton, setButton, allButton, menuButton, synchronizeButton, panesMenuButton,
             firstButton, lastButton, previousButton, nextButton, pageFirstButton, pageLastButton, pagePreviousButton, pageNextButton,
             infoButton, metaButton, transparentButton, whiteButton, blackButton, withdrawButton;
     @FXML
@@ -95,18 +94,19 @@ public abstract class BaseController_Attributes {
     @FXML
     protected ImageView tipsView, rightTipsView, linksView, leftPaneControl, rightPaneControl;
     @FXML
-    protected CheckBox topCheck, saveCloseCheck, closeRightPaneCheck;
+    protected CheckBox topCheck, saveCloseCheck, rightPaneCheck, leftPaneCheck;
     @FXML
-    protected ToggleGroup saveAsGroup, targetExistGroup, fileTypeGroup;
+    protected ToggleGroup saveAsGroup, fileTypeGroup;
     @FXML
-    protected RadioButton saveLoadRadio, saveOpenRadio, saveJustRadio,
-            targetReplaceRadio, targetRenameRadio, targetSkipRadio;
+    protected RadioButton saveLoadRadio, saveOpenRadio, saveEditRadio, saveJustRadio;
     @FXML
     protected SplitPane splitPane;
     @FXML
     protected ScrollPane leftPane, rightPane;
     @FXML
     protected ComboBox<String> dpiSelector;
+    @FXML
+    protected TabPane tabPane;
 
     public void setFileType() {
         setFileType(FileType.All);
@@ -146,11 +146,24 @@ public abstract class BaseController_Attributes {
         return baseTitle;
     }
 
+    public String getRootBaseTitle() {
+        if (getMyStage() != null && myStage.getUserData() != null) {
+            return ((BaseController) myStage.getUserData()).getBaseTitle();
+        }
+        return baseTitle;
+    }
+
     public String getTitle() {
         if (getMyStage() != null) {
             return myStage.getTitle();
         } else {
             return getBaseTitle();
+        }
+    }
+
+    public void setTitle(String title) {
+        if (getMyStage() != null) {
+            myStage.setTitle(title);
         }
     }
 
@@ -187,6 +200,35 @@ public abstract class BaseController_Attributes {
             }
         }
         return myStage;
+    }
+
+    public boolean isPopup() {
+        Window win = getMyWindow();
+        return win != null && (win instanceof Popup);
+    }
+
+    public boolean isChild() {
+        if (getMyStage() != null) {
+            return myStage.getOwner() != null;
+        } else {
+            return false;
+        }
+    }
+
+    public Window owner() {
+        if (getMyStage() != null) {
+            return myStage.getOwner();
+        } else {
+            return null;
+        }
+    }
+
+    public boolean isShowing() {
+        if (getMyStage() != null) {
+            return myStage.isShowing();
+        } else {
+            return false;
+        }
     }
 
     /*
@@ -306,31 +348,17 @@ public abstract class BaseController_Attributes {
         return isPop;
     }
 
-    public void setIsPop(boolean isPop) {
-        this.isPop = isPop;
+    public boolean isIsSettingValues() {
+        return isSettingValues;
+    }
+
+    public String getInterfaceName() {
+        return interfaceName;
     }
 
     /*
         task
      */
-    public class SingletonTask<Void> extends BaseTask<Void> {
-
-        @Override
-        protected void whenSucceeded() {
-            popSuccessful();
-        }
-
-        @Override
-        protected void whenFailed() {
-            if (error != null) {
-                popError(error);
-            } else {
-                popFailed();
-            }
-        }
-
-    };
-
     public SingletonTask<Void> getTask() {
         return task;
     }
@@ -415,19 +443,19 @@ public abstract class BaseController_Attributes {
     }
 
     public void popInformation(String text, int duration, String size) {
-        popText(text, duration, UserConfig.getPopTextbgColor(), UserConfig.getPopInfoColor(), size, null);
+        popText(text, duration, UserConfig.textBgColor(), UserConfig.infoColor(), size, null);
     }
 
     public void popInformation(String text, int duration) {
-        popInformation(text, duration, UserConfig.getPopTextSize());
+        popInformation(text, duration, UserConfig.textSize());
     }
 
     public void popInformation(String text, Region attach) {
-        popText(text, UserConfig.getPopTextDuration(), UserConfig.getPopTextbgColor(), UserConfig.getPopInfoColor(), UserConfig.getPopTextSize(), attach);
+        popText(text, UserConfig.textDuration(), UserConfig.textBgColor(), UserConfig.infoColor(), UserConfig.textSize(), attach);
     }
 
     public void popInformation(String text) {
-        popInformation(text, UserConfig.getPopTextDuration(), UserConfig.getPopTextSize());
+        popInformation(text, UserConfig.textDuration(), UserConfig.textSize());
     }
 
     public void popSuccessful() {
@@ -443,11 +471,12 @@ public abstract class BaseController_Attributes {
     }
 
     public void popError(String text, int duration, String size) {
-        popText(text, duration, UserConfig.getPopTextbgColor(), UserConfig.getPopErrorColor(), size, null);
+        popText(text, duration, UserConfig.textBgColor(), UserConfig.errorColor(), size, null);
     }
 
     public void popError(String text) {
-        popError(text, UserConfig.getPopTextDuration(), UserConfig.getPopTextSize());
+//        MyBoxLog.debug(text);
+        popError(text, UserConfig.textDuration(), UserConfig.textSize());
     }
 
     public void popFailed() {
@@ -455,15 +484,15 @@ public abstract class BaseController_Attributes {
     }
 
     public void popWarn(String text, int duration, String size) {
-        popText(text, duration, UserConfig.getPopTextbgColor(), UserConfig.getPopWarnColor(), size, null);
+        popText(text, duration, UserConfig.textBgColor(), UserConfig.warnColor(), size, null);
     }
 
     public void popWarn(String text, int duration) {
-        popWarn(text, duration, UserConfig.getPopTextSize());
+        popWarn(text, duration, UserConfig.textSize());
     }
 
     public void popWarn(String text) {
-        popWarn(text, UserConfig.getPopTextDuration(), UserConfig.getPopTextSize());
+        popWarn(text, UserConfig.textDuration(), UserConfig.textSize());
     }
 
     @FXML
