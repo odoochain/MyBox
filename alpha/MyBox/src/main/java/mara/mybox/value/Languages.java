@@ -15,8 +15,9 @@ import static mara.mybox.value.AppVariables.currentBundle;
  */
 public class Languages {
 
-    public static final Locale LocaleZhCN = new Locale("zh", "CN");
-    public static final Locale LocaleEn = new Locale("en");
+//    public static final Locale LocaleZhCN = new Locale("zh", "CN");
+    public static final Locale LocaleZhCN = new Locale.Builder().setLanguage("zh").setRegion("CN").build();
+    public static final Locale LocaleEn = new Locale.Builder().setLanguage("en").setRegion("US").build();
     //    public static final Locale LocaleFrFR = new Locale("fr", "FR");
     //    public static final Locale LocaleEsES = new Locale("es", "ES");
     //    public static final Locale LocaleRuRU = new Locale("ru", "RU");

@@ -10,55 +10,73 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <mainClass>mara.mybox.MyBox</mainClass>
-        <maven.compiler.source>${javaVersion}</maven.compiler.source>
-        <maven.compiler.target>${javaVersion}</maven.compiler.target>
+        <java.version>19</java.version>
+        <maven.compiler.source>${java.version}</maven.compiler.source>
+        <maven.compiler.target>${java.version}</maven.compiler.target>
+        <javafx.version>19</javafx.version>
     </properties>
 
     <organization>
         <name>Mara</name>
     </organization>
-
+    <!--配置阿里云镜像-->
+    <repositories>
+        <repository>
+            <id>central</id>
+            <name>aliyun maven</name>
+            <url>https://maven.aliyun.com/nexus/content/groups/public/</url>
+            <layout>default</layout>
+            <!-- 是否开启发布版构件下载 -->
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <!-- 是否开启快照版构件下载 -->
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
     <dependencies>
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-base</artifactId>
-            <version>18.0.1</version>
+            <version>${javafx.version}</version>
             <classifier>${platform}</classifier>
         </dependency>
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-controls</artifactId>
-            <version>18.0.1</version>
+            <version>${javafx.version}</version>
             <classifier>${platform}</classifier>
         </dependency>
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-fxml</artifactId>
-            <version>18.0.1</version>
+            <version>${javafx.version}</version>
             <classifier>${platform}</classifier>
         </dependency>
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-web</artifactId>
-            <version>16</version>
+            <version>${javafx.version}</version>
             <classifier>${platform}</classifier>
         </dependency>
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-media</artifactId>
-            <version>18.0.1</version>
+            <version>${javafx.version}</version>
             <classifier>${platform}</classifier>
         </dependency>
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-graphics</artifactId>
-            <version>18.0.1</version>
+            <version>${javafx.version}</version>
             <classifier>${platform}</classifier>
         </dependency>
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-swing</artifactId>
-            <version>18.0.1</version>
+            <version>${javafx.version}</version>
             <classifier>${platform}</classifier>
         </dependency>
         <dependency>
@@ -248,7 +266,7 @@
             <plugin>
                 <groupId>org.openjfx</groupId>
                 <artifactId>javafx-maven-plugin</artifactId>
-                <version>0.0.6</version>
+                <version>0.0.8</version>
                 <configuration>
                     <mainClass>mara.mybox.MyBox</mainClass>
                 </configuration>
@@ -258,7 +276,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.8.1</version>
+                <version>3.10.1</version>
                 <configuration>
                     <showDeprecation>true</showDeprecation>
                     <debug>false</debug>

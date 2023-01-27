@@ -60,7 +60,7 @@ public class MyBox {
                                 AppVariables.MyboxDataPath = dataPathFile.getAbsolutePath();
                                 return true;
                             }
-                        } catch (Exception e) {
+                        } catch (Exception ignored) {
                         }
                     }
                 }
@@ -83,7 +83,7 @@ public class MyBox {
                     MyBoxLog.console("MyBox Data Path:" + AppVariables.MyboxDataPath);
                     return true;
                 }
-            } catch (Exception e) {
+            } catch (Exception ignored) {
             }
         }
         return true;

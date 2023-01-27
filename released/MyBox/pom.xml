@@ -6,7 +6,7 @@
     <artifactId>MyBox</artifactId>
     <version>6.7</version>
     <packaging>jar</packaging>
-    <name>MyBox</name>
+    <name>MyBox release</name>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <mainClass>mara.mybox.MyBox</mainClass>

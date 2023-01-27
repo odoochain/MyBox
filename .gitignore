@@ -24,3 +24,6 @@ hs_err_pid*
 
 
 /alpha/MyBox/target/
+/.idea/
+/released/MyBox/target/
+/released/MyBox/.idea/
