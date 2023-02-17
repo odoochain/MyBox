@@ -239,8 +239,7 @@ public class DownloadFirstLevelLinksController extends BaseTableViewController<L
             return;
         }
         super.checkButtons();
-        boolean isEmpty = tableData == null || tableData.isEmpty();
-        boolean none = isEmpty || tableView.getSelectionModel().getSelectedItem() == null;
+        boolean none = isNoneSelected();
         copyButton.setDisable(none);
         equalButton.setDisable(none);
         infoButton.setDisable(none);
@@ -517,7 +516,7 @@ public class DownloadFirstLevelLinksController extends BaseTableViewController<L
                 protected boolean handle() {
                     try {
                         URL url = new URL(address);
-                        File urlFile = HtmlReadTools.url2File(address);
+                        File urlFile = HtmlReadTools.url2file(address);
                         String html = TextFileTools.readTexts(urlFile);
                         if (html == null) {
                             return false;
@@ -612,7 +611,7 @@ public class DownloadFirstLevelLinksController extends BaseTableViewController<L
     public void startAction() {
         try {
             stopped = false;
-            List<Link> selected = tableView.getSelectionModel().getSelectedItems();
+            List<Link> selected = selectedItems();
             if (selected == null || selected.isEmpty()) {
                 return;
             }
@@ -688,7 +687,7 @@ public class DownloadFirstLevelLinksController extends BaseTableViewController<L
             });
             popMenu.getItems().add(menu);
 
-            menu = new MenuItem(message("PopupClose"), StyleTools.getIconImage("iconCancel.png"));
+            menu = new MenuItem(message("PopupClose"), StyleTools.getIconImageView("iconCancel.png"));
             menu.setStyle("-fx-text-fill: #2e598a;");
             menu.setOnAction(new EventHandler<ActionEvent>() {
                 @Override
@@ -706,7 +705,7 @@ public class DownloadFirstLevelLinksController extends BaseTableViewController<L
     }
 
     public void setPath() {
-        List<Link> selected = tableView.getSelectionModel().getSelectedItems();
+        List<Link> selected = selectedItems();
         if (selected == null || selected.isEmpty()) {
             return;
         }
@@ -733,7 +732,7 @@ public class DownloadFirstLevelLinksController extends BaseTableViewController<L
     }
 
     public void addOrderBeforeFilename() {
-        List<Link> selected = tableView.getSelectionModel().getSelectedItems();
+        List<Link> selected = selectedItems();
         if (selected == null || selected.isEmpty()) {
             return;
         }
@@ -752,7 +751,7 @@ public class DownloadFirstLevelLinksController extends BaseTableViewController<L
     }
 
     public void setFilename() {
-        List<Link> selected = tableView.getSelectionModel().getSelectedItems();
+        List<Link> selected = selectedItems();
         if (selected == null || selected.isEmpty()) {
             return;
         }
@@ -792,7 +791,7 @@ public class DownloadFirstLevelLinksController extends BaseTableViewController<L
         if (tabPane.getSelectionModel().getSelectedItem() != linksTab) {
             return;
         }
-        Link link = tableView.getSelectionModel().getSelectedItem();
+        Link link = selectedItem();
         if (link == null) {
             return;
         }
@@ -803,7 +802,7 @@ public class DownloadFirstLevelLinksController extends BaseTableViewController<L
     @FXML
     @Override
     public void infoAction() {
-        Link link = tableView.getSelectionModel().getSelectedItem();
+        Link link = selectedItem();
         if (link == null) {
             return;
         }
@@ -849,7 +848,7 @@ public class DownloadFirstLevelLinksController extends BaseTableViewController<L
 
     @FXML
     protected void openLink() {
-        Link link = tableView.getSelectionModel().getSelectedItem();
+        Link link = selectedItem();
         openLink(link);
     }
 
@@ -888,7 +887,7 @@ public class DownloadFirstLevelLinksController extends BaseTableViewController<L
                 + message("Name") + ": " + (link.getName() == null ? "" : link.getName()) + "<br>"
                 + message("Title") + ": " + (link.getTitle() == null ? "" : link.getTitle()) + "<br>"
                 + message("TargetFile") + ": " + link.getFile();
-        HtmlReadTools.htmlTable(message("Link"), s);
+        HtmlTableController.open(message("Link"), s);
     }
 
     @FXML
@@ -1166,7 +1165,7 @@ public class DownloadFirstLevelLinksController extends BaseTableViewController<L
                 link.setFile(file.getAbsolutePath());
 
                 updateLogs(message("Downloading") + ": " + url + " --> " + file);
-                File tmpFile = HtmlReadTools.url2File(url.toString());
+                File tmpFile = HtmlReadTools.url2file(url.toString());
                 if (tmpFile != null && tmpFile.exists()) {
                     FileTools.rename(tmpFile, file);
                     link.setDlTime(new Date());

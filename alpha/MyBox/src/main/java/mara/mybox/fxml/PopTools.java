@@ -57,6 +57,7 @@ import mara.mybox.fxml.style.HtmlStyles;
 import mara.mybox.fxml.style.NodeStyleTools;
 import mara.mybox.fxml.style.StyleTools;
 import mara.mybox.tools.DateTools;
+import mara.mybox.tools.StringTools;
 import mara.mybox.tools.SystemTools;
 import mara.mybox.value.AppVariables;
 import mara.mybox.value.Languages;
@@ -252,8 +253,7 @@ public class PopTools {
         if (name == null) {
             return null;
         }
-        name = name.replaceAll("_", " ");
-        return name.length() > 80 ? "..." + name.substring(name.length() - 80) : name;
+        return StringTools.end(name.replaceAll("_", " "), 80);
     }
 
     /*
@@ -423,7 +423,29 @@ public class PopTools {
 
             popMenu.getItems().add(new SeparatorMenuItem());
 
-            menu = new MenuItem(message("PopupClose"), StyleTools.getIconImage("iconCancel.png"));
+            menu = new MenuItem(message("CssEn"));
+            menu.setStyle("-fx-text-fill: blue;");
+            menu.setOnAction(new EventHandler<ActionEvent>() {
+                @Override
+                public void handle(ActionEvent event) {
+                    controller.openLink(HelpTools.cssEnLink());
+                }
+            });
+            popMenu.getItems().add(menu);
+
+            menu = new MenuItem(message("CssZh"));
+            menu.setStyle("-fx-text-fill: blue;");
+            menu.setOnAction(new EventHandler<ActionEvent>() {
+                @Override
+                public void handle(ActionEvent event) {
+                    controller.openLink(HelpTools.cssZhLink());
+                }
+            });
+            popMenu.getItems().add(menu);
+
+            popMenu.getItems().add(new SeparatorMenuItem());
+
+            menu = new MenuItem(message("PopupClose"), StyleTools.getIconImageView("iconCancel.png"));
             menu.setStyle("-fx-text-fill: #2e598a;");
             menu.setOnAction(new EventHandler<ActionEvent>() {
                 @Override
@@ -492,7 +514,7 @@ public class PopTools {
 
             popMenu.getItems().add(new SeparatorMenuItem());
 
-            menu = new MenuItem(message("PopupClose"), StyleTools.getIconImage("iconCancel.png"));
+            menu = new MenuItem(message("PopupClose"), StyleTools.getIconImageView("iconCancel.png"));
             menu.setStyle("-fx-text-fill: #2e598a;");
             menu.setOnAction(new EventHandler<ActionEvent>() {
                 @Override
@@ -590,7 +612,7 @@ public class PopTools {
                 UserConfig.setBoolean(name + "ValuesClearAndSet", true);
             } else {
                 CheckBox clearCheck = new CheckBox();
-                clearCheck.setGraphic(StyleTools.getIconImage("iconClear.png"));
+                clearCheck.setGraphic(StyleTools.getIconImageView("iconClear.png"));
                 NodeStyleTools.setTooltip(clearCheck, new Tooltip(message("ClearAndPaste")));
                 clearCheck.setSelected(UserConfig.getBoolean(name + "ValuesClearAndSet", false));
                 clearCheck.selectedProperty().addListener(new ChangeListener<Boolean>() {
@@ -604,7 +626,7 @@ public class PopTools {
 
             if (checkPop) {
                 CheckBox popCheck = new CheckBox();
-                popCheck.setGraphic(StyleTools.getIconImage("iconPop.png"));
+                popCheck.setGraphic(StyleTools.getIconImageView("iconPop.png"));
                 NodeStyleTools.setTooltip(popCheck, new Tooltip(message("PopWhenMouseHovering")));
                 popCheck.setSelected(UserConfig.getBoolean(name + "PopWhenMouseHovering", false));
                 popCheck.setOnAction(new EventHandler<ActionEvent>() {
@@ -798,7 +820,7 @@ public class PopTools {
             link.setOnAction(new EventHandler<ActionEvent>() {
                 @Override
                 public void handle(ActionEvent event) {
-                    parent.openLink("https://docs.oracle.com/en/java/javase/18/docs/api/java.base/java/text/SimpleDateFormat.html");
+                    parent.openLink(HelpTools.simpleDateFormatLink());
                 }
             });
             controller.addNode(link);
@@ -836,13 +858,13 @@ public class PopTools {
             menu.setOnAction(new EventHandler<ActionEvent>() {
                 @Override
                 public void handle(ActionEvent event) {
-                    parent.openLink("https://docs.oracle.com/en/java/javase/18/docs/api/java.base/java/text/SimpleDateFormat.html");
+                    parent.openLink(HelpTools.simpleDateFormatLink());
                 }
             });
             popMenu.getItems().add(menu);
             popMenu.getItems().add(new SeparatorMenuItem());
 
-            menu = new MenuItem(message("PopupClose"), StyleTools.getIconImage("iconCancel.png"));
+            menu = new MenuItem(message("PopupClose"), StyleTools.getIconImageView("iconCancel.png"));
             menu.setStyle("-fx-text-fill: #2e598a;");
             menu.setOnAction(new EventHandler<ActionEvent>() {
                 @Override
@@ -988,7 +1010,7 @@ public class PopTools {
             List<Node> topButtons = new ArrayList<>();
             if (isTextArea) {
                 Button newLineButton = new Button();
-                newLineButton.setGraphic(StyleTools.getIconImage("iconTurnOver.png"));
+                newLineButton.setGraphic(StyleTools.getIconImageView("iconTurnOver.png"));
                 NodeStyleTools.setTooltip(newLineButton, new Tooltip(message("Newline")));
                 newLineButton.setOnAction(new EventHandler<ActionEvent>() {
                     @Override
@@ -1002,7 +1024,7 @@ public class PopTools {
             }
 
             Button clearButton = new Button();
-            clearButton.setGraphic(StyleTools.getIconImage("iconClear.png"));
+            clearButton.setGraphic(StyleTools.getIconImageView("iconClear.png"));
             NodeStyleTools.setTooltip(clearButton, new Tooltip(message("ClearInputArea")));
             clearButton.setOnAction(new EventHandler<ActionEvent>() {
                 @Override
@@ -1015,7 +1037,7 @@ public class PopTools {
             topButtons.add(clearButton);
 
             CheckBox popCheck = new CheckBox();
-            popCheck.setGraphic(StyleTools.getIconImage("iconPop.png"));
+            popCheck.setGraphic(StyleTools.getIconImageView("iconPop.png"));
             NodeStyleTools.setTooltip(popCheck, new Tooltip(message("PopWhenMouseHovering")));
             popCheck.setSelected(UserConfig.getBoolean("SqlExamplesPopWhenMouseHovering", false));
             popCheck.setOnAction(new EventHandler<ActionEvent>() {
@@ -1110,7 +1132,7 @@ public class PopTools {
             }
 
             popMenu.getItems().add(new SeparatorMenuItem());
-            menu = new MenuItem(message("PopupClose"), StyleTools.getIconImage("iconCancel.png"));
+            menu = new MenuItem(message("PopupClose"), StyleTools.getIconImageView("iconCancel.png"));
             menu.setStyle("-fx-text-fill: #2e598a;");
             menu.setOnAction(new EventHandler<ActionEvent>() {
                 @Override
@@ -1135,7 +1157,7 @@ public class PopTools {
 
             List<Node> topButtons = new ArrayList<>();
             Button newLineButton = new Button();
-            newLineButton.setGraphic(StyleTools.getIconImage("iconTurnOver.png"));
+            newLineButton.setGraphic(StyleTools.getIconImageView("iconTurnOver.png"));
             NodeStyleTools.setTooltip(newLineButton, new Tooltip(message("Newline")));
             newLineButton.setOnAction(new EventHandler<ActionEvent>() {
                 @Override
@@ -1147,7 +1169,7 @@ public class PopTools {
             topButtons.add(newLineButton);
 
             Button clearInputButton = new Button();
-            clearInputButton.setGraphic(StyleTools.getIconImage("iconClear.png"));
+            clearInputButton.setGraphic(StyleTools.getIconImageView("iconClear.png"));
             NodeStyleTools.setTooltip(clearInputButton, new Tooltip(message("ClearInputArea")));
             clearInputButton.setOnAction(new EventHandler<ActionEvent>() {
                 @Override
@@ -1158,7 +1180,7 @@ public class PopTools {
             topButtons.add(clearInputButton);
 
             CheckBox popCheck = new CheckBox();
-            popCheck.setGraphic(StyleTools.getIconImage("iconPop.png"));
+            popCheck.setGraphic(StyleTools.getIconImageView("iconPop.png"));
             NodeStyleTools.setTooltip(popCheck, new Tooltip(message("PopWhenMouseHovering")));
             popCheck.setSelected(UserConfig.getBoolean(name + "PopWhenMouseHovering", false));
             popCheck.setOnAction(new EventHandler<ActionEvent>() {

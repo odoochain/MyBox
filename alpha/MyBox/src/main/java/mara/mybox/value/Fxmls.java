@@ -127,6 +127,7 @@ public class Fxmls {
     public static final String ImageManufactureBatchShadowFxml = "/fxml/ImageManufactureBatchShadow.fxml";
     public static final String ImageManufactureBatchTransformFxml = "/fxml/ImageManufactureBatchTransform.fxml";
     public static final String ImageManufactureBatchMarginsFxml = "/fxml/ImageManufactureBatchMargins.fxml";
+    public static final String SVGEditorFxml = "/fxml/SVGEditor.fxml";
 
     public static final String ImageConverterBatchFxml = "/fxml/ImageConverterBatch.fxml";
     public static final String ImagesSpliceFxml = "/fxml/ImagesSplice.fxml";
@@ -382,6 +383,7 @@ public class Fxmls {
     public static final String AddressInputFxml = "/fxml/AddressInput.fxml";
     public static final String TableAddRowsFxml = "/fxml/TableAddRows.fxml";
     public static final String DateInputFxml = "/fxml/DateInput.fxml";
+    public static final String SettingCustomColorsFxml = "/fxml/SettingCustomColors.fxml";
 
     public static final String MenuFxml = "/fxml/Menu.fxml";
     public static final String MenuTextEditFxml = "/fxml/MenuTextEdit.fxml";

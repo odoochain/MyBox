@@ -577,7 +577,7 @@ public class TreeManageController extends BaseSysTableController<TreeNode> {
             MenuItem menu;
 
             if (pasteButton != null) {
-                menu = new MenuItem(message("Paste"), StyleTools.getIconImage("iconPaste.png"));
+                menu = new MenuItem(message("Paste"), StyleTools.getIconImageView("iconPaste.png"));
                 menu.setOnAction((ActionEvent menuItemEvent) -> {
                     pasteAction();
                 });
@@ -585,14 +585,14 @@ public class TreeManageController extends BaseSysTableController<TreeNode> {
                 items.add(menu);
             }
 
-            menu = new MenuItem(message("Move"), StyleTools.getIconImage("iconRef.png"));
+            menu = new MenuItem(message("Move"), StyleTools.getIconImageView("iconRef.png"));
             menu.setOnAction((ActionEvent menuItemEvent) -> {
                 moveAction();
             });
             menu.setDisable(moveDataButton.isDisabled());
             items.add(menu);
 
-            menu = new MenuItem(message("Copy"), StyleTools.getIconImage("iconCopy.png"));
+            menu = new MenuItem(message("Copy"), StyleTools.getIconImageView("iconCopy.png"));
             menu.setOnAction((ActionEvent menuItemEvent) -> {
                 copyAction();
             });
@@ -620,8 +620,8 @@ public class TreeManageController extends BaseSysTableController<TreeNode> {
             return;
         }
         super.checkButtons();
-        boolean isEmpty = tableData == null || tableData.isEmpty();
-        boolean none = isEmpty || tableView.getSelectionModel().getSelectedItem() == null;
+
+        boolean none = isNoneSelected();
         deleteButton.setDisable(none);
         copyButton.setDisable(none);
         moveDataButton.setDisable(none);
@@ -645,7 +645,7 @@ public class TreeManageController extends BaseSysTableController<TreeNode> {
     @FXML
     @Override
     public void editAction() {
-        editNode(tableView.getSelectionModel().getSelectedItem());
+        editNode(selectedItem());
     }
 
     public void editNode(TreeNode node) {
@@ -669,7 +669,7 @@ public class TreeManageController extends BaseSysTableController<TreeNode> {
     @FXML
     @Override
     public void pasteAction() {
-        pasteNode(tableView.getSelectionModel().getSelectedItem());
+        pasteNode(selectedItem());
     }
 
     public void pasteNode(TreeNode node) {

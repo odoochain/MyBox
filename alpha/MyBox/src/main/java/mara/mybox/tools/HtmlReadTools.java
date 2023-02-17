@@ -2,10 +2,8 @@ package mara.mybox.tools;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.Charset;
@@ -26,7 +24,6 @@ import mara.mybox.data.FindReplaceString;
 import mara.mybox.data.Link;
 import mara.mybox.data.StringTable;
 import mara.mybox.dev.MyBoxLog;
-import mara.mybox.fxml.ControllerTools;
 import mara.mybox.value.AppValues;
 import mara.mybox.value.Languages;
 import mara.mybox.value.UserConfig;
@@ -48,9 +45,93 @@ public class HtmlReadTools {
 
 
     /*
-     read html
+        read html
      */
-    public static File url2File(String urlAddress) {
+    public static org.jsoup.nodes.Document url2doc(String urlAddress) {
+        try {
+            if (urlAddress == null) {
+                return null;
+            }
+            URL url;
+            try {
+                url = new URL(urlAddress);
+            } catch (Exception e) {
+                return null;
+            }
+            String protocal = url.getProtocol();
+            if ("file".equalsIgnoreCase(protocal)) {
+                return file2doc(new File(url.getFile()));
+
+            } else if ("http".equalsIgnoreCase(protocal) || "https".equalsIgnoreCase(protocal)) {
+                return Jsoup.connect(url.toString()).get();
+            }
+        } catch (Exception e) {
+            MyBoxLog.error(e.toString() + " " + urlAddress);
+        }
+        return null;
+    }
+
+    public static org.jsoup.nodes.Document file2doc(File file) {
+        try {
+            if (file == null || !file.exists()) {
+                return null;
+            }
+            return Jsoup.parse(TextFileTools.readTexts(file));
+        } catch (Exception e) {
+            MyBoxLog.debug(e.toString() + " " + file);
+            return null;
+        }
+    }
+
+    public static String url2html(String urlAddress) {
+        try {
+            org.jsoup.nodes.Document doc = url2doc(urlAddress);
+            if (doc != null) {
+                return doc.html();
+            }
+        } catch (Exception e) {
+            MyBoxLog.error(e.toString() + " " + urlAddress);
+        }
+        return null;
+    }
+
+    public static File url2file(String urlAddress) {
+        try {
+            org.jsoup.nodes.Document doc = url2doc(urlAddress);
+            if (doc == null) {
+                return null;
+            }
+            String html = doc.html();
+            File tmpFile = TmpFileTools.getTempFile();
+            TextFileTools.writeFile(tmpFile, html, doc.charset());
+            if (tmpFile == null || !tmpFile.exists()) {
+                return null;
+            }
+            if (tmpFile.length() == 0) {
+                FileDeleteTools.delete(tmpFile);
+                return null;
+            }
+            return tmpFile;
+        } catch (Exception e) {
+            MyBoxLog.error(e.toString() + " " + urlAddress);
+            return null;
+        }
+    }
+
+    public static String baseURI(String urlAddress) {
+        try {
+            org.jsoup.nodes.Document doc = url2doc(urlAddress);
+            if (doc == null) {
+                return null;
+            }
+            return doc.baseUri();
+        } catch (Exception e) {
+            MyBoxLog.debug(e.toString() + " " + urlAddress);
+            return null;
+        }
+    }
+
+    public static File download(String urlAddress) {
         try {
             if (urlAddress == null) {
                 return null;
@@ -135,15 +216,7 @@ public class HtmlReadTools {
         }
     }
 
-    public static String url2text(String urlAddress) {
-        File tmpFile = url2File(urlAddress);
-        if (tmpFile == null) {
-            return null;
-        }
-        return TextFileTools.readTexts(tmpFile);
-    }
-
-    public static File url2Image(String address, String name) {
+    public static File url2image(String address, String name) {
         try {
             if (address == null) {
                 return null;
@@ -163,7 +236,7 @@ public class HtmlReadTools {
                     && !"jpeg".equalsIgnoreCase(suffix) && !"tiff".equalsIgnoreCase(suffix))) {
                 suffix = "jpg";
             }
-            File tmpFile = url2File(address);
+            File tmpFile = download(address);
             if (tmpFile == null) {
                 return null;
             }
@@ -177,62 +250,6 @@ public class HtmlReadTools {
             MyBoxLog.debug(e, address);
             return null;
         }
-    }
-
-    public static String readURL(String address) {
-        try {
-            if (address == null) {
-                return null;
-            }
-            URL url;
-            try {
-                url = new URL(address);
-            } catch (Exception e) {
-                return null;
-            }
-            try (final BufferedReader in = new BufferedReader(new InputStreamReader(url.openStream()))) {
-                String inputLine;
-                StringBuilder sb = new StringBuilder();
-                while ((inputLine = in.readLine()) != null) {
-                    sb.append(inputLine).append("\n");
-                }
-                return sb.toString();
-            }
-        } catch (Exception e) {
-            MyBoxLog.debug(e.toString());
-            return null;
-        }
-    }
-
-    public static org.jsoup.nodes.Document url2doc(String urlAddress) {
-        try {
-            String html = url2text(urlAddress);
-            if (html == null) {
-                return null;
-            }
-            return Jsoup.parse(html);
-        } catch (Exception e) {
-            MyBoxLog.debug(e.toString());
-            return null;
-        }
-    }
-
-    public static org.jsoup.nodes.Document file2doc(File file) {
-        try {
-            String html = TextFileTools.readTexts(file);
-            ;
-            if (html == null) {
-                return null;
-            }
-            return Jsoup.parse(html);
-        } catch (Exception e) {
-            MyBoxLog.debug(e.toString());
-            return null;
-        }
-    }
-
-    public static HtmlTableController htmlTable(String title, String body) {
-        return ControllerTools.openHtmlTable(null, body);
     }
 
     public static void requestHead(BaseController controller, String link) {
@@ -255,7 +272,7 @@ public class HtmlReadTools {
                     return;
                 }
                 String table = requestHeadTable(url, head);
-                ControllerTools.openHtmlTable(null, table);
+                HtmlTableController.open(table);
             }
 
             @Override

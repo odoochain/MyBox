@@ -90,7 +90,7 @@ public class WebBrowserController extends BaseController {
                     Fxmls.WebAddressFxml), AppVariables.currentBundle);
             Pane pane = fxmlLoader.load();
             Tab tab = new Tab();
-            ImageView tabImage = StyleTools.getIconImage("iconMyBox.png");
+            ImageView tabImage = StyleTools.getIconImageView("iconMyBox.png");
             tab.setGraphic(tabImage);
             tab.setContent(pane);
             tabPane.getTabs().add(tabPane.getTabs().size() - 1, tab);
@@ -175,7 +175,7 @@ public class WebBrowserController extends BaseController {
 
                 @Override
                 protected boolean handle() {
-                    File tmpFile = HtmlReadTools.url2File(address);
+                    File tmpFile = HtmlReadTools.download(address);
                     return FileTools.rename(tmpFile, dnFile);
                 }
 
@@ -224,7 +224,7 @@ public class WebBrowserController extends BaseController {
         return controller;
     }
 
-    public static WebBrowserController oneOpen(File file) {
+    public static WebBrowserController openFile(File file) {
         WebBrowserController controller = oneOpen();
         if (controller != null && file != null) {
             controller.loadFile(file);
@@ -232,7 +232,7 @@ public class WebBrowserController extends BaseController {
         return controller;
     }
 
-    public static WebBrowserController oneOpen(String address, boolean focus) {
+    public static WebBrowserController openAddress(String address, boolean focus) {
         WebBrowserController controller = oneOpen();
         if (controller != null && address != null) {
             controller.loadAddress(address, focus);
@@ -240,7 +240,7 @@ public class WebBrowserController extends BaseController {
         return controller;
     }
 
-    public static WebAddressController oneLoad(String contents, boolean focus) {
+    public static WebAddressController openHtml(String contents, boolean focus) {
         WebBrowserController controller = oneOpen();
         if (controller != null && contents != null) {
             return controller.loadContents(contents, focus);

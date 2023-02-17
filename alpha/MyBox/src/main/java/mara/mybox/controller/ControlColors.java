@@ -191,7 +191,7 @@ public class ControlColors extends BaseSysTableController<ColorData> {
             paletteTabPane.getSelectionModel().selectedItemProperty().addListener(
                     (ObservableValue<? extends Tab> ov, Tab oldTab, Tab newTab) -> {
                         if (newTab == dataTab) {
-                            deleteButton.setDisable(tableView.getSelectionModel().getSelectedItem() == null);
+                            deleteButton.setDisable(isNoneSelected());
                         } else {
                             deleteButton.setDisable(clickedRect == null);
                         }
@@ -423,7 +423,7 @@ public class ControlColors extends BaseSysTableController<ColorData> {
         items.add(menu);
 
         items.add(new SeparatorMenuItem());
-        menu = new MenuItem(message("PopupClose"), StyleTools.getIconImage("iconCancel.png"));
+        menu = new MenuItem(message("PopupClose"), StyleTools.getIconImageView("iconCancel.png"));
         menu.setStyle("-fx-text-fill: #2e598a;");
         menu.setOnAction((ActionEvent menuItemEvent) -> {
             if (popMenu != null && popMenu.isShowing()) {
@@ -676,7 +676,7 @@ public class ControlColors extends BaseSysTableController<ColorData> {
             popMenu.getItems().add(menu);
 
             popMenu.getItems().add(new SeparatorMenuItem());
-            menu = new MenuItem(message("PopupClose"), StyleTools.getIconImage("iconCancel.png"));
+            menu = new MenuItem(message("PopupClose"), StyleTools.getIconImageView("iconCancel.png"));
             menu.setStyle("-fx-text-fill: #2e598a;");
             menu.setOnAction((ActionEvent event) -> {
                 popMenu.hide();
@@ -696,7 +696,7 @@ public class ControlColors extends BaseSysTableController<ColorData> {
         boolean isAll = isAllColors();
         String filename = isAll ? message("AllColors") : currentPalette.getName();
         if ("selected".equals(type)) {
-            rows = tableView.getSelectionModel().getSelectedItems();
+            rows = selectedItems();
             if (rows == null || rows.isEmpty()) {
                 popError(message("NoData"));
                 return;
@@ -756,7 +756,7 @@ public class ControlColors extends BaseSysTableController<ColorData> {
             boolean isAll = isAllColors();
             String title = isAll ? message("AllColors") : currentPalette.getName();
             if ("selected".equals(type)) {
-                rows = tableView.getSelectionModel().getSelectedItems();
+                rows = selectedItems();
                 if (rows == null || rows.isEmpty()) {
                     popError(message("NoData"));
                     return;
@@ -1021,7 +1021,7 @@ public class ControlColors extends BaseSysTableController<ColorData> {
         if (isSettingValues) {
             return;
         }
-        ColorData color = tableView.getSelectionModel().getSelectedItem();
+        ColorData color = selectedItem();
         copyButton.setDisable(color == null);
         if (color != null) {
             showRightPane();

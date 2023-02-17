@@ -22,6 +22,21 @@ import static mara.mybox.value.Languages.message;
  */
 public class StringTools {
 
+    public static String start(String string, int maxLen) {
+        if (string == null) {
+            return string;
+        }
+        return string.length() > maxLen ? string.substring(0, maxLen) : string;
+    }
+
+    public static String end(String string, int maxLen) {
+        if (string == null) {
+            return string;
+        }
+        int len = string.length();
+        return len > maxLen ? string.substring(len - maxLen, len) : string;
+    }
+
     public static String[] separatedBySpace(String string) {
         String[] ss = new String[2];
         String s = string.trim();
@@ -37,8 +52,10 @@ public class StringTools {
     }
 
     public static String[] splitBySpace(String string) {
-        String[] splitted = string.trim().split("\\s+");
-        return splitted;
+        if (string == null) {
+            return null;
+        }
+        return string.trim().split("\\s+");
     }
 
     public static String[] splitByComma(String string) {

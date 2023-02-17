@@ -39,7 +39,7 @@ public class HelpTools {
                 return;
             }
             SoundTools.miao5();
-            WebBrowserController.oneOpen(htmFile);
+            WebBrowserController.openFile(htmFile);
         } catch (Exception e) {
             MyBoxLog.error(e.toString());
         }
@@ -166,28 +166,84 @@ public class HelpTools {
     }
 
     public static void imageStories(BaseController controller) {
-        try {
-            StringTable table = new StringTable(null, message("StoriesOfImages"));
-            List<ImageItem> predefinedItems = ImageItem.predefined();
-            for (ImageItem item : predefinedItems) {
-                String comments = item.getComments();
-                File file = item.getFile();
-                if (comments == null || comments.isBlank()
-                        || file == null || !file.exists()) {
-                    continue;
+        SingletonTask task = new SingletonTask<Void>(controller) {
+            private File htmFile;
+
+            @Override
+            protected boolean handle() {
+                try {
+                    StringTable table = new StringTable(null, message("StoriesOfImages"));
+                    List<ImageItem> predefinedItems = ImageItem.predefined();
+                    for (ImageItem item : predefinedItems) {
+                        String comments = item.getComments();
+                        File file = item.getFile();
+                        if (comments == null || comments.isBlank()
+                                || file == null || !file.exists()) {
+                            continue;
+                        }
+                        setInfo(file.getAbsolutePath());
+                        table.newNameValueRow(
+                                "<Img src='" + file.toURI().toString() + "' width=" + item.getWidth() + ">",
+                                comments);
+                    }
+                    htmFile = HtmlWriteTools.writeHtml(table.html());
+                } catch (Exception e) {
+                    MyBoxLog.error(e.toString());
                 }
-                table.newNameValueRow(
-                        "<Img src='" + file.toURI().toString() + "' width=" + item.getWidth() + ">",
-                        comments);
+                return htmFile != null && htmFile.exists();
             }
-            File htmFile = HtmlWriteTools.writeHtml(table.html());
-            if (htmFile == null || !htmFile.exists()) {
-                return;
+
+            @Override
+            protected void whenSucceeded() {
+                controller.browse(htmFile);
             }
-            controller.browse(htmFile);
-        } catch (Exception e) {
-            MyBoxLog.error(e.toString());
-        }
+
+        };
+        controller.start(task);
+    }
+
+    public static String javaFxCssLink() {
+        return "https://docs.oracle.com/javafx/2/api/javafx/scene/doc-files/cssref.html";
+    }
+
+    public static String derbyLink() {
+        return "https://db.apache.org/derby/docs/10.15/ref/index.html";
+    }
+
+    public static String sqlLink() {
+        return "https://db.apache.org/derby/docs/10.15/ref/crefsqlj18919.html";
+    }
+
+    public static String javaLink() {
+        return "https://docs.oracle.com/javase/tutorial/java/index.html";
+    }
+
+    public static String javaAPILink() {
+        return "https://docs.oracle.com/en/java/javase/18/docs/api/index.html";
+    }
+
+    public static String javaMathLink() {
+        return "https://docs.oracle.com/en/java/javase/18/docs/api/java.base/java/lang/Math.html";
+    }
+
+    public static String decimalFormatLink() {
+        return "https://docs.oracle.com/en/java/javase/18/docs/api/java.base/java/text/DecimalFormat.html";
+    }
+
+    public static String simpleDateFormatLink() {
+        return "https://docs.oracle.com/en/java/javase/18/docs/api/java.base/java/text/SimpleDateFormat.html";
+    }
+
+    public static String renderingHintsLink() {
+        return "https://docs.oracle.com/en/java/javase/18/docs/api/java.desktop/java/awt/RenderingHints.html";
+    }
+
+    public static String cssEnLink() {
+        return "https://developer.mozilla.org/en-US/docs/web/css/reference";
+    }
+
+    public static String cssZhLink() {
+        return "https://www.w3school.com.cn/cssref/index.asp";
     }
 
 }

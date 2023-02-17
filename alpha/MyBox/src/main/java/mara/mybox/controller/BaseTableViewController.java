@@ -54,7 +54,7 @@ import mara.mybox.value.UserConfig;
 public abstract class BaseTableViewController<P> extends BaseController {
 
     protected ObservableList<P> tableData;
-    protected String tableName, idColumn, queryConditions, orderColumns, queryConditionsString;
+    protected String tableName, idColumnName, queryConditions, orderColumns, queryConditionsString;
     protected int pageSize, editingIndex, viewingIndex;
     protected long pagesNumber, dataSize;
     protected long currentPage, startRowOfCurrentPage;  // 0-based
@@ -341,7 +341,7 @@ public abstract class BaseTableViewController<P> extends BaseController {
             return;
         }
         items.add(new SeparatorMenuItem());
-        MenuItem menu = new MenuItem(message("PopupClose"), StyleTools.getIconImage("iconCancel.png"));
+        MenuItem menu = new MenuItem(message("PopupClose"), StyleTools.getIconImageView("iconCancel.png"));
         menu.setStyle("-fx-text-fill: #2e598a;");
         menu.setOnAction((ActionEvent menuItemEvent) -> {
             if (popMenu != null && popMenu.isShowing()) {
@@ -368,7 +368,7 @@ public abstract class BaseTableViewController<P> extends BaseController {
             List<MenuItem> group = new ArrayList<>();
 
             if (addButton != null && addButton.isVisible() && !addButton.isDisabled()) {
-                menu = new MenuItem(message("Add"), StyleTools.getIconImage("iconAdd.png"));
+                menu = new MenuItem(message("Add"), StyleTools.getIconImageView("iconAdd.png"));
                 menu.setOnAction((ActionEvent menuItemEvent) -> {
                     addAction();
                 });
@@ -376,7 +376,7 @@ public abstract class BaseTableViewController<P> extends BaseController {
             }
 
             if (viewButton != null && viewButton.isVisible() && !viewButton.isDisabled()) {
-                menu = new MenuItem(message("View"), StyleTools.getIconImage("iconView.png"));
+                menu = new MenuItem(message("View"), StyleTools.getIconImageView("iconView.png"));
                 menu.setOnAction((ActionEvent menuItemEvent) -> {
                     viewAction();
                 });
@@ -384,7 +384,7 @@ public abstract class BaseTableViewController<P> extends BaseController {
             }
 
             if (editButton != null && editButton.isVisible() && !editButton.isDisabled()) {
-                menu = new MenuItem(message("Edit"), StyleTools.getIconImage("iconEdit.png"));
+                menu = new MenuItem(message("Edit"), StyleTools.getIconImageView("iconEdit.png"));
                 menu.setOnAction((ActionEvent menuItemEvent) -> {
                     editAction();
                 });
@@ -392,7 +392,7 @@ public abstract class BaseTableViewController<P> extends BaseController {
             }
 
             if (deleteButton != null && deleteButton.isVisible() && !deleteButton.isDisabled()) {
-                menu = new MenuItem(message("Delete"), StyleTools.getIconImage("iconDelete.png"));
+                menu = new MenuItem(message("Delete"), StyleTools.getIconImageView("iconDelete.png"));
                 menu.setOnAction((ActionEvent menuItemEvent) -> {
                     deleteAction();
                 });
@@ -400,7 +400,7 @@ public abstract class BaseTableViewController<P> extends BaseController {
             }
 
             if (clearButton != null && clearButton.isVisible() && !clearButton.isDisabled()) {
-                menu = new MenuItem(message("Clear"), StyleTools.getIconImage("iconClear.png"));
+                menu = new MenuItem(message("Clear"), StyleTools.getIconImageView("iconClear.png"));
                 menu.setOnAction((ActionEvent menuItemEvent) -> {
                     clearAction();
                 });
@@ -414,7 +414,7 @@ public abstract class BaseTableViewController<P> extends BaseController {
 
             if (paginationPane == null || paginationPane.isVisible()) {
                 if (pageNextButton != null && pageNextButton.isVisible() && !pageNextButton.isDisabled()) {
-                    menu = new MenuItem(message("NextPage"), StyleTools.getIconImage("iconNext.png"));
+                    menu = new MenuItem(message("NextPage"), StyleTools.getIconImageView("iconNext.png"));
                     menu.setOnAction((ActionEvent menuItemEvent) -> {
                         pageNextAction();
                     });
@@ -422,7 +422,7 @@ public abstract class BaseTableViewController<P> extends BaseController {
                 }
 
                 if (pagePreviousButton != null && pagePreviousButton.isVisible() && !pagePreviousButton.isDisabled()) {
-                    menu = new MenuItem(message("PreviousPage"), StyleTools.getIconImage("iconPrevious.png"));
+                    menu = new MenuItem(message("PreviousPage"), StyleTools.getIconImageView("iconPrevious.png"));
                     menu.setOnAction((ActionEvent menuItemEvent) -> {
                         pagePreviousAction();
                     });
@@ -431,7 +431,7 @@ public abstract class BaseTableViewController<P> extends BaseController {
             }
 
             if (refreshButton != null && refreshButton.isVisible() && !refreshButton.isDisabled()) {
-                menu = new MenuItem(message("Refresh"), StyleTools.getIconImage("iconRefresh.png"));
+                menu = new MenuItem(message("Refresh"), StyleTools.getIconImageView("iconRefresh.png"));
                 menu.setOnAction((ActionEvent menuItemEvent) -> {
                     refreshAction();
                 });
@@ -439,7 +439,7 @@ public abstract class BaseTableViewController<P> extends BaseController {
             }
 
             if (moveUpButton != null && moveUpButton.isVisible() && !moveUpButton.isDisabled()) {
-                menu = new MenuItem(message("MoveUp"), StyleTools.getIconImage("iconUp.png"));
+                menu = new MenuItem(message("MoveUp"), StyleTools.getIconImageView("iconUp.png"));
                 menu.setOnAction((ActionEvent menuItemEvent) -> {
                     moveUpAction();
                 });
@@ -447,7 +447,7 @@ public abstract class BaseTableViewController<P> extends BaseController {
             }
 
             if (moveTopButton != null && moveTopButton.isVisible() && !moveTopButton.isDisabled()) {
-                menu = new MenuItem(message("MoveTop"), StyleTools.getIconImage("iconDoubleUp.png"));
+                menu = new MenuItem(message("MoveTop"), StyleTools.getIconImageView("iconDoubleUp.png"));
                 menu.setOnAction((ActionEvent menuItemEvent) -> {
                     moveTopAction();
                 });
@@ -455,26 +455,26 @@ public abstract class BaseTableViewController<P> extends BaseController {
             }
 
             if (moveDownButton != null && moveDownButton.isVisible() && !moveDownButton.isDisabled()) {
-                menu = new MenuItem(message("MoveDown"), StyleTools.getIconImage("iconDown.png"));
+                menu = new MenuItem(message("MoveDown"), StyleTools.getIconImageView("iconDown.png"));
                 menu.setOnAction((ActionEvent menuItemEvent) -> {
                     moveDownAction();
                 });
                 items.add(menu);
             }
 
-            menu = new MenuItem(message("Snapshot"), StyleTools.getIconImage("iconSnapshot.png"));
+            menu = new MenuItem(message("Snapshot"), StyleTools.getIconImageView("iconSnapshot.png"));
             menu.setOnAction((ActionEvent menuItemEvent) -> {
                 snapAction();
             });
             items.add(menu);
 
-            menu = new MenuItem("Html", StyleTools.getIconImage("iconHtml.png"));
+            menu = new MenuItem("Html", StyleTools.getIconImageView("iconHtml.png"));
             menu.setOnAction((ActionEvent menuItemEvent) -> {
                 htmlAction();
             });
             items.add(menu);
 
-            menu = new MenuItem(message("Data"), StyleTools.getIconImage("iconData.png"));
+            menu = new MenuItem(message("Data"), StyleTools.getIconImageView("iconData.png"));
             menu.setOnAction((ActionEvent menuItemEvent) -> {
                 dataAction();
             });
@@ -518,17 +518,11 @@ public abstract class BaseTableViewController<P> extends BaseController {
                         if (isSettingValues) {
                             return;
                         }
-                        isSettingValues = true;
                         if (newValue) {
-                            for (int i = 0; i < tableData.size(); i++) {
-                                tableView.getSelectionModel().select(i);
-                            }
+                            tableView.getSelectionModel().selectAll();
                         } else {
-                            for (int i = 0; i < tableData.size(); i++) {
-                                tableView.getSelectionModel().clearSelection(i);
-                            }
+                            tableView.getSelectionModel().clearSelection();
                         }
-                        isSettingValues = false;
                     }
                 });
             }
@@ -571,6 +565,58 @@ public abstract class BaseTableViewController<P> extends BaseController {
         }
     }
 
+    protected boolean isNoneSelected() {
+        return tableView.getSelectionModel().getSelectedIndices().isEmpty();
+    }
+
+    protected int selectedIndix() {
+        try {
+            int index = tableView.getSelectionModel().getSelectedIndex();
+            if (index >= 0 && index < tableData.size()) {
+                return index;
+            }
+            List<Integer> selected = tableView.getSelectionModel().getSelectedIndices();
+            if (selected != null && !selected.isEmpty()) {
+                return selected.get(0);
+            }
+        } catch (Exception e) {
+            MyBoxLog.console(e);
+        }
+        return -1;
+    }
+
+    protected P selectedItem() {
+        try {
+            int index = selectedIndix();
+            if (index >= 0 && index < tableData.size()) {
+                return tableData.get(index);
+            }
+        } catch (Exception e) {
+            MyBoxLog.console(e);
+        }
+        return null;
+    }
+
+    protected List<P> selectedItems() {
+        try {
+            List<P> items = tableView.getSelectionModel().getSelectedItems();
+            if (items != null) {
+                return items;
+            }
+            List<Integer> selected = tableView.getSelectionModel().getSelectedIndices();
+            if (selected != null && !selected.isEmpty()) {
+                items = new ArrayList<>();
+                for (int index : selected) {
+                    items.add(tableData.get(index));
+                }
+                return items;
+            }
+        } catch (Exception e) {
+            MyBoxLog.console(e);
+        }
+        return null;
+    }
+
     /*
         data
      */
@@ -611,7 +657,7 @@ public abstract class BaseTableViewController<P> extends BaseController {
     }
 
     public void copySelected() {
-        List<P> selected = tableView.getSelectionModel().getSelectedItems();
+        List<P> selected = selectedItems();
         if (selected == null || selected.isEmpty()) {
             return;
         }
@@ -684,7 +730,7 @@ public abstract class BaseTableViewController<P> extends BaseController {
             return;
         }
         boolean isEmpty = tableData == null || tableData.isEmpty();
-        boolean none = isEmpty || tableView.getSelectionModel().getSelectedItem() == null;
+        boolean none = isNoneSelected();
         if (deleteButton != null) {
             deleteButton.setDisable(none);
         }
@@ -755,18 +801,18 @@ public abstract class BaseTableViewController<P> extends BaseController {
 
             menu = new MenuItem(message("AddBeforeSelected"));
             menu.setOnAction((ActionEvent event) -> {
-                addRows(tableView.getSelectionModel().getSelectedIndex(), 1);
+                addRows(selectedIndix(), 1);
             });
             popMenu.getItems().add(menu);
 
             menu = new MenuItem(message("AddAfterSelected"));
             menu.setOnAction((ActionEvent event) -> {
-                addRows(tableView.getSelectionModel().getSelectedIndex() + 1, 1);
+                addRows(selectedIndix() + 1, 1);
             });
             popMenu.getItems().add(menu);
 
             popMenu.getItems().add(new SeparatorMenuItem());
-            menu = new MenuItem(message("PopupClose"), StyleTools.getIconImage("iconCancel.png"));
+            menu = new MenuItem(message("PopupClose"), StyleTools.getIconImageView("iconCancel.png"));
             menu.setStyle("-fx-text-fill: #2e598a;");
             menu.setOnAction(new EventHandler<ActionEvent>() {
                 @Override
@@ -784,7 +830,7 @@ public abstract class BaseTableViewController<P> extends BaseController {
 
     @FXML
     public void editAction() {
-        edit(tableView.getSelectionModel().getSelectedIndex());
+        edit(selectedIndix());
     }
 
     public void editNull() {
@@ -801,7 +847,7 @@ public abstract class BaseTableViewController<P> extends BaseController {
 
     @FXML
     public void viewAction() {
-        view(tableView.getSelectionModel().getSelectedIndex());
+        view(selectedIndix());
     }
 
     public void viewNull() {
@@ -824,7 +870,7 @@ public abstract class BaseTableViewController<P> extends BaseController {
 
     @FXML
     public void insertAction() {
-        addRows(tableView.getSelectionModel().getSelectedIndex(), 1);
+        addRows(selectedIndix(), 1);
     }
 
     @FXML
@@ -880,7 +926,7 @@ public abstract class BaseTableViewController<P> extends BaseController {
 
     protected int deleteSelectedData() {
         List<P> selected = new ArrayList<>();
-        selected.addAll(tableView.getSelectionModel().getSelectedItems());
+        selected.addAll(selectedItems());
         if (selected.isEmpty()) {
             return 0;
         }
@@ -943,7 +989,7 @@ public abstract class BaseTableViewController<P> extends BaseController {
 
     @FXML
     public void deleteRowsAction() {
-        List<P> selected = tableView.getSelectionModel().getSelectedItems();
+        List<P> selected = selectedItems();
         if (selected == null || selected.isEmpty()) {
             deleteAllRows();
             return;
@@ -1030,7 +1076,7 @@ public abstract class BaseTableViewController<P> extends BaseController {
     @FXML
     public void moveTopAction() {
         List<P> selected = new ArrayList<>();
-        selected.addAll(tableView.getSelectionModel().getSelectedItems());
+        selected.addAll(selectedItems());
         if (selected.isEmpty()) {
             return;
         }
@@ -1175,7 +1221,7 @@ public abstract class BaseTableViewController<P> extends BaseController {
 
     @FXML
     public void snapAction() {
-        ImageViewerController.load(NodeTools.snap(tableView));
+        ImageViewerController.openImage(NodeTools.snap(tableView));
     }
 
     /*

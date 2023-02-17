@@ -442,7 +442,12 @@ public class StyleButton {
             return new StyleData(id, message("Width"), "", "iconXRuler.png");
         }
         if (id.startsWith("go")) {
-            return new StyleData(id, message("Go"), "", "iconGo.png");
+            switch (id) {
+                case "goButton":
+                    return new StyleData(id, message("Go"), "F1 / CTRL+e / ALT+e", "iconGo.png");
+                default:
+                    return new StyleData(id, message("Go"), "", "iconGo.png");
+            }
         }
         if (id.startsWith("preview")) {
             return new StyleData(id, message("PreviewComments"), "", "iconExamples.png");
@@ -466,12 +471,12 @@ public class StyleButton {
             return new StyleData(id, message("List"), "", "iconList.png");
         }
         if (id.startsWith("codes")) {
-            return new StyleData(id, "", "", "iconMeta.png");
+            return new StyleData(id, message("Codes"), "", "iconMeta.png");
         }
         if (id.startsWith("fold")) {
             return new StyleData(id, message("Fold"), "", "iconMinus.png");
         }
-        if (id.startsWith("unford")) {
+        if (id.startsWith("unfold")) {
             return new StyleData(id, message("Unfold"), "", "iconTree.png");
         }
         if (id.startsWith("moveData")) {

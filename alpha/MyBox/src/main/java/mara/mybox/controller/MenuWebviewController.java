@@ -91,13 +91,13 @@ public class MenuWebviewController extends MenuController {
 
             checkWebviewPane();
 
-            if (webViewController instanceof ControlHtmlEditor) {
-                setTitleid(((ControlHtmlEditor) webViewController).htmlEditor.getId());
+            if (webViewController instanceof ControlHtmlRichEditor) {
+                setTitleid(((ControlHtmlRichEditor) webViewController).htmlEditor.getId());
             } else {
                 setTitleid(webView.getId());
             }
 
-            if (webViewController instanceof ControlHtmlEditor) {
+            if (webViewController instanceof ControlHtmlRichEditor) {
                 editableCheck.setVisible(false);
             } else {
                 editableCheck.setVisible(true);
@@ -196,7 +196,9 @@ public class MenuWebviewController extends MenuController {
     @Override
     public boolean keyEventsFilter(KeyEvent event) {
         if (!super.keyEventsFilter(event)) {
-            return webViewController.keyEventsFilter(event);
+            if (webViewController != null) {
+                return webViewController.keyEventsFilter(event);
+            }
         }
         return true;
     }
@@ -301,7 +303,7 @@ public class MenuWebviewController extends MenuController {
         if (webView == null) {
             return;
         }
-        ImageViewerController.load(NodeTools.snap(webView));
+        ImageViewerController.openImage(NodeTools.snap(webView));
     }
 
     @FXML
